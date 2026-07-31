@@ -63,7 +63,7 @@
         const s = document.createElement("script");
         s.src = url;
         s.onload = () => resolve(url);
-        s.onerror = () => { console.warn("Failed to load", url, "trying next source…"); tryNext(); };
+        s.onerror = () => { console.warn("Failed to load", url, "trying next source\u2026"); tryNext(); };
         document.head.appendChild(s);
       }
       tryNext();
@@ -86,6 +86,7 @@
     .then(() => { window.__fbReady = true; })
     .catch((e) => { console.error("Firebase library failed to load from every source:", e); window.__fbLoadFailed = true; });
 </script>
+
 
 <style>
   :root {
