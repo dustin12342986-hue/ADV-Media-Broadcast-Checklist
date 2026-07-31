@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>CISD Broadcast Checklist</title>
+
+<!--
+  ============================================================================
+  SETUP — read this once before handing the file to your crew
+  ============================================================================
+  This file talks to a free Firebase Realtime Database instead of Claude, so
+  NO ONE needs a Claude account (or any account) to use it. Takes about 5
+  minutes to set up, one time, and then this file just works for everyone.
+
+  1. Go to https://console.firebase.google.com and sign in with any Google
+     account. Click "Add project," name it anything (e.g. "cisd-broadcast"),
+     and finish creation (you can skip Google Analytics).
+  2. In the left sidebar, click Build > Realtime Database > Create Database.
+     Choose any region, and start in "test mode" for now.
+  3. Click the "Rules" tab of the Realtime Database and paste this, then
+     click Publish:
+        {
+          "rules": {
+            ".read": true,
+            ".write": true
+          }
+        }
+     (This keeps it open with no login — fine for an internal crew tool. If
+     you ever want to lock it down more, you can tighten these later.)
+  4. In the left sidebar, click the gear icon > Project settings. Scroll to
+     "Your apps," click the </> (web) icon, register an app (any nickname),
+     and skip Firebase Hosting. It will show you a firebaseConfig object.
+  5. Copy those values into the FIREBASE_CONFIG block below, replacing the
+     placeholder text, and save the file.
+  6. Send this .html file to your crew (text, email, AirDrop, whatever) —
+     they just open it in their phone's browser. No install, no login.
+  ============================================================================
+-->
+
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",
+    authDomain: "crowley-football.firebaseapp.com",
+    databaseURL: "https://crowley-football-default-rtdb.firebaseio.com",
+    projectId: "crowley-football",
+    storageBucket: "crowley-football.firebasestorage.app",
+    messagingSenderId: "56102489603",
+    appId: "1:56102489603:web:1a81953b6dd0d2fb84c836",
+  };
+
+  // Try a few different CDN sources in order, in case one is blocked on a
+  // given network. Only flags failure if every source fails.
+  window.__fbReady = false;
+  window.__fbLoadFailed = false;
+
+  function loadScriptWithFallbacks(urls) {
+    return new Promise((resolve, reject) => {
+      let i = 0;
+      function tryNext() {
+        if (i >= urls.length) { reject(new Error("All sources failed for this script")); return; }
+        const url = urls[i++];
+        const s = document.createElement("script");
+        s.src = url;
+        s.onload = () => resolve(url);
+        s.onerror = () => { console.warn("Failed to load", url, "trying next source…"); tryNext(); };
+        document.head.appendChild(s);
+      }
+      tryNext();
+    });
+  }
+
+  const APP_SOURCES = [
+    "https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-app-compat.min.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js",
+    "https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-app-compat.js",
+  ];
+  const DB_SOURCES = [
+    "https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-database-compat.min.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js",
+    "https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-database-compat.js",
+  ];
+
+  window.__fbLoadPromise = loadScriptWithFallbacks(APP_SOURCES)
+    .then(() => loadScriptWithFallbacks(DB_SOURCES))
+    .then(() => { window.__fbReady = true; })
+    .catch((e) => { console.error("Firebase library failed to load from every source:", e); window.__fbLoadFailed = true; });
+</script>
+
+<style>
+  :root {
+    --bg: #0A0D12;
+    --panel: #12181F;
+    --panel2: #1A222B;
+    --border: #26313D;
+    --text: #EDEFF3;
+    --text-muted: #8A96A3;
+    --text-faint: #5C6774;
+    --green: #33A870;
+    --amber: #E0A63C;
+    --red: #D65A4E;
+    --blue: #4A8FC0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; margin: 0; }
+  .subhead { color: var(--text-muted); font-size: 13px; margin: 2px 0 20px; }
+  .back-link-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 0; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer;
+    margin-bottom: 16px; border: 1px solid var(--border); background: var(--panel); color: var(--text-muted);
+    text-decoration: none;
+  }
+  .header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .setup-warning {
+    background: #3A1A17; border: 1px solid var(--red); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 16px; font-size: 12.5px; color: #FFB3AC; display: none;
+  }
+  .tabs { display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
+  .tab-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 0; border-radius: 9px; border: none; cursor: pointer;
+    background: transparent; color: var(--text-muted); font-weight: 700; font-size: 13px;
+  }
+  .tab-btn.active { background: var(--blue); color: #fff; }
+  .label {
+    font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 6px;
+  }
+  .field-block { margin-bottom: 14px; }
+  select, input, textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 11px 12px; font-size: 14px; font-weight: 600; font-family: inherit;
+  }
+  textarea { font-weight: 400; resize: vertical; }
+  input::placeholder, textarea::placeholder { color: var(--text-faint); }
+  .shift-row { display: flex; gap: 8px; }
+  .shift-btn {
+    flex: 1; padding: 10px 0; border-radius: 10px; font-weight: 700; font-size: 13px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text-muted); cursor: pointer;
+  }
+  .shift-btn.active { border-color: var(--blue); background: #1B2A38; color: #8FC6F0; }
+  .status-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .tally { display: inline-block; border-radius: 50%; flex-shrink: 0; border: 2px solid var(--bg); }
+  .status-title { font-weight: 800; font-size: 15px; }
+  .status-sub { color: var(--text-muted); font-size: 12px; font-family: monospace; }
+  .reset-btn { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 4px; margin-left: auto; }
+  .signal-btn, .help-btn {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 0; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer;
+    margin-bottom: 14px; border: 1px solid var(--border); background: var(--panel); color: var(--text-muted);
+  }
+  .signal-btn.on { border-color: var(--green); background: #12271D; color: #7FE0AC; box-shadow: 0 0 12px #33A87044; }
+  .help-btn.on { border-color: var(--red); background: #3A1A17; color: #FF8478; box-shadow: 0 0 14px #D65A4E55; }
+  .checklist-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+  .checklist-item {
+    display: flex; gap: 10px; align-items: flex-start; padding: 13px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist-item:last-child { border-bottom: none; }
+  .checklist-item.checked { background: #152019; }
+  .checklist-item .icon { flex-shrink: 0; margin-top: 1px; }
+  .checklist-item .item-text { font-size: 14px; line-height: 1.4; }
+  .checklist-item.checked .item-text { color: var(--text-muted); text-decoration: line-through; }
+  .flag-issue-btn {
+    display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--amber);
+    font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 0;
+  }
+  .footnote { font-size: 11px; color: var(--text-faint); margin-top: 10px; font-family: monospace; }
+  .dash-gamehead { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+  .help-banner {
+    background: #3A1A17; border: 1px solid var(--red); border-radius: 12px; padding: 12px 14px;
+    margin-bottom: 14px; box-shadow: 0 0 14px #D65A4E44;
+  }
+  .help-banner-title { display: flex; align-items: center; gap: 7px; color: #FF8478; font-weight: 800; font-size: 13px; }
+  .help-banner-item { font-size: 12.5px; color: #FFB3AC; margin-top: 4px; }
+  .dash-table { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .dash-header-row { display: grid; grid-template-columns: 1fr 70px 70px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; }
+  .dash-row { display: grid; grid-template-columns: 1fr 70px 70px; align-items: center; padding: 13px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .dash-row.needs-help { background: #241412; }
+  .dash-pos-label { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .dash-cell { display: flex; justify-content: center; }
+  .dash-detail { padding: 0 14px 14px 14px; background: var(--panel2); border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .dash-detail-block { padding-top: 12px; }
+  .dash-detail-label { font-weight: 700; color: var(--text-muted); margin-bottom: 3px; }
+  .dash-issue { display: flex; gap: 5px; align-items: flex-start; color: var(--amber); margin-top: 4px; }
+  .dash-signal { display: flex; gap: 5px; align-items: flex-start; color: var(--blue); margin-top: 10px; }
+  .chevron { transition: transform 0.15s; }
+  .chevron.open { transform: rotate(180deg); }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="header-row">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4A8FC0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2-2-2-5.4 0-7.4"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2 2 2 5.4 0 7.4"/><path d="M19.1 4.9c3.9 3.9 3.9 10.2 0 14.2"/></svg>
+    <h1>CISD Broadcast Checklist</h1>
+  </div>
+  <p class="subhead">Live crew sign-off — no photos, no login needed. Shared with the whole crew.</p>
+  <a class="back-link-btn" href="index.html">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    Back to Time Clock
+  </a>
+  <div id="setupWarning" class="setup-warning">
+    ⚠️ This file still has placeholder Firebase values in the FIREBASE_CONFIG block near the top of the HTML source. Follow the setup comment at the top of the file to connect it to a free Firebase database before handing it out to crew.
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabMy">My Checklist</button>
+    <button class="tab-btn" id="tabDash">Dashboard</button>
+  </div>
+
+  <div class="field-block">
+    <div class="label">Game</div>
+    <select id="gameSelect"></select>
+  </div>
+
+  <div id="viewRoot"></div>
+</div>
+
+<script>
+// ============================================================================
+// Data
+// ============================================================================
+const GAMES = [
+  { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma" },
+  { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo" },
+  { id: "2026-09-03", day: "Thu", date: "9/3", opp: "CHS vs Lamar (Arlington)" },
+  { id: "2026-09-04", day: "Fri", date: "9/4", opp: "NCHS vs Southlake Carroll" },
+  { id: "2026-09-11", day: "Fri", date: "9/11", opp: "NCHS vs Summer Creek" },
+  { id: "2026-09-12", day: "Sat", date: "9/12", opp: "Tx. Wesleyan vs Texas College" },
+  { id: "2026-09-18", day: "Fri", date: "9/18", opp: "CHS vs Skyline" },
+  { id: "2026-09-25", day: "Fri", date: "9/25", opp: "NCHS vs Crowley" },
+  { id: "2026-09-26", day: "Sat", date: "9/26", opp: "Tx. Wesleyan vs Nelson University" },
+  { id: "2026-10-09", day: "Fri", date: "10/9", opp: "CHS vs Red Oak" },
+  { id: "2026-10-16", day: "Fri", date: "10/16", opp: "NCHS vs Lake Ridge" },
+  { id: "2026-10-17", day: "Sat", date: "10/17", opp: "Tx. Wesleyan vs Mary Hardin-Baylor" },
+  { id: "2026-10-23", day: "Fri", date: "10/23", opp: "CHS vs Mansfield" },
+  { id: "2026-10-30", day: "Fri", date: "10/30", opp: "CHS vs Waxahachie" },
+  { id: "2026-10-31", day: "Sat", date: "10/31", opp: "Tx. Wesleyan vs Oklahoma Panhandle State" },
+  { id: "2026-11-05", day: "Thu", date: "11/5", opp: "NCHS vs Red Oak" },
+];
+
+const POSITIONS = {
+  "camera-lead": { label: "Camera Lead", readyLabel: "All cameras built, signal is up",
+    pre: ["Check out all camera bodies, lenses, tripods/heads, cables, batteries, cases",
+      "Inspect each unit for damage; confirm batteries charged, media formatted",
+      "Confirm cable runs/connections to control room",
+      "Assign cameras and positions to camera operators",
+      "Lead camera crew through painting once cameras are up (coordinate with Shader)"],
+    post: ["Collect all cameras, cases, cables, batteries from operators",
+      "Inspect returned gear for damage; log any issues",
+      "Confirm all equipment properly stored in cases",
+      "Release camera operators to PM"] },
+  "camera-op": { label: "Camera Operator", readyLabel: "Camera is built, signal is up",
+    pre: ["Check in with Camera Lead for assigned camera and position",
+      "Verify gear matches checkout log; report pre-existing damage",
+      "Set position and confirm shot with Director/Shader"],
+    post: ["Power down, break down rigging",
+      "Return camera/lens/cables/battery/case to Camera Lead",
+      "Wait for Camera Lead's confirmation before leaving"] },
+  "replay": { label: "Replay", readyLabel: "Equipment is up and ready to roll",
+    pre: ["Confirm all camera feeds live and correctly labeled",
+      "Confirm definition/resolution correct and proper profile loaded",
+      "Confirm Director can see tally (red/blue) on each camera",
+      "Test replay feed routing to Director's desk",
+      "Confirm ISO/record running on all sources",
+      "Coordinate with Clips on shared feed routing"],
+    post: ["Reminder: HS football replays play at full speed only, no slow motion",
+      "Perform end-of-night melt",
+      "Confirm melt saved/backed up"] },
+  "clips": { label: "Clips", readyLabel: "Equipment is up and ready to roll",
+    pre: ["Test audio with Audio Engineer; confirm video is level with audio",
+      "Check video quality across all feeds",
+      "Confirm clip/highlight system recording and tagging correctly",
+      "Double check run of show with Director and Producer",
+      "Go over run of show with Producer"],
+    post: ["Confirm all clips/highlights saved and backed up"] },
+  "shader": { label: "Shader", readyLabel: "Equipment is up and ready to roll",
+    pre: ["Lead camera crew through painting (color/exposure/white balance)",
+      "Confirm all cameras color balanced and ready for Director"],
+    post: ["Monitor and adjust cameras as light changes",
+      "Confirm final camera picture match with Director before wrap"] },
+  "audio-a1": { label: "Audio (A1)", readyLabel: "Booth is up and ready to roll",
+    pre: ["Follow booth checklist",
+      "Test all mics (announcers, sideline, field)",
+      "Confirm intercom/headset channels live",
+      "Double check with A2 that field mics/comms are ready"],
+    post: ["Confirm all audio recordings saved/backed up"] },
+  "a2": { label: "A2 (arrives 1 hr early)", readyLabel: "Field mics/comms are up and ready to roll",
+    pre: ["Check both A2 bags (small AV gear + cables) before heading to field",
+      "Double check with A1 on mic/comms plan",
+      "Track down and mic up the referee",
+      "Start music/DJ audio setup",
+      "Check in with PM for additional duties"],
+    post: ["Collect all field mics, comms gear, cables; return to correct bag",
+      "Confirm completion with PM"] },
+  "utility": { label: "Utility", readyLabel: "Ready to roll",
+    pre: ["Check in with PM to receive duty assignment",
+      "Assist Camera Lead and/or A2 with setup as directed"],
+    post: ["Complete assigned breakdown duties",
+      "Confirm completion with PM before reassignment or release"] },
+  "director": { label: "Director", readyLabel: "Ready to call the show",
+    pre: ["Confirm rundown and script with Producer",
+      "Confirm camera shots and switcher setup with Shader/Camera Lead"],
+    post: ["Debrief with Producer on how the broadcast executed"] },
+  "producer": { label: "Producer", readyLabel: "Ready to roll",
+    pre: ["Go over the script with talent",
+      "Double check run of show and all show details with Director",
+      "Go over run of show with Clips",
+      "Confirm any last-minute script/schedule changes communicated to Director and Clips"],
+    post: ["Debrief with Director on how run of show executed",
+      "Note any script or timing issues for next game"] },
+  "pm": { label: "Production Manager", readyLabel: "Ready to roll",
+    pre: ["Arrives 2 hours before the rest of the crew (with EIC)",
+      "Staff South Elevated Entrance check-in table",
+      "Verify all crew check-in and duty assignments",
+      "Confirm ID/access distributed to all crew",
+      "Assign Utility duties as needed"],
+    post: ["Confirm all department leads show complete on dashboard",
+      "Confirm with EIC that all positions are ready before air",
+      "Release crew at end of day once check-ins/storage confirmed"] },
+  "eic": { label: "EIC", readyLabel: "Ready to roll",
+    pre: ["Arrives 2 hours before the rest of the crew (with PM)",
+      "Confirm all department leads have completed pre-shift checklist",
+      "Final go/no-go call before air"],
+    post: ["Confirm all department leads have completed post-shift checklist",
+      "Debrief with PM after wrap"] },
+};
+const POSITION_KEYS = Object.keys(POSITIONS);
+
+// Maps the free-text position labels used in the companion time-clock app
+// to this app's position keys, so a clock-in shows up next to the right row.
+const CLOCK_LABEL_TO_KEY = {
+  "EIC": "eic",
+  "PM": "pm",
+  "Director": "director",
+  "Producer": "producer",
+  "Shader": "shader",
+  "Clips": "clips",
+  "Replay": "replay",
+  "Camera Lead": "camera-lead",
+  "Camera Operator": "camera-op",
+  "Audio A1": "audio-a1",
+  "A2": "a2",
+  "Utility": "utility",
+};
+function clockPath(gameId) { return `clock/${gameId}`; }
+
+const STATUS = {
+  none: { color: "var(--red)", label: "Not started" },
+  partial: { color: "var(--amber)", label: "In progress" },
+  done: { color: "var(--green)", label: "Complete" },
+};
+
+// ============================================================================
+// Firebase setup
+// ============================================================================
+let dbReady = false;
+let db = null;
+
+function showSetupWarning(message) {
+  const el = document.getElementById("setupWarning");
+  if (message) el.innerHTML = message;
+  el.style.display = "block";
+}
+
+async function initFirebaseAndBoot() {
+  document.getElementById("viewRoot").innerHTML = '<div class="footnote">Connecting…</div>';
+  try {
+    await window.__fbLoadPromise;
+    if (window.__fbLoadFailed || typeof firebase === "undefined") {
+      showSetupWarning("⚠️ Firebase's library failed to load from every source tried (usually a network or connection issue). Try reloading the page, or check your internet connection.");
+    } else if (!FIREBASE_CONFIG.apiKey.startsWith("PASTE_")) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      db = firebase.database();
+      dbReady = true;
+    } else {
+      showSetupWarning();
+    }
+  } catch (e) {
+    showSetupWarning("⚠️ Couldn't connect to the database (" + (e && e.message ? e.message : "unknown error") + "). Double-check the FIREBASE_CONFIG values at the top of this file match what Firebase gave you, and that the Realtime Database has been created in your Firebase project.");
+    console.error(e);
+    dbReady = false;
+    db = null;
+  }
+  populateGameSelect();
+  updateTabs();
+  renderView();
+
+  // Safety net: if nothing has rendered real content within a few seconds, surface a clear message
+  // instead of leaving the page stuck on a loading placeholder.
+  setTimeout(() => {
+    const body = document.getElementById("checklistBody");
+    if (body && body.innerText.trim() === "Loading…" && !document.getElementById("setupWarning").style.display) {
+      showSetupWarning("⚠️ This is taking longer than it should. Check your internet connection and try reloading. If it keeps happening, double-check the Realtime Database rules were published in your Firebase project.");
+    }
+  }, 6000);
+}
+
+function chkPath(gameId, posKey, phase) { return `checklists/${gameId}/${posKey}/${phase}`; }
+function helpPath(gameId, posKey) { return `help/${gameId}/${posKey}`; }
+
+function emptyRecord(n) { return { checked: Array(n).fill(false), name: "", completedAt: null, issue: "", signalUp: false, signalUpAt: null }; }
+function emptyHelp() { return { needsHelp: false, note: "", requestedAt: null, requestedBy: "" }; }
+
+function statusOf(rec, n) {
+  if (!rec || !rec.checked) return "none";
+  const c = rec.checked.filter(Boolean).length;
+  if (c === 0) return "none";
+  if (c === n) return "done";
+  return "partial";
+}
+
+function dbSet(path, value) {
+  if (!db) { console.warn("Firebase not configured yet — not saved:", path); return; }
+  db.ref(path).set(value).catch((err) => {
+    console.error("Firebase write error on", path, err);
+    showSetupWarning("⚠️ Couldn't save your change (" + (err && err.code ? err.code : "unknown error") + "). Check that the Realtime Database rules are published as open read/write.");
+  });
+}
+function dbGetOnce(path) {
+  if (!db) return Promise.resolve(null);
+  return db.ref(path).once("value").then((snap) => snap.val());
+}
+function dbListen(path, cb) {
+  if (!db) { cb(null); return () => {}; }
+  const ref = db.ref(path);
+  ref.on("value",
+    (snap) => cb(snap.val()),
+    (err) => {
+      console.error("Firebase read error on", path, err);
+      showSetupWarning("⚠️ Couldn't read from the database (" + (err && err.code ? err.code : "unknown error") + "). This usually means the Realtime Database rules haven't been published as open read/write yet, go back to the Rules tab in Firebase and make sure they're published.");
+    }
+  );
+  return () => ref.off("value");
+}
+
+// ============================================================================
+// State
+// ============================================================================
+function nextUpcomingGameId() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (const g of GAMES) { if (new Date(g.id + "T00:00:00") >= today) return g.id; }
+  return GAMES[GAMES.length - 1].id;
+}
+
+const urlParams = new URLSearchParams(window.location.search);
+const requestedView = urlParams.get("view");
+const requestedGame = urlParams.get("game");
+
+const state = {
+  view: requestedView === "dashboard" ? "dashboard" : "my",
+  gameId: (requestedGame && GAMES.some((g) => g.id === requestedGame)) ? requestedGame : nextUpcomingGameId(),
+  posKey: POSITION_KEYS[0],
+  phase: "pre",
+  showIssue: false,
+  showHelpNote: false,
+};
+
+let unsubMy = null;
+let unsubHelp = null;
+let unsubDash = [];
+
+// ============================================================================
+// Render: shell
+// ============================================================================
+function populateGameSelect() {
+  const sel = document.getElementById("gameSelect");
+  sel.innerHTML = GAMES.map(g => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("");
+  sel.value = state.gameId;
+  sel.onchange = () => { state.gameId = sel.value; renderView(); };
+}
+
+document.getElementById("tabMy").onclick = () => { state.view = "my"; updateTabs(); renderView(); };
+document.getElementById("tabDash").onclick = () => { state.view = "dashboard"; updateTabs(); renderView(); };
+function updateTabs() {
+  document.getElementById("tabMy").classList.toggle("active", state.view === "my");
+  document.getElementById("tabDash").classList.toggle("active", state.view === "dashboard");
+}
+
+function icon(name, color, size) {
+  size = size || 16; color = color || "currentColor";
+  const icons = {
+    check: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 17.01"/></svg>`,
+    circle: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2"><circle cx="12" cy="12" r="10"/></svg>`,
+    alert: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    siren: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21h14"/><path d="M21 12h1M2 12h1M12 2v1M4.2 4.2l.7.7M19.8 4.2l-.7.7"/></svg>`,
+    signal: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 20V4"/></svg>`,
+    chevron: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+    reset: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+    clock: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  };
+  return icons[name] || "";
+}
+
+function tallyLight(status, size) {
+  size = size || 14;
+  const s = STATUS[status];
+  return `<span class="tally" style="width:${size}px;height:${size}px;background:${s.color};box-shadow:${status !== "none" ? "0 0 8px " + s.color + "99" : "none"}"></span>`;
+}
+
+// ============================================================================
+// My Checklist view
+// ============================================================================
+function renderMyChecklist() {
+  const root = document.getElementById("viewRoot");
+  const position = POSITIONS[state.posKey];
+  const items = position[state.phase];
+
+  root.innerHTML = `
+    <div class="field-block">
+      <div class="label">Position</div>
+      <select id="posSelect">
+        ${POSITION_KEYS.map(k => `<option value="${k}">${POSITIONS[k].label}</option>`).join("")}
+      </select>
+    </div>
+    <div id="helpBlock"></div>
+    <div class="field-block">
+      <div class="label">Shift</div>
+      <div class="shift-row">
+        <button class="shift-btn ${state.phase === "pre" ? "active" : ""}" data-phase="pre">Pre-Shift</button>
+        <button class="shift-btn ${state.phase === "post" ? "active" : ""}" data-phase="post">Post-Shift</button>
+      </div>
+    </div>
+    <div id="checklistBody"><div class="footnote">Loading…</div></div>
+  `;
+
+  document.getElementById("posSelect").value = state.posKey;
+  document.getElementById("posSelect").onchange = (e) => { state.posKey = e.target.value; state.phase = "pre"; renderMyChecklist(); };
+  root.querySelectorAll(".shift-btn").forEach(btn => {
+    btn.onclick = () => { state.phase = btn.dataset.phase; renderMyChecklist(); };
+  });
+
+  if (unsubMy) unsubMy();
+  if (unsubHelp) unsubHelp();
+
+  unsubMy = dbListen(chkPath(state.gameId, state.posKey, state.phase), (val) => {
+    const rec = Object.assign(emptyRecord(items.length), val || {});
+    if (rec.checked.length !== items.length) {
+      const c = Array(items.length).fill(false);
+      rec.checked.forEach((v, i) => { if (i < c.length) c[i] = v; });
+      rec.checked = c;
+    }
+    renderChecklistBody(rec, items, position);
+  });
+
+  unsubHelp = dbListen(helpPath(state.gameId, state.posKey), (val) => {
+    const help = Object.assign(emptyHelp(), val || {});
+    renderHelpBlock(help);
+  });
+}
+
+function renderHelpBlock(help) {
+  const el = document.getElementById("helpBlock");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="field-block">
+      <button class="help-btn ${help.needsHelp ? "on" : ""}" id="helpToggleBtn">
+        ${icon("siren", help.needsHelp ? "#FF8478" : "var(--text-muted)", 16)}
+        ${help.needsHelp ? "HELP REQUESTED — tap to resolve" : "Request Help"}
+      </button>
+      <div id="helpNoteArea" style="margin-top:8px; display:${help.needsHelp ? "block" : "none"}">
+        <input id="helpName" placeholder="Your name" value="${escapeAttr(help.requestedBy)}" style="margin-bottom:8px" />
+        <textarea id="helpNote" placeholder="What do you need help with?" rows="2">${escapeHtml(help.note)}</textarea>
+      </div>
+    </div>
+  `;
+  document.getElementById("helpToggleBtn").onclick = () => {
+    const next = Object.assign({}, help, {
+      needsHelp: !help.needsHelp,
+      requestedAt: !help.needsHelp ? new Date().toISOString() : null,
+      note: !help.needsHelp ? help.note : "",
+    });
+    dbSet(helpPath(state.gameId, state.posKey), next);
+  };
+  const nameInput = document.getElementById("helpName");
+  const noteInput = document.getElementById("helpNote");
+  if (nameInput) nameInput.oninput = (e) => dbSet(helpPath(state.gameId, state.posKey), Object.assign({}, help, { requestedBy: e.target.value }));
+  if (noteInput) noteInput.oninput = (e) => dbSet(helpPath(state.gameId, state.posKey), Object.assign({}, help, { note: e.target.value }));
+}
+
+function renderChecklistBody(rec, items, position) {
+  const body = document.getElementById("checklistBody");
+  if (!body) return;
+  const st = statusOf(rec, items.length);
+  const doneCount = rec.checked.filter(Boolean).length;
+  const currentGame = GAMES.find(g => g.id === state.gameId);
+
+  let html = `
+    <div class="status-card">
+      ${tallyLight(st, 20)}
+      <div style="flex:1">
+        <div class="status-title">${STATUS[st].label}</div>
+        <div class="status-sub">${doneCount} / ${items.length} items · ${currentGame.day} ${currentGame.date}</div>
+      </div>
+      <button class="reset-btn" id="resetBtn" title="Reset this checklist">${icon("reset", "var(--text-faint)", 16)}</button>
+    </div>
+  `;
+
+  if (state.phase === "pre") {
+    html += `
+      <button class="signal-btn ${rec.signalUp ? "on" : ""}" id="signalBtn">
+        ${icon("signal", rec.signalUp ? "#7FE0AC" : "var(--text-muted)", 17)}
+        ${rec.signalUp ? position.readyLabel + " ✓" + (rec.signalUpAt ? " · " + new Date(rec.signalUpAt).toLocaleTimeString() : "") : position.readyLabel}
+      </button>
+    `;
+  }
+
+  html += `<input id="nameInput" placeholder="Your name" value="${escapeAttr(rec.name)}" style="margin-bottom:14px" />`;
+
+  html += `<div class="checklist-box">`;
+  items.forEach((text, idx) => {
+    html += `
+      <div class="checklist-item ${rec.checked[idx] ? "checked" : ""}" data-idx="${idx}">
+        <span class="icon">${rec.checked[idx] ? icon("check", "var(--green)", 19) : icon("circle", "var(--text-faint)", 19)}</span>
+        <span class="item-text">${escapeHtml(text)}</span>
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  if (!state.showIssue && !rec.issue) {
+    html += `<button class="flag-issue-btn" id="flagIssueBtn">${icon("alert", "var(--amber)", 14)} Flag an issue instead</button>`;
+  } else {
+    html += `
+      <div style="margin-bottom:6px">
+        <div class="label" style="color:var(--amber)">Issue note</div>
+        <textarea id="issueInput" placeholder="Describe what's wrong (e.g. damaged cable, no signal)…" rows="3">${escapeHtml(rec.issue)}</textarea>
+      </div>
+    `;
+  }
+
+  html += `<div class="footnote">${rec.completedAt ? "Completed " + new Date(rec.completedAt).toLocaleString() : "Autosaves as you check items off"}</div>`;
+
+  body.innerHTML = html;
+
+  document.getElementById("resetBtn").onclick = () => {
+    dbSet(chkPath(state.gameId, state.posKey, state.phase), emptyRecord(items.length));
+    state.showIssue = false;
+  };
+  const signalBtn = document.getElementById("signalBtn");
+  if (signalBtn) signalBtn.onclick = () => {
+    const nextOn = !rec.signalUp;
+    dbSet(chkPath(state.gameId, state.posKey, state.phase), Object.assign({}, rec, { signalUp: nextOn, signalUpAt: nextOn ? new Date().toISOString() : null }));
+  };
+  document.getElementById("nameInput").oninput = (e) => {
+    dbSet(chkPath(state.gameId, state.posKey, state.phase), Object.assign({}, rec, { name: e.target.value }));
+  };
+  body.querySelectorAll(".checklist-item").forEach(item => {
+    item.onclick = () => {
+      const idx = parseInt(item.dataset.idx, 10);
+      const checked = rec.checked.slice();
+      checked[idx] = !checked[idx];
+      const allDone = checked.every(Boolean);
+      dbSet(chkPath(state.gameId, state.posKey, state.phase), Object.assign({}, rec, {
+        checked, completedAt: allDone ? (rec.completedAt || new Date().toISOString()) : null,
+      }));
+    };
+  });
+  const flagBtn = document.getElementById("flagIssueBtn");
+  if (flagBtn) flagBtn.onclick = () => { state.showIssue = true; renderChecklistBody(rec, items, position); };
+  const issueInput = document.getElementById("issueInput");
+  if (issueInput) issueInput.oninput = (e) => {
+    dbSet(chkPath(state.gameId, state.posKey, state.phase), Object.assign({}, rec, { issue: e.target.value }));
+  };
+}
+
+// ============================================================================
+// Dashboard view
+// ============================================================================
+function renderDashboard() {
+  const root = document.getElementById("viewRoot");
+  const currentGame = GAMES.find(g => g.id === state.gameId);
+  root.innerHTML = `<div class="dash-gamehead">${currentGame.day} ${currentGame.date} — ${currentGame.opp}</div><div class="footnote">Loading…</div>`;
+
+  unsubDash.forEach(u => u());
+  unsubDash = [];
+
+  const records = {};
+  const helps = {};
+  let clockEntries = {};
+  let expanded = null;
+  let pending = POSITION_KEYS.length * 3 + 1; // pre + post + help per position, plus one clock-in listener
+
+  function tryRender() {
+    if (pending > 0) return;
+    drawDashboard();
+  }
+
+  function drawDashboard() {
+    const activeHelp = POSITION_KEYS.map(k => ({ posKey: k, help: helps[k] })).filter(h => h.help && h.help.needsHelp);
+
+    // Figure out who's currently clocked in, grouped by position key
+    const clockedInByPos = {};
+    Object.values(clockEntries || {}).forEach((entry) => {
+      if (!entry.clockInAt || entry.clockOutAt) return;
+      const posKey = CLOCK_LABEL_TO_KEY[entry.position];
+      if (!posKey) return;
+      if (!clockedInByPos[posKey]) clockedInByPos[posKey] = [];
+      clockedInByPos[posKey].push(entry);
+    });
+
+    let html = `<div class="dash-gamehead">${currentGame.day} ${currentGame.date} — ${currentGame.opp}</div>`;
+
+    if (activeHelp.length > 0) {
+      html += `<div class="help-banner"><div class="help-banner-title">${icon("siren", "#FF8478", 15)} ${activeHelp.length} position${activeHelp.length > 1 ? "s" : ""} need${activeHelp.length > 1 ? "" : "s"} help</div>`;
+      activeHelp.forEach(({ posKey, help }) => {
+        html += `<div class="help-banner-item"><strong>${POSITIONS[posKey].label}</strong>${help.requestedBy ? " · " + escapeHtml(help.requestedBy) : ""}${help.requestedAt ? " · " + new Date(help.requestedAt).toLocaleTimeString() : ""}${help.note ? " — " + escapeHtml(help.note) : ""}</div>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `<div class="dash-table">
+      <div class="dash-header-row"><span>Position</span><span style="text-align:center">Pre</span><span style="text-align:center">Post</span></div>`;
+
+    POSITION_KEYS.forEach((posKey) => {
+      const position = POSITIONS[posKey];
+      const preRec = records[posKey + ":pre"];
+      const postRec = records[posKey + ":post"];
+      const preSt = statusOf(preRec, position.pre.length);
+      const postSt = statusOf(postRec, position.post.length);
+      const needsHelp = helps[posKey] && helps[posKey].needsHelp;
+      const clockedIn = clockedInByPos[posKey] || [];
+      const isOpen = expanded === posKey;
+
+      html += `<div class="dash-row ${needsHelp ? "needs-help" : ""}" data-poskey="${posKey}">
+        <span class="dash-pos-label">${position.label}
+          ${needsHelp ? icon("siren", "var(--red)", 13) : ""}
+          ${preRec && preRec.signalUp ? icon("signal", "var(--blue)", 13) : ""}
+          ${clockedIn.length > 0 ? icon("clock", "var(--green)", 13) : ""}
+          <span class="chevron ${isOpen ? "open" : ""}">${icon("chevron", "var(--text-faint)", 13)}</span>
+        </span>
+        <span class="dash-cell">${tallyLight(preSt)}</span>
+        <span class="dash-cell">${tallyLight(postSt)}</span>
+      </div>`;
+
+      if (isOpen) {
+        html += `<div class="dash-detail">`;
+        if (clockedIn.length > 0) {
+          clockedIn.forEach((entry) => {
+            html += `<div class="dash-signal" style="color:var(--green)">${icon("clock", "var(--green)", 13)}<span>${escapeHtml(entry.name)} clocked in at ${new Date(entry.clockInAt).toLocaleTimeString()}</span></div>`;
+          });
+        }
+        if (preRec && preRec.signalUp) {
+          html += `<div class="dash-signal">${icon("signal", "var(--blue)", 13)}<span>${position.readyLabel} confirmed${preRec.signalUpAt ? " at " + new Date(preRec.signalUpAt).toLocaleTimeString() : ""}</span></div>`;
+        }
+        [["Pre-Shift", preRec, position.pre.length], ["Post-Shift", postRec, position.post.length]].forEach(([label, rec, count]) => {
+          html += `<div class="dash-detail-block"><div class="dash-detail-label">${label}</div>`;
+          if (!rec || rec.checked.filter(Boolean).length === 0) {
+            html += `<div style="color:var(--text-faint)">Not started yet</div>`;
+          } else {
+            html += `<div style="color:var(--text-muted); font-family:monospace">${rec.checked.filter(Boolean).length}/${count} items${rec.name ? " · " + escapeHtml(rec.name) : ""}${rec.completedAt ? " · done " + new Date(rec.completedAt).toLocaleTimeString() : ""}</div>`;
+          }
+          if (rec && rec.issue) {
+            html += `<div class="dash-issue">${icon("alert", "var(--amber)", 13)}<span>${escapeHtml(rec.issue)}</span></div>`;
+          }
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+    });
+
+    html += `</div>`;
+    root.innerHTML = html;
+
+    root.querySelectorAll(".dash-row").forEach(row => {
+      row.onclick = () => {
+        const pk = row.dataset.poskey;
+        expanded = expanded === pk ? null : pk;
+        drawDashboard();
+      };
+    });
+  }
+
+  let clockFirstDone = false;
+  unsubDash.push(dbListen(clockPath(state.gameId), (val) => {
+    const first = !clockFirstDone;
+    clockFirstDone = true;
+    clockEntries = val || {};
+    if (first) pending--;
+    tryRender();
+    if (!first) drawDashboard();
+  }));
+
+  POSITION_KEYS.forEach((posKey) => {
+    const position = POSITIONS[posKey];
+    unsubDash.push(dbListen(chkPath(state.gameId, posKey, "pre"), (val) => {
+      const first = !(posKey + ":pre" in records);
+      records[posKey + ":pre"] = val;
+      if (first) pending--;
+      tryRender();
+      if (!first) drawDashboard();
+    }));
+    unsubDash.push(dbListen(chkPath(state.gameId, posKey, "post"), (val) => {
+      const first = !(posKey + ":post" in records);
+      records[posKey + ":post"] = val;
+      if (first) pending--;
+      tryRender();
+      if (!first) drawDashboard();
+    }));
+    unsubDash.push(dbListen(helpPath(state.gameId, posKey), (val) => {
+      const first = !(posKey in helps);
+      helps[posKey] = val;
+      if (first) pending--;
+      tryRender();
+      if (!first) drawDashboard();
+    }));
+  });
+}
+
+// ============================================================================
+// Helpers + boot
+// ============================================================================
+function escapeHtml(str) {
+  return (str || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
+function renderView() {
+  if (unsubDash.length) { unsubDash.forEach(u => u()); unsubDash = []; }
+  if (state.view === "my") renderMyChecklist();
+  else renderDashboard();
+}
+
+initFirebaseAndBoot();
+</script>
+</body>
+</html>
