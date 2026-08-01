@@ -32,6 +32,7 @@
      {
        "rules": {
          "profiles": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
            "$uid": {
              ".read": "auth != null && auth.uid === $uid",
              ".write": "auth != null && auth.uid === $uid"
@@ -49,6 +50,11 @@
          "invoices": { ".read": true, ".write": true }
        }
      }
+
+     The added line at the top of "profiles" is what lets Dustin and
+     Aracely's accounts specifically see everyone's full profile (photo,
+     bio, phone, skills) on the new "Crew" tab — nobody else can, and
+     contractors still only ever see their own via the $uid rule below it.
 
      This keeps the existing Clock/Checklist/Invoice data open like before
      (no login needed for those), but locks each contractor's full profile
@@ -215,6 +221,22 @@
   .id-card-footer { text-align: center; border-top: 1px solid #ddd; padding-top: 14px; }
   .id-card-cisd-logo { width: 110px; object-fit: contain; }
   .footnote { font-size: 11px; color: var(--text-faint); margin-top: 10px; font-family: monospace; }
+  .admin-crew-card {
+    display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px; margin-bottom: 12px;
+  }
+  .admin-crew-photo { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--panel2); }
+  .admin-crew-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .admin-crew-photo-placeholder { width: 100%; height: 100%; background: var(--panel2); }
+  .admin-crew-name { font-size: 15px; font-weight: 800; }
+  .admin-crew-handle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .admin-crew-skills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .admin-skill-tag {
+    background: var(--panel2); color: var(--text-muted); font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 4px;
+  }
+  .admin-crew-bio { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+  .admin-crew-phone { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -367,20 +389,36 @@ function renderAuthScreen() {
 const mainState = { view: "profile" };
 let unsubProfile = null;
 
+const ADMIN_EMAILS = ["dustin12342986@gmail.com", "aracely.valencia10@gmail.com"];
+function isAdmin() {
+  return currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase());
+}
+
 function renderMainApp() {
   const root = document.getElementById("viewRoot");
+  const admin = isAdmin();
   root.innerHTML = `
     <button class="logout-btn" id="logoutBtn">Log Out</button>
     <div style="clear:both"></div>
     <div class="tabs">
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">Digital ID Card</button>
+      ${admin ? `<button class="tab-btn ${mainState.view === "admin" ? "active" : ""}" id="tabAdmin">Crew</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
   document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; renderMainApp(); };
   document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; renderMainApp(); };
+  if (admin) {
+    document.getElementById("tabAdmin").onclick = () => { mainState.view = "admin"; renderMainApp(); };
+  }
+
+  if (mainState.view === "admin" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAdminCrewList();
+    return;
+  }
 
   if (unsubProfile) { unsubProfile(); unsubProfile = null; }
   const ref = db.ref(`profiles/${currentUser.uid}`);
@@ -393,6 +431,48 @@ function renderMainApp() {
     ref.on("value", cb);
     return () => ref.off("value", cb);
   })();
+}
+
+// ============================================================================
+// Admin: Crew list (Dustin & Aracely only)
+// ============================================================================
+async function renderAdminCrewList() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading crew…</div>`;
+  try {
+    const snap = await db.ref("profiles").once("value");
+    const all = snap.val() || {};
+    const entries = Object.values(all).filter((p) => p && p.legalName);
+    entries.sort((a, b) => (a.legalName || "").localeCompare(b.legalName || ""));
+
+    if (entries.length === 0) {
+      inner.innerHTML = `<div class="footnote">No crew profiles have been created yet.</div>`;
+      return;
+    }
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">${entries.length} crew profile${entries.length === 1 ? "" : "s"} — visible only to admins</div>
+      ${entries.map((p) => `
+        <div class="admin-crew-card">
+          <div class="admin-crew-photo">
+            ${p.photoData ? `<img src="${p.photoData}" />` : `<div class="admin-crew-photo-placeholder"></div>`}
+          </div>
+          <div class="admin-crew-info">
+            <div class="admin-crew-name">${escapeHtml(p.legalName)}</div>
+            ${p.crewHandle ? `<div class="admin-crew-handle">"${escapeHtml(p.crewHandle)}"</div>` : ""}
+            <div class="admin-crew-skills">
+              ${(p.skills || []).map((s) => `<span class="admin-skill-tag">${escapeHtml(s)}</span>`).join("")}
+            </div>
+            ${p.bio ? `<div class="admin-crew-bio">${escapeHtml(p.bio)}</div>` : ""}
+            ${p.phone ? `<div class="admin-crew-phone">📞 ${escapeHtml(p.phone)}</div>` : ""}
+          </div>
+        </div>
+      `).join("")}
+    `;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load the crew list (${escapeHtml(e.message || "unknown error")}). Make sure the database rules grant admin read access to /profiles — see the setup comment at the top of this file.</div>`;
+  }
 }
 
 function renderProfileEditor(profile) {
