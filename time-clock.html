@@ -477,12 +477,44 @@ function renderClockUI(entries) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
+function normalizeInvName(s) {
+  return (s || "").toLowerCase().trim();
+}
+
+function renderInvoiceLogList(entries, nameFilter) {
+  const listEl = document.getElementById("invoiceLogList");
+  if (!listEl) return;
+  const myName = normalizeInvName(nameFilter);
+  const log = Object.entries(entries)
+    .filter(([, inv]) => myName && normalizeInvName(inv.name).includes(myName))
+    .sort((a, b) => new Date(b[1].submittedAt) - new Date(a[1].submittedAt));
+
+  if (!myName) {
+    listEl.innerHTML = `<div class="empty-note">Type your name above to see invoices you've submitted for this game</div>`;
+    return;
+  }
+  if (log.length === 0) {
+    listEl.innerHTML = `<div class="empty-note">No invoices submitted yet under that name for this game</div>`;
+    return;
+  }
+  listEl.innerHTML = log.map(([, inv]) => `
+    <div class="invoice-log-row">
+      <div class="invoice-log-top">
+        <span>${escapeHtml(inv.name)} · ${escapeHtml(inv.position)}</span>
+        <span>${inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "")}</span>
+      </div>
+      ${inv.notes ? `<div class="invoice-log-notes">${escapeHtml(inv.notes)}</div>` : ""}
+    </div>
+  `).join("");
+}
+
+let lastInvoiceEntries = {};
+
 function renderInvoiceUI(entries) {
+  lastInvoiceEntries = entries;
   const root = document.getElementById("viewRoot");
   const currentGame = GAMES.find((g) => g.id === state.gameId);
   const notConfigured = FORMSPREE_ENDPOINT.includes("PASTE_YOUR_FORM_ID");
-
-  const log = Object.entries(entries).sort((a, b) => new Date(b[1].submittedAt) - new Date(a[1].submittedAt));
 
   let html = `<div class="invoice-card">`;
   if (notConfigured) {
@@ -524,25 +556,10 @@ function renderInvoiceUI(entries) {
   `;
   html += `</div>`;
 
-  html += `<div class="section-title">Submitted for This Game</div><div class="roster-box">`;
-  if (log.length === 0) {
-    html += `<div class="empty-note">No invoices submitted yet</div>`;
-  } else {
-    log.forEach(([, inv]) => {
-      html += `
-        <div class="invoice-log-row">
-          <div class="invoice-log-top">
-            <span>${escapeHtml(inv.name)} · ${escapeHtml(inv.position)}</span>
-            <span>${inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "")}</span>
-          </div>
-          ${inv.notes ? `<div class="invoice-log-notes">${escapeHtml(inv.notes)}</div>` : ""}
-        </div>
-      `;
-    });
-  }
-  html += `</div>`;
+  html += `<div class="section-title">Your Submitted Invoices for This Game</div><div class="roster-box" id="invoiceLogList"></div>`;
 
   root.innerHTML = html;
+  renderInvoiceLogList(lastInvoiceEntries, state.name);
 
   const nameEl = document.getElementById("invNameInput");
   const posEl = document.getElementById("invPositionSelect");
@@ -553,7 +570,10 @@ function renderInvoiceUI(entries) {
   const msgEl = document.getElementById("invoiceMsg");
   const submitBtn = document.getElementById("invoiceSubmitBtn");
 
-  nameEl.oninput = (e) => { state.name = e.target.value; };
+  nameEl.oninput = (e) => {
+    state.name = e.target.value;
+    renderInvoiceLogList(lastInvoiceEntries, state.name);
+  };
   posEl.onchange = (e) => { state.position = e.target.value; };
   function recalcTotal() {
     const h = parseFloat(hoursEl.value);

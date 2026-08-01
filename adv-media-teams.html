@@ -461,6 +461,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       ${admin ? `<button class="tab-btn ${mainState.view === "admin" ? "active" : ""}" id="tabAdmin">Crew</button>` : ""}
+      ${admin ? `<button class="tab-btn ${mainState.view === "invoices" ? "active" : ""}" id="tabInvoices">Invoices</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "log" ? "active" : ""}" id="tabLog">Log</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
@@ -471,12 +472,19 @@ function renderMainApp() {
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; renderMainApp(); };
   if (admin) {
     document.getElementById("tabAdmin").onclick = () => { mainState.view = "admin"; renderMainApp(); };
+    document.getElementById("tabInvoices").onclick = () => { mainState.view = "invoices"; renderMainApp(); };
     document.getElementById("tabLog").onclick = () => { mainState.view = "log"; renderMainApp(); };
   }
 
   if (mainState.view === "admin" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminCrewList();
+    return;
+  }
+
+  if (mainState.view === "invoices" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAdminInvoices();
     return;
   }
 
@@ -550,6 +558,57 @@ async function renderAdminCrewList() {
 // ============================================================================
 // Admin: Shift Log (Dustin & Aracely only) — who dropped/picked up what, why
 // ============================================================================
+// ============================================================================
+// Admin: Invoices (Dustin & Aracely only) — every submission, every game
+// ============================================================================
+async function renderAdminInvoices() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading invoices…</div>`;
+  try {
+    const snap = await db.ref("invoices").once("value");
+    const byGame = snap.val() || {};
+    const entries = [];
+    for (const [gameId, pushes] of Object.entries(byGame)) {
+      for (const inv of Object.values(pushes)) {
+        entries.push(Object.assign({ gameId }, inv));
+      }
+    }
+    entries.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+    if (entries.length === 0) {
+      inner.innerHTML = `<div class="footnote">No invoices submitted yet.</div>`;
+      return;
+    }
+
+    const total = entries.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">${entries.length} invoice${entries.length === 1 ? "" : "s"} submitted — total $${total.toFixed(2)}</div>
+      ${entries.map((inv) => {
+        const game = GAMES.find((g) => g.id === inv.gameId);
+        const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
+        const when = new Date(inv.submittedAt);
+        const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        return `
+          <div class="log-entry">
+            <div class="log-entry-top">
+              <span class="log-badge log-badge-pickup">${inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "—")}</span>
+              <span class="log-when">${whenStr}</span>
+            </div>
+            <div class="log-entry-body">
+              <strong>${escapeHtml(inv.name || "Unknown")}</strong> · ${escapeHtml(inv.position || "")} — ${escapeHtml(gameLabel)}
+            </div>
+            ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
+          </div>
+        `;
+      }).join("")}
+    `;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load invoices (${escapeHtml(e.message || "unknown error")}).</div>`;
+  }
+}
+
 async function renderShiftLog() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading shift log…</div>`;
