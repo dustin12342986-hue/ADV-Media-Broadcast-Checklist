@@ -72,7 +72,15 @@
 
   const CHECKLIST_APP_URL = "checklist.html";
   const TIMECLOCK_APP_URL = "index.html";
+
+  // Web client ID from Firebase's Google sign-in provider (Authentication >
+  // Sign-in method > Google > Web SDK configuration). Used with Google's own
+  // Identity Services library below, which handles mobile sign-in far more
+  // reliably than a generic popup/redirect.
+  const GOOGLE_CLIENT_ID = "56102489603-cam8dpnm79ktgm32adp5e3djoccd7hdr.apps.googleusercontent.com";
 </script>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <!-- Firebase SDK is embedded directly (not loaded from a CDN) so this page
      works even on networks that block external script domains. -->
@@ -294,17 +302,6 @@ async function initFirebaseAndBoot() {
         renderAuthScreen();
       }
     );
-
-    // Surface any error from a Google sign-in redirect (e.g. the domain not
-    // being authorized yet) instead of it failing silently.
-    auth.getRedirectResult().catch((err) => {
-      console.error("Redirect sign-in error:", err);
-      if (err && err.code === "auth/unauthorized-domain") {
-        showSetupWarning("⚠️ This site's domain isn't authorized for Google sign-in yet. In Firebase: Authentication → Settings → Authorized domains → add this page's domain.");
-      } else {
-        showSetupWarning("⚠️ Google sign-in didn't complete (" + (err && err.message ? err.message : "unknown error") + "). Try again.");
-      }
-    });
   } catch (e) {
     console.error(e);
     showSetupWarning("⚠️ Couldn't connect (" + (e && e.message ? e.message : "unknown error") + "). Make sure Google sign-in is turned on for this Firebase project (see setup comment at the top of this file).");
@@ -315,6 +312,23 @@ async function initFirebaseAndBoot() {
 // ============================================================================
 // Auth screen
 // ============================================================================
+let gsiInitialized = false;
+
+function handleGoogleCredential(response) {
+  const errEl = document.getElementById("authError");
+  if (errEl) errEl.innerHTML = `<div class="footnote">Signing in…</div>`;
+  try {
+    const idToken = response.credential;
+    const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+    auth.signInWithCredential(credential).catch((e) => {
+      if (errEl) errEl.innerHTML = `<div class="error-msg">${escapeHtml(e && e.message ? e.message : "Something went wrong signing in.")}</div>`;
+    });
+    // onAuthStateChanged picks up the result from here.
+  } catch (e) {
+    if (errEl) errEl.innerHTML = `<div class="error-msg">${escapeHtml(e && e.message ? e.message : "Something went wrong.")}</div>`;
+  }
+}
+
 function renderAuthScreen() {
   const root = document.getElementById("viewRoot");
   root.innerHTML = `
@@ -322,38 +336,29 @@ function renderAuthScreen() {
       <div style="text-align:center; margin-bottom:16px; color:var(--text-muted); font-size:13px;">
         Sign in with your Google account to access your crew profile and ID card.
       </div>
-      <button class="primary-btn" id="googleSignInBtn" style="display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#1F2937;">
-        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 15.9 3 8.9 7.6 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 36.5 26.9 37.5 24 37.5c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C8.9 40.4 15.9 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.6 5.4C41.8 36.1 45 30.6 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
-        Sign in with Google
-      </button>
+      <div id="gsiButtonContainer" style="display:flex; justify-content:center;"></div>
       <div id="authError"></div>
     </div>
   `;
-  document.getElementById("googleSignInBtn").onclick = async () => {
-    const errEl = document.getElementById("authError");
-    errEl.innerHTML = "";
-    if (!dbReady || !auth) {
-      errEl.innerHTML = `<div class="error-msg">Not connected yet — see the warning above.</div>`;
-      return;
-    }
-    const provider = new firebase.auth.GoogleAuthProvider();
-    try {
-      await auth.signInWithPopup(provider);
-      // onAuthStateChanged picks up the result from here.
-    } catch (e) {
-      if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
-        try {
-          await auth.signInWithRedirect(provider);
-        } catch (e2) {
-          errEl.innerHTML = `<div class="error-msg">${escapeHtml(e2.message || "Something went wrong.")}</div>`;
-        }
-      } else if (e && e.code === "auth/popup-closed-by-user") {
-        // They closed it themselves — no error needed.
-      } else {
-        errEl.innerHTML = `<div class="error-msg">${escapeHtml(e && e.message ? e.message : "Something went wrong.")}</div>`;
-      }
-    }
-  };
+
+  if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
+    document.getElementById("authError").innerHTML = `<div class="error-msg">Google's sign-in library hasn't loaded yet. Try reloading the page in a moment.</div>`;
+    return;
+  }
+
+  if (!gsiInitialized) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+      auto_select: false,
+    });
+    gsiInitialized = true;
+  }
+
+  google.accounts.id.renderButton(
+    document.getElementById("gsiButtonContainer"),
+    { theme: "filled_white", size: "large", text: "signin_with", shape: "pill", width: 260 }
+  );
 }
 
 // ============================================================================
