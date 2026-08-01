@@ -336,11 +336,22 @@ function renderAuthScreen() {
       errEl.innerHTML = `<div class="error-msg">Not connected yet — see the warning above.</div>`;
       return;
     }
+    const provider = new firebase.auth.GoogleAuthProvider();
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      await auth.signInWithRedirect(provider);
+      await auth.signInWithPopup(provider);
+      // onAuthStateChanged picks up the result from here.
     } catch (e) {
-      errEl.innerHTML = `<div class="error-msg">${escapeHtml(e.message || "Something went wrong.")}</div>`;
+      if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
+        try {
+          await auth.signInWithRedirect(provider);
+        } catch (e2) {
+          errEl.innerHTML = `<div class="error-msg">${escapeHtml(e2.message || "Something went wrong.")}</div>`;
+        }
+      } else if (e && e.code === "auth/popup-closed-by-user") {
+        // They closed it themselves — no error needed.
+      } else {
+        errEl.innerHTML = `<div class="error-msg">${escapeHtml(e && e.message ? e.message : "Something went wrong.")}</div>`;
+      }
     }
   };
 }
