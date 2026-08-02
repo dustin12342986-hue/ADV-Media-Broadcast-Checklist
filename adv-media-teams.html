@@ -53,6 +53,14 @@
          "clockLocations": {
            ".write": true,
            ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         },
+         "clockArchive": {
+           ".write": true,
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         },
+         "invoiceArchive": {
+           ".write": true,
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
          }
        }
      }
@@ -469,6 +477,7 @@ function renderMainApp() {
       ${admin ? `<button class="tab-btn ${mainState.view === "invoices" ? "active" : ""}" id="tabInvoices">Invoices</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "log" ? "active" : ""}" id="tabLog">Log</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "locations" ? "active" : ""}" id="tabLocations">Locations</button>` : ""}
+      ${admin ? `<button class="tab-btn ${mainState.view === "reset" ? "active" : ""}" id="tabReset">Reset</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
@@ -482,6 +491,7 @@ function renderMainApp() {
     document.getElementById("tabInvoices").onclick = () => { mainState.view = "invoices"; renderMainApp(); };
     document.getElementById("tabLog").onclick = () => { mainState.view = "log"; renderMainApp(); };
     document.getElementById("tabLocations").onclick = () => { mainState.view = "locations"; renderMainApp(); };
+    document.getElementById("tabReset").onclick = () => { mainState.view = "reset"; renderMainApp(); };
   }
 
   if (mainState.view === "admin" && admin) {
@@ -505,6 +515,12 @@ function renderMainApp() {
   if (mainState.view === "locations" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminLocations();
+    return;
+  }
+
+  if (mainState.view === "reset" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAdminReset();
     return;
   }
 
@@ -604,9 +620,9 @@ async function renderMyInvoices() {
     const byGame = snap.val() || {};
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
-      for (const inv of Object.values(pushes)) {
+      for (const [key, inv] of Object.entries(pushes)) {
         if (inv.name && namesMatch(inv.name, myProfile.legalName)) {
-          entries.push(Object.assign({ gameId }, inv));
+          entries.push(Object.assign({ gameId, key }, inv));
         }
       }
     }
@@ -618,7 +634,7 @@ async function renderMyInvoices() {
     }
 
     inner.innerHTML = `
-      <div class="footnote" style="margin-bottom:12px;">Showing invoices matching "${escapeHtml(myProfile.legalName)}"</div>
+      <div class="footnote" style="margin-bottom:12px;">Showing invoices matching "${escapeHtml(myProfile.legalName)}". Deleting one removes it from your view only — the office keeps a permanent copy regardless.</div>
       ${entries.map((inv) => {
         const game = GAMES.find((g) => g.id === inv.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
@@ -632,10 +648,27 @@ async function renderMyInvoices() {
             </div>
             <div class="log-entry-body">${escapeHtml(inv.position || "")} — ${escapeHtml(gameLabel)}</div>
             ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
+            <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-game="${inv.gameId}" data-key="${inv.key}">Delete</button>
           </div>
         `;
       }).join("")}
     `;
+
+    inner.querySelectorAll(".shift-btn-drop").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!confirm("Delete this invoice from your view? This can't be undone, but the office keeps a permanent copy either way.")) return;
+        btn.disabled = true;
+        btn.textContent = "Deleting…";
+        try {
+          await db.ref(`invoices/${btn.dataset.game}/${btn.dataset.key}`).remove();
+          renderMyInvoices();
+        } catch (e) {
+          alert("Couldn't delete: " + (e.message || "unknown error"));
+          btn.disabled = false;
+          btn.textContent = "Delete";
+        }
+      };
+    });
   } catch (e) {
     console.error(e);
     inner.innerHTML = `<div class="error-msg">Couldn't load your invoices (${escapeHtml(e.message || "unknown error")}).</div>`;
@@ -646,7 +679,7 @@ async function renderAdminInvoices() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading invoices…</div>`;
   try {
-    const snap = await db.ref("invoices").once("value");
+    const snap = await db.ref("invoiceArchive").once("value");
     const byGame = snap.val() || {};
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
@@ -664,7 +697,7 @@ async function renderAdminInvoices() {
     const total = entries.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
 
     inner.innerHTML = `
-      <div class="footnote" style="margin-bottom:12px;">${entries.length} invoice${entries.length === 1 ? "" : "s"} submitted — total $${total.toFixed(2)}</div>
+      <div class="footnote" style="margin-bottom:12px;">${entries.length} invoice${entries.length === 1 ? "" : "s"} submitted — total $${total.toFixed(2)} — this is the permanent record and can't be changed from anyone's own view</div>
       ${entries.map((inv) => {
         const game = GAMES.find((g) => g.id === inv.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
@@ -693,27 +726,73 @@ async function renderAdminInvoices() {
 // ============================================================================
 // Admin: Clock-In Locations (Dustin & Aracely only)
 // ============================================================================
+// ============================================================================
+// Admin: Reset (Dustin & Aracely only) — clear the live clock-in list per
+// game. The permanent clockArchive is never touched by this, no matter what.
+// ============================================================================
+function renderAdminReset() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:14px;">
+      Clears the "Currently Clocked In / Completed Today" list on the Time Clock app for a game — useful for a clean reset between games. This does NOT delete anything permanently: the full clock-in history stays in the Locations tab's underlying record forever, it just won't show up on the live Time Clock screen anymore.
+    </div>
+    <div class="field-block">
+      <div class="label">Game</div>
+      <select id="resetGameSelect">
+        ${GAMES.map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
+      </select>
+    </div>
+    <button class="primary-btn" id="clearClockBtn" style="background:var(--red);">Clear Clock-Ins for This Game</button>
+    <div id="resetMsg" style="margin-top:10px;"></div>
+  `;
+
+  document.getElementById("clearClockBtn").onclick = async () => {
+    const gameId = document.getElementById("resetGameSelect").value;
+    const game = GAMES.find((g) => g.id === gameId);
+    const label = game ? `${game.day} ${game.date} — ${game.opp}` : gameId;
+    if (!confirm(`Clear the live clock-in list for ${label}? The permanent record is kept regardless — this only resets what shows on the Time Clock screen.`)) return;
+
+    const btn = document.getElementById("clearClockBtn");
+    const msgEl = document.getElementById("resetMsg");
+    btn.disabled = true;
+    btn.textContent = "Clearing…";
+    try {
+      await db.ref(`clock/${gameId}`).remove();
+      msgEl.innerHTML = `<div class="log-entry" style="color:var(--green);">✓ Cleared for ${escapeHtml(label)}. Permanent record is untouched.</div>`;
+    } catch (e) {
+      msgEl.innerHTML = `<div class="error-msg">Couldn't clear (${escapeHtml(e.message || "unknown error")}).</div>`;
+    }
+    btn.disabled = false;
+    btn.textContent = "Clear Clock-Ins for This Game";
+  };
+}
+
 async function renderAdminLocations() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading locations…</div>`;
   try {
-    const snap = await db.ref("clockLocations").once("value");
-    const byGame = snap.val() || {};
+    const [locSnap, archiveSnap] = await Promise.all([
+      db.ref("clockLocations").once("value"),
+      db.ref("clockArchive").once("value"),
+    ]);
+    const locByGame = locSnap.val() || {};
+    const archiveByGame = archiveSnap.val() || {};
     const entries = [];
-    for (const [gameId, pushes] of Object.entries(byGame)) {
-      for (const loc of Object.values(pushes)) {
-        entries.push(Object.assign({ gameId }, loc));
+    for (const [gameId, pushes] of Object.entries(locByGame)) {
+      for (const [key, loc] of Object.entries(pushes)) {
+        const archived = (archiveByGame[gameId] || {})[key] || {};
+        entries.push(Object.assign({ gameId, key, clockInAt: archived.clockInAt, clockOutAt: archived.clockOutAt }, loc));
       }
     }
     entries.sort((a, b) => new Date(b.at) - new Date(a.at));
 
     if (entries.length === 0) {
-      inner.innerHTML = `<div class="footnote">No clock-in locations recorded yet. This fills in automatically as people clock in on a phone that allows location access — it's never required to clock in.</div>`;
+      inner.innerHTML = `<div class="footnote">No clock-in locations recorded yet. This fills in automatically as people clock in on a phone that allows location access — it's never required to clock in. This permanent record is never affected by the "Reset" tab's clear action.</div>`;
       return;
     }
 
     inner.innerHTML = `
-      <div class="footnote" style="margin-bottom:12px;">${entries.length} clock-in location${entries.length === 1 ? "" : "s"} — most recent first. Only visible to admins.</div>
+      <div class="footnote" style="margin-bottom:12px;">${entries.length} clock-in${entries.length === 1 ? "" : "s"} — most recent first. Permanent record, only visible to admins, never affected by clearing the live list in the Reset tab.</div>
       ${entries.map((loc) => {
         const game = GAMES.find((g) => g.id === loc.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : loc.gameId;
@@ -721,6 +800,10 @@ async function renderAdminLocations() {
         const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
         const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
         const accuracyStr = loc.accuracy ? `±${Math.round(loc.accuracy)}m` : "";
+        const inOutStr = loc.clockInAt
+          ? `In: ${new Date(loc.clockInAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` +
+            (loc.clockOutAt ? ` · Out: ${new Date(loc.clockOutAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : " · still clocked in")
+          : "";
         return `
           <div class="log-entry">
             <div class="log-entry-top">
@@ -730,6 +813,7 @@ async function renderAdminLocations() {
             <div class="log-entry-body">
               <strong>${escapeHtml(loc.name || "Unknown")}</strong> — ${escapeHtml(gameLabel)}
             </div>
+            ${inOutStr ? `<div class="log-reason">${inOutStr}</div>` : ""}
             <div class="log-reason">
               <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--blue);">View on map</a>
               ${accuracyStr ? ` · accuracy ${accuracyStr}` : ""}
@@ -740,7 +824,7 @@ async function renderAdminLocations() {
     `;
   } catch (e) {
     console.error(e);
-    inner.innerHTML = `<div class="error-msg">Couldn't load locations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "clockLocations" section — see the setup comment at the top of this file.</div>`;
+    inner.innerHTML = `<div class="error-msg">Couldn't load locations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include "clockLocations" and "clockArchive" sections — see the setup comment at the top of this file.</div>`;
   }
 }
 

@@ -243,6 +243,9 @@ const POSITION_LABELS = [
 ];
 
 function clockPath(gameId) { return `clock/${gameId}`; }
+function clockArchivePath(gameId) { return `clockArchive/${gameId}`; }
+function invoicePath(gameId) { return `invoices/${gameId}`; }
+function invoiceArchivePath(gameId) { return `invoiceArchive/${gameId}`; }
 
 // Distance between two lat/lng points, in meters (Haversine formula).
 function distanceMeters(lat1, lng1, lat2, lng2) {
@@ -372,8 +375,6 @@ function fmtDuration(inIso, outIso) {
 function escapeHtml(str) {
   return (str || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
-
-function invoicePath(gameId) { return `invoices/${gameId}`; }
 
 // ============================================================================
 // Render
@@ -514,30 +515,39 @@ function renderClockUI(entries) {
     }
 
     msgEl.innerHTML = "";
-    const pushRef = dbPush(clockPath(clockedInGameId), {
+    const clockKey = db.ref(clockPath(clockedInGameId)).push().key;
+    const clockEntry = {
       name: clockedInName,
       position: clockedInPosition,
       clockInAt: new Date().toISOString(),
       clockOutAt: null,
-    });
-    if (pushRef && pushRef.key) {
-      db.ref(`clockLocations/${clockedInGameId}/${pushRef.key}`).set({
-        name: clockedInName,
-        position: clockedInPosition,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        distanceFromVenue: Math.round(dist),
-        at: new Date().toISOString(),
-      }).catch((err) => console.warn("Couldn't save clock-in location:", err));
-    }
+    };
+    db.ref(`${clockPath(clockedInGameId)}/${clockKey}`).set(clockEntry);
+    // Permanent copy — admins can always see this even after a "Clear
+    // Clock-Ins" reset wipes the live list above.
+    db.ref(`${clockArchivePath(clockedInGameId)}/${clockKey}`).set(clockEntry)
+      .catch((err) => console.warn("Couldn't write clock archive:", err));
+
+    db.ref(`clockLocations/${clockedInGameId}/${clockKey}`).set({
+      name: clockedInName,
+      position: clockedInPosition,
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      distanceFromVenue: Math.round(dist),
+      at: new Date().toISOString(),
+    }).catch((err) => console.warn("Couldn't save clock-in location:", err));
+
     state.name = "";
     state.justClockedIn = true;
   };
   root.querySelectorAll(".clock-out-btn").forEach((btn) => {
     btn.onclick = () => {
       const key = btn.dataset.key;
-      dbUpdate(`${clockPath(state.gameId)}/${key}`, { clockOutAt: new Date().toISOString() });
+      const clockOutAt = new Date().toISOString();
+      dbUpdate(`${clockPath(state.gameId)}/${key}`, { clockOutAt });
+      db.ref(`${clockArchivePath(state.gameId)}/${key}`).update({ clockOutAt })
+        .catch((err) => console.warn("Couldn't update clock archive:", err));
     };
   });
 }
@@ -648,11 +658,17 @@ function renderInvoiceUI(entries) {
 
     // Always keep a record in the shared log, even if email delivery failed,
     // so nothing gets lost and PM/EIC can still see it here.
-    dbPush(invoicePath(state.gameId), {
+    const invEntry = {
       name, position, hours, rate: rate || null, total: total || null, notes,
       submittedAt: new Date().toISOString(),
       emailSent: emailOk,
-    });
+    };
+    const invKey = db.ref(invoicePath(state.gameId)).push().key;
+    db.ref(`${invoicePath(state.gameId)}/${invKey}`).set(invEntry);
+    // Permanent copy — admins always see this in full, even if the person
+    // who submitted it later deletes their own copy from "My Invoices."
+    db.ref(`${invoiceArchivePath(state.gameId)}/${invKey}`).set(invEntry)
+      .catch((err) => console.warn("Couldn't write invoice archive:", err));
 
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit Invoice";
