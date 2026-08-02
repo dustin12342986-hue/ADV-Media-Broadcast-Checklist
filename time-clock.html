@@ -459,12 +459,34 @@ function renderClockUI(entries) {
   document.getElementById("positionSelect").onchange = (e) => { state.position = e.target.value; };
   document.getElementById("clockInBtn").onclick = () => {
     if (!state.name.trim()) return;
-    dbPush(clockPath(state.gameId), {
-      name: state.name.trim(),
-      position: state.position,
+    const clockedInName = state.name.trim();
+    const clockedInPosition = state.position;
+    const clockedInGameId = state.gameId;
+    const pushRef = dbPush(clockPath(state.gameId), {
+      name: clockedInName,
+      position: clockedInPosition,
       clockInAt: new Date().toISOString(),
       clockOutAt: null,
     });
+    // Best-effort location capture — doesn't block or delay clocking in if
+    // permission is denied, unavailable, or slow. Stored separately from the
+    // open clock data so only admin accounts can ever read it back.
+    if (pushRef && pushRef.key && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          db.ref(`clockLocations/${clockedInGameId}/${pushRef.key}`).set({
+            name: clockedInName,
+            position: clockedInPosition,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            at: new Date().toISOString(),
+          }).catch((err) => console.warn("Couldn't save clock-in location:", err));
+        },
+        (err) => console.warn("Location not captured (this doesn't affect clocking in):", err.message),
+        { timeout: 8000, maximumAge: 60000 }
+      );
+    }
     state.name = "";
     state.justClockedIn = true;
   };
@@ -477,41 +499,7 @@ function renderClockUI(entries) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
-function normalizeInvName(s) {
-  return (s || "").toLowerCase().trim();
-}
-
-function renderInvoiceLogList(entries, nameFilter) {
-  const listEl = document.getElementById("invoiceLogList");
-  if (!listEl) return;
-  const myName = normalizeInvName(nameFilter);
-  const log = Object.entries(entries)
-    .filter(([, inv]) => myName && normalizeInvName(inv.name).includes(myName))
-    .sort((a, b) => new Date(b[1].submittedAt) - new Date(a[1].submittedAt));
-
-  if (!myName) {
-    listEl.innerHTML = `<div class="empty-note">Type your name above to see invoices you've submitted for this game</div>`;
-    return;
-  }
-  if (log.length === 0) {
-    listEl.innerHTML = `<div class="empty-note">No invoices submitted yet under that name for this game</div>`;
-    return;
-  }
-  listEl.innerHTML = log.map(([, inv]) => `
-    <div class="invoice-log-row">
-      <div class="invoice-log-top">
-        <span>${escapeHtml(inv.name)} · ${escapeHtml(inv.position)}</span>
-        <span>${inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "")}</span>
-      </div>
-      ${inv.notes ? `<div class="invoice-log-notes">${escapeHtml(inv.notes)}</div>` : ""}
-    </div>
-  `).join("");
-}
-
-let lastInvoiceEntries = {};
-
 function renderInvoiceUI(entries) {
-  lastInvoiceEntries = entries;
   const root = document.getElementById("viewRoot");
   const currentGame = GAMES.find((g) => g.id === state.gameId);
   const notConfigured = FORMSPREE_ENDPOINT.includes("PASTE_YOUR_FORM_ID");
@@ -555,11 +543,9 @@ function renderInvoiceUI(entries) {
     <button class="submit-btn" id="invoiceSubmitBtn">Submit Invoice</button>
   `;
   html += `</div>`;
-
-  html += `<div class="section-title">Your Submitted Invoices for This Game</div><div class="roster-box" id="invoiceLogList"></div>`;
+  html += `<div class="footnote" style="margin-top:14px;">Want to see your own submitted invoices? Sign in to the ADV Media Teams app — that's the only place invoice history is shown, since it requires a real login.</div>`;
 
   root.innerHTML = html;
-  renderInvoiceLogList(lastInvoiceEntries, state.name);
 
   const nameEl = document.getElementById("invNameInput");
   const posEl = document.getElementById("invPositionSelect");
@@ -570,10 +556,7 @@ function renderInvoiceUI(entries) {
   const msgEl = document.getElementById("invoiceMsg");
   const submitBtn = document.getElementById("invoiceSubmitBtn");
 
-  nameEl.oninput = (e) => {
-    state.name = e.target.value;
-    renderInvoiceLogList(lastInvoiceEntries, state.name);
-  };
+  nameEl.oninput = (e) => { state.name = e.target.value; };
   posEl.onchange = (e) => { state.position = e.target.value; };
   function recalcTotal() {
     const h = parseFloat(hoursEl.value);

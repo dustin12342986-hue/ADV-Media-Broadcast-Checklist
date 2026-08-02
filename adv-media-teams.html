@@ -49,7 +49,11 @@
          "clock": { ".read": true, ".write": true },
          "invoices": { ".read": true, ".write": true },
          "liveRoster": { ".read": true, ".write": true },
-         "shiftLog": { ".read": true, ".write": true }
+         "shiftLog": { ".read": true, ".write": true },
+         "clockLocations": {
+           ".write": true,
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         }
        }
      }
 
@@ -464,6 +468,7 @@ function renderMainApp() {
       ${admin ? `<button class="tab-btn ${mainState.view === "admin" ? "active" : ""}" id="tabAdmin">Crew</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "invoices" ? "active" : ""}" id="tabInvoices">Invoices</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "log" ? "active" : ""}" id="tabLog">Log</button>` : ""}
+      ${admin ? `<button class="tab-btn ${mainState.view === "locations" ? "active" : ""}" id="tabLocations">Locations</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
@@ -476,6 +481,7 @@ function renderMainApp() {
     document.getElementById("tabAdmin").onclick = () => { mainState.view = "admin"; renderMainApp(); };
     document.getElementById("tabInvoices").onclick = () => { mainState.view = "invoices"; renderMainApp(); };
     document.getElementById("tabLog").onclick = () => { mainState.view = "log"; renderMainApp(); };
+    document.getElementById("tabLocations").onclick = () => { mainState.view = "locations"; renderMainApp(); };
   }
 
   if (mainState.view === "admin" && admin) {
@@ -493,6 +499,12 @@ function renderMainApp() {
   if (mainState.view === "log" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderShiftLog();
+    return;
+  }
+
+  if (mainState.view === "locations" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAdminLocations();
     return;
   }
 
@@ -675,6 +687,60 @@ async function renderAdminInvoices() {
   } catch (e) {
     console.error(e);
     inner.innerHTML = `<div class="error-msg">Couldn't load invoices (${escapeHtml(e.message || "unknown error")}).</div>`;
+  }
+}
+
+// ============================================================================
+// Admin: Clock-In Locations (Dustin & Aracely only)
+// ============================================================================
+async function renderAdminLocations() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading locations…</div>`;
+  try {
+    const snap = await db.ref("clockLocations").once("value");
+    const byGame = snap.val() || {};
+    const entries = [];
+    for (const [gameId, pushes] of Object.entries(byGame)) {
+      for (const loc of Object.values(pushes)) {
+        entries.push(Object.assign({ gameId }, loc));
+      }
+    }
+    entries.sort((a, b) => new Date(b.at) - new Date(a.at));
+
+    if (entries.length === 0) {
+      inner.innerHTML = `<div class="footnote">No clock-in locations recorded yet. This fills in automatically as people clock in on a phone that allows location access — it's never required to clock in.</div>`;
+      return;
+    }
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">${entries.length} clock-in location${entries.length === 1 ? "" : "s"} — most recent first. Only visible to admins.</div>
+      ${entries.map((loc) => {
+        const game = GAMES.find((g) => g.id === loc.gameId);
+        const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : loc.gameId;
+        const when = new Date(loc.at);
+        const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+        const accuracyStr = loc.accuracy ? `±${Math.round(loc.accuracy)}m` : "";
+        return `
+          <div class="log-entry">
+            <div class="log-entry-top">
+              <span class="log-badge log-badge-pickup">${escapeHtml(loc.position || "")}</span>
+              <span class="log-when">${whenStr}</span>
+            </div>
+            <div class="log-entry-body">
+              <strong>${escapeHtml(loc.name || "Unknown")}</strong> — ${escapeHtml(gameLabel)}
+            </div>
+            <div class="log-reason">
+              <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--blue);">View on map</a>
+              ${accuracyStr ? ` · accuracy ${accuracyStr}` : ""}
+            </div>
+          </div>
+        `;
+      }).join("")}
+    `;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load locations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "clockLocations" section — see the setup comment at the top of this file.</div>`;
   }
 }
 
