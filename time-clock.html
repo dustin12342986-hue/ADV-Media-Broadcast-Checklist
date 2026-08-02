@@ -30,6 +30,13 @@
   // path works no matter what the site's domain/username is.
   const CHECKLIST_APP_URL = "checklist.html";
 
+  // Crew must be physically at the stadium to clock in — checked against
+  // these coordinates every time someone taps Clock In.
+  // Crowley ISD Multi-Purpose Stadium, 9900 Hemphill St, Fort Worth, TX 76134
+  const VENUE_LAT = 32.609913;
+  const VENUE_LNG = -97.339093;
+  const MAX_DISTANCE_METERS = 152; // ~500 ft, covers the stadium and parking lots
+
   // ==========================================================================
   // INVOICE EMAIL SETUP — one-time, ~5 minutes
   // Static pages can't send email directly, so invoices route through
@@ -237,6 +244,26 @@ const POSITION_LABELS = [
 
 function clockPath(gameId) { return `clock/${gameId}`; }
 
+// Distance between two lat/lng points, in meters (Haversine formula).
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("This browser doesn't support location access."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
+  });
+}
+
 // ============================================================================
 // Firebase setup (mirrors broadcast-checklist.html)
 // ============================================================================
@@ -411,6 +438,7 @@ function renderClockUI(entries) {
       </div>
 
       <button class="clock-btn in" id="clockInBtn" ${!state.name.trim() ? "disabled" : ""}>Clock In</button>
+      <div id="clockInMsg" style="margin-top:8px;"></div>
     </div>
 
     <div class="section-title">Currently Clocked In (${activeEntries.length})</div>
@@ -457,35 +485,51 @@ function renderClockUI(entries) {
     document.getElementById("clockInBtn").disabled = !state.name.trim();
   };
   document.getElementById("positionSelect").onchange = (e) => { state.position = e.target.value; };
-  document.getElementById("clockInBtn").onclick = () => {
+  document.getElementById("clockInBtn").onclick = async () => {
     if (!state.name.trim()) return;
     const clockedInName = state.name.trim();
     const clockedInPosition = state.position;
     const clockedInGameId = state.gameId;
-    const pushRef = dbPush(clockPath(state.gameId), {
+    const btn = document.getElementById("clockInBtn");
+    const msgEl = document.getElementById("clockInMsg");
+
+    btn.disabled = true;
+    msgEl.innerHTML = `<div class="footnote">Checking your location…</div>`;
+
+    let pos;
+    try {
+      pos = await getLocation();
+    } catch (err) {
+      btn.disabled = false;
+      msgEl.innerHTML = `<div class="error-msg">⚠️ Location access is required to clock in, and it wasn't available (${escapeHtml(err.message || "permission denied")}). Please allow location access for this site in your browser settings, then try again.</div>`;
+      return;
+    }
+
+    const dist = distanceMeters(pos.coords.latitude, pos.coords.longitude, VENUE_LAT, VENUE_LNG);
+    if (dist > MAX_DISTANCE_METERS) {
+      const distFeet = Math.round(dist * 3.28084);
+      btn.disabled = false;
+      msgEl.innerHTML = `<div class="error-msg">⚠️ You're about ${distFeet.toLocaleString()} ft from the stadium — you need to be within 500 ft to clock in.</div>`;
+      return;
+    }
+
+    msgEl.innerHTML = "";
+    const pushRef = dbPush(clockPath(clockedInGameId), {
       name: clockedInName,
       position: clockedInPosition,
       clockInAt: new Date().toISOString(),
       clockOutAt: null,
     });
-    // Best-effort location capture — doesn't block or delay clocking in if
-    // permission is denied, unavailable, or slow. Stored separately from the
-    // open clock data so only admin accounts can ever read it back.
-    if (pushRef && pushRef.key && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          db.ref(`clockLocations/${clockedInGameId}/${pushRef.key}`).set({
-            name: clockedInName,
-            position: clockedInPosition,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            at: new Date().toISOString(),
-          }).catch((err) => console.warn("Couldn't save clock-in location:", err));
-        },
-        (err) => console.warn("Location not captured (this doesn't affect clocking in):", err.message),
-        { timeout: 8000, maximumAge: 60000 }
-      );
+    if (pushRef && pushRef.key) {
+      db.ref(`clockLocations/${clockedInGameId}/${pushRef.key}`).set({
+        name: clockedInName,
+        position: clockedInPosition,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        distanceFromVenue: Math.round(dist),
+        at: new Date().toISOString(),
+      }).catch((err) => console.warn("Couldn't save clock-in location:", err));
     }
     state.name = "";
     state.justClockedIn = true;
