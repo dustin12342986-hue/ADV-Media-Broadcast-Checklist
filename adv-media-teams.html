@@ -61,6 +61,20 @@
          "invoiceArchive": {
            ".write": true,
            ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         },
+         "approvedUsers": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+           "$uid": {
+             ".read": "auth != null && auth.uid === $uid",
+             ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+           }
+         },
+         "pendingApprovals": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+           "$uid": {
+             ".read": "auth != null && auth.uid === $uid",
+             ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+           }
          }
        }
      }
@@ -218,6 +232,13 @@
   .id-card {
     background: #fff; color: #000; border-radius: 18px; padding: 22px; max-width: 360px;
     margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    position: relative; overflow: hidden;
+  }
+  .id-card-unauthorized { box-shadow: 0 10px 30px rgba(214,90,78,0.5), 0 0 0 3px var(--red); }
+  .id-card-watermark {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-28deg);
+    font-size: 30px; font-weight: 900; letter-spacing: 2px; color: rgba(214,90,78,0.35);
+    white-space: nowrap; pointer-events: none; z-index: 1; text-transform: uppercase;
   }
   .id-card-photo {
     width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #111;
@@ -232,7 +253,7 @@
     background: #000; color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 13px;
     font-weight: 800; margin-bottom: 16px; text-align: center;
   }
-  .id-card-title.inactive { background: #eee; color: #999; }
+  .id-card-title.inactive { background: var(--red); color: #fff; font-size: 12px; }
   .id-card-footer { text-align: center; border-top: 1px solid #ddd; padding-top: 14px; }
   .id-card-cisd-logo { width: 110px; object-fit: contain; }
   .footnote { font-size: 11px; color: var(--text-faint); margin-top: 10px; font-family: monospace; }
@@ -381,7 +402,7 @@ async function initFirebaseAndBoot() {
         resolved = true;
         clearTimeout(authTimeout);
         currentUser = user;
-        if (user) renderMainApp();
+        if (user) checkApprovalAndBoot(user);
         else renderAuthScreen();
       },
       (err) => {
@@ -462,6 +483,66 @@ function isAdmin() {
   return currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase());
 }
 
+// ============================================================================
+// Approval gate — new sign-ins can't reach the portals until Dustin or
+// Aracely approves them. Admin accounts are auto-approved so they're never
+// locked out of their own app.
+// ============================================================================
+async function checkApprovalAndBoot(user) {
+  const root = document.getElementById("viewRoot");
+  root.innerHTML = `<div class="footnote">Checking your access…</div>`;
+
+  if (isAdmin()) {
+    try {
+      await db.ref(`approvedUsers/${user.uid}`).set(true);
+    } catch (e) { /* non-fatal — admins still get in via isAdmin() checks elsewhere */ }
+    renderMainApp();
+    return;
+  }
+
+  try {
+    const snap = await db.ref(`approvedUsers/${user.uid}`).once("value");
+    if (snap.val() === true) {
+      renderMainApp();
+      return;
+    }
+  } catch (e) {
+    console.error("Couldn't check approval status:", e);
+  }
+
+  // Not approved yet — register (or re-confirm) a pending request, then show
+  // the waiting screen instead of any portal content.
+  try {
+    await db.ref(`pendingApprovals/${user.uid}`).set({
+      email: user.email || "",
+      displayName: user.displayName || "",
+      requestedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Couldn't register pending approval:", e);
+  }
+  renderPendingApproval();
+}
+
+function renderPendingApproval() {
+  const root = document.getElementById("viewRoot");
+  root.innerHTML = `
+    <div class="auth-card">
+      <div style="text-align:center;">
+        <div style="font-size:15px; font-weight:800; margin-bottom:10px;">Waiting on approval</div>
+        <div style="color:var(--text-muted); font-size:13px; line-height:1.5; margin-bottom:16px;">
+          You're signed in as <strong>${escapeHtml(currentUser.email || "")}</strong>, but your account hasn't been approved yet. Dustin or Aracely need to add you to the crew before you can access your profile, ID card, or any other part of this app.
+        </div>
+        <div style="color:var(--text-faint); font-size:12px; margin-bottom:16px;">
+          If you're expecting access soon, check back later — no need to sign in again.
+        </div>
+        <button class="primary-btn" id="pendingLogoutBtn" style="background:var(--panel2); border:1px solid var(--border);">Log Out</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("pendingLogoutBtn").onclick = () => auth.signOut();
+}
+
 function renderMainApp() {
   const root = document.getElementById("viewRoot");
   const admin = isAdmin();
@@ -478,6 +559,7 @@ function renderMainApp() {
       ${admin ? `<button class="tab-btn ${mainState.view === "log" ? "active" : ""}" id="tabLog">Log</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "locations" ? "active" : ""}" id="tabLocations">Locations</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "reset" ? "active" : ""}" id="tabReset">Reset</button>` : ""}
+      ${admin ? `<button class="tab-btn ${mainState.view === "approvals" ? "active" : ""}" id="tabApprovals">Approvals</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
@@ -492,6 +574,7 @@ function renderMainApp() {
     document.getElementById("tabLog").onclick = () => { mainState.view = "log"; renderMainApp(); };
     document.getElementById("tabLocations").onclick = () => { mainState.view = "locations"; renderMainApp(); };
     document.getElementById("tabReset").onclick = () => { mainState.view = "reset"; renderMainApp(); };
+    document.getElementById("tabApprovals").onclick = () => { mainState.view = "approvals"; renderMainApp(); };
   }
 
   if (mainState.view === "admin" && admin) {
@@ -515,6 +598,12 @@ function renderMainApp() {
   if (mainState.view === "locations" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminLocations();
+    return;
+  }
+
+  if (mainState.view === "approvals" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAdminApprovals();
     return;
   }
 
@@ -730,6 +819,77 @@ async function renderAdminInvoices() {
 // Admin: Reset (Dustin & Aracely only) — clear the live clock-in list per
 // game. The permanent clockArchive is never touched by this, no matter what.
 // ============================================================================
+// ============================================================================
+// Admin: Approvals (Dustin & Aracely only) — approve new sign-ins, and
+// revoke access from anyone previously approved.
+// ============================================================================
+async function renderAdminApprovals() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const [pendingSnap, approvedSnap] = await Promise.all([
+      db.ref("pendingApprovals").once("value"),
+      db.ref("approvedUsers").once("value"),
+    ]);
+    const pending = pendingSnap.val() || {};
+    const approved = approvedSnap.val() || {};
+
+    const pendingEntries = Object.entries(pending).filter(([uid]) => approved[uid] !== true);
+    const approvedEntries = Object.entries(pending).filter(([uid]) => approved[uid] === true);
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">New sign-ins can't reach their profile, ID card, or any other part of the app until approved here.</div>
+      <div class="section-heading" style="font-size:12px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Waiting for approval (${pendingEntries.length})</div>
+      ${pendingEntries.length === 0 ? `<div class="footnote" style="margin-bottom:16px;">Nobody's waiting right now.</div>` : pendingEntries.map(([uid, p]) => `
+        <div class="log-entry">
+          <div class="log-entry-body"><strong>${escapeHtml(p.displayName || "Unknown")}</strong> — ${escapeHtml(p.email || "")}</div>
+          <button class="shift-btn shift-btn-pickup" style="margin-top:8px;" data-uid="${uid}" data-action="approve">Approve</button>
+        </div>
+      `).join("")}
+      <div class="section-heading" style="font-size:12px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; margin:18px 0 8px;">Previously approved (${approvedEntries.length})</div>
+      ${approvedEntries.length === 0 ? `<div class="footnote">Nobody else has been approved yet.</div>` : approvedEntries.map(([uid, p]) => `
+        <div class="log-entry">
+          <div class="log-entry-body"><strong>${escapeHtml(p.displayName || "Unknown")}</strong> — ${escapeHtml(p.email || "")}</div>
+          <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-uid="${uid}" data-action="revoke">Revoke Access</button>
+        </div>
+      `).join("")}
+    `;
+
+    inner.querySelectorAll("[data-action='approve']").forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "Approving…";
+        try {
+          await db.ref(`approvedUsers/${btn.dataset.uid}`).set(true);
+          renderAdminApprovals();
+        } catch (e) {
+          alert("Couldn't approve: " + (e.message || "unknown error"));
+          btn.disabled = false;
+          btn.textContent = "Approve";
+        }
+      };
+    });
+    inner.querySelectorAll("[data-action='revoke']").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!confirm("Revoke this person's access? They'll be blocked from the app again until re-approved.")) return;
+        btn.disabled = true;
+        btn.textContent = "Revoking…";
+        try {
+          await db.ref(`approvedUsers/${btn.dataset.uid}`).remove();
+          renderAdminApprovals();
+        } catch (e) {
+          alert("Couldn't revoke: " + (e.message || "unknown error"));
+          btn.disabled = false;
+          btn.textContent = "Revoke Access";
+        }
+      };
+    });
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load approvals (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include "approvedUsers" and "pendingApprovals" sections — see the setup comment at the top of this file.</div>`;
+  }
+}
+
 function renderAdminReset() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `
@@ -1485,7 +1645,8 @@ function renderIdCard(profile) {
   const scheduled = findScheduledEvent(profile.legalName);
 
   inner.innerHTML = `
-    <div class="id-card">
+    <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
+      ${scheduled ? "" : `<div class="id-card-watermark">NOT SCHEDULED TODAY</div>`}
       <div class="id-card-header">
         <img src="${ADV_LOGO}" class="id-card-adv-logo" />
         <div class="id-card-crew-label">ADV MEDIA CREW</div>
@@ -1495,7 +1656,7 @@ function renderIdCard(profile) {
       </div>
       <div class="id-card-name">${escapeHtml(profile.legalName)}</div>
       <div class="id-card-title ${scheduled ? "" : "inactive"}">
-        ${scheduled ? escapeHtml(scheduled.position) : "No title assigned today"}
+        ${scheduled ? escapeHtml(scheduled.position) : "Not Scheduled Today"}
       </div>
       <div class="id-card-footer">
         <img src="${CISD_LOGO}" class="id-card-cisd-logo" />
@@ -1514,7 +1675,5 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 initFirebaseAndBoot();
 </script>
-
-<script src="blue-bonnet-widget.js"></script>
 </body>
 </html>
