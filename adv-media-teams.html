@@ -75,6 +75,10 @@
              ".read": "auth != null && auth.uid === $uid",
              ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
            }
+         },
+         "qbApprovals": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+           ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
          }
        }
      }
@@ -112,6 +116,12 @@
   // Identity Services library below, which handles mobile sign-in far more
   // reliably than a generic popup/redirect.
   const GOOGLE_CLIENT_ID = "56102489603-cam8dpnm79ktgm32adp5e3djoccd7hdr.apps.googleusercontent.com";
+
+  // Same Formspree endpoint the Time Clock app's Invoice tab already uses —
+  // reused here so QB approval pings land in the same invoices.advmedia@gmail.com
+  // inbox that's already being watched for payment processing.
+  const FORMSPREE_ENDPOINT = "https://formspree.io/f/meeybjgp";
+  const INVOICE_RECIPIENT = "invoices.advmedia@gmail.com";
 </script>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -176,10 +186,13 @@
     padding: 10px 0; border-radius: 10px; font-weight: 700; font-size: 12.5px; cursor: pointer;
     border: 1px solid var(--border); background: var(--panel); color: var(--text-muted); text-decoration: none;
   }
-  .tabs { display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
+  .tabs {
+    display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 4px; margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
   .tab-btn {
-    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 9px 0; border-radius: 9px; border: none; cursor: pointer;
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 14px; border-radius: 9px; border: none; cursor: pointer; white-space: nowrap;
     background: transparent; color: var(--text-muted); font-weight: 700; font-size: 13px;
   }
   .tab-btn.active { background: var(--blue); color: #fff; }
@@ -560,6 +573,7 @@ function renderMainApp() {
       ${admin ? `<button class="tab-btn ${mainState.view === "locations" ? "active" : ""}" id="tabLocations">Locations</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "reset" ? "active" : ""}" id="tabReset">Reset</button>` : ""}
       ${admin ? `<button class="tab-btn ${mainState.view === "approvals" ? "active" : ""}" id="tabApprovals">Approvals</button>` : ""}
+      ${admin ? `<button class="tab-btn ${mainState.view === "qb" ? "active" : ""}" id="tabQb">QB Approval</button>` : ""}
     </div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
@@ -575,6 +589,7 @@ function renderMainApp() {
     document.getElementById("tabLocations").onclick = () => { mainState.view = "locations"; renderMainApp(); };
     document.getElementById("tabReset").onclick = () => { mainState.view = "reset"; renderMainApp(); };
     document.getElementById("tabApprovals").onclick = () => { mainState.view = "approvals"; renderMainApp(); };
+    document.getElementById("tabQb").onclick = () => { mainState.view = "qb"; renderMainApp(); };
   }
 
   if (mainState.view === "admin" && admin) {
@@ -586,6 +601,12 @@ function renderMainApp() {
   if (mainState.view === "invoices" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminInvoices();
+    return;
+  }
+
+  if (mainState.view === "qb" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderQbApproval();
     return;
   }
 
@@ -823,6 +844,152 @@ async function renderAdminInvoices() {
 // Admin: Approvals (Dustin & Aracely only) — approve new sign-ins, and
 // revoke access from anyone previously approved.
 // ============================================================================
+// ============================================================================
+// Admin: QB Invoice Approval (Dustin & Aracely only) — mark an invoice ready
+// for QuickBooks payment. Sends an email to invoices.advmedia@gmail.com
+// (the same inbox already used for invoice submissions) so whoever processes
+// QuickBooks payments knows this one is cleared to pay. Approval status is
+// tracked separately from the permanent invoiceArchive record, which never
+// gets edited by this or anything else.
+// ============================================================================
+async function renderQbApproval() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const [archiveSnap, qbSnap] = await Promise.all([
+      db.ref("invoiceArchive").once("value"),
+      db.ref("qbApprovals").once("value"),
+    ]);
+    const byGame = archiveSnap.val() || {};
+    const qbApproved = qbSnap.val() || {};
+
+    const entries = [];
+    for (const [gameId, pushes] of Object.entries(byGame)) {
+      for (const [key, inv] of Object.entries(pushes)) {
+        entries.push(Object.assign({ gameId, key, qb: (qbApproved[gameId] || {})[key] || null }, inv));
+      }
+    }
+    entries.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+    const pending = entries.filter((e) => !e.qb);
+    const approved = entries.filter((e) => e.qb);
+
+    const renderRow = (inv) => {
+      const game = GAMES.find((g) => g.id === inv.gameId);
+      const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
+      const amountStr = inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "—");
+      const when = new Date(inv.submittedAt);
+      const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      return `
+        <div class="log-entry">
+          <div class="log-entry-top">
+            <span class="log-badge log-badge-pickup">${amountStr}</span>
+            <span class="log-when">${whenStr}</span>
+          </div>
+          <div class="log-entry-body">
+            <strong>${escapeHtml(inv.name || "Unknown")}</strong> · ${escapeHtml(inv.position || "")} — ${escapeHtml(gameLabel)}
+          </div>
+          ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
+          ${inv.qb
+            ? `<div class="log-reason" style="color:${inv.qb.quickbooksBillCreated ? "var(--green)" : "var(--amber)"};">${inv.qb.quickbooksBillCreated ? `✓ QuickBooks Bill #${inv.qb.quickbooksBillId} created automatically` : "⚠ Approved, but needs manual entry in QuickBooks (see email)"} — by ${escapeHtml(inv.qb.approvedByName || inv.qb.approvedByEmail || "")}, ${new Date(inv.qb.approvedAt).toLocaleDateString()}</div>`
+            : `<button class="shift-btn shift-btn-pickup" style="margin-top:8px;" data-game="${inv.gameId}" data-key="${inv.key}" data-name="${escapeAttr(inv.name || "")}" data-position="${escapeAttr(inv.position || "")}" data-amount="${escapeAttr(amountStr)}" data-rawtotal="${inv.total || ""}" data-gamelabel="${escapeAttr(gameLabel)}">Approve for QuickBooks</button>`}
+        </div>
+      `;
+    };
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">Approving here creates a real Bill in QuickBooks against the matching Vendor, and always emails ${INVOICE_RECIPIENT} too as a backup — so this gets paid within your normal window even if the QuickBooks step ever fails. This is separate from the permanent invoice record, which never changes.</div>
+      <div class="section-heading" style="font-size:12px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Awaiting QB approval (${pending.length})</div>
+      ${pending.length === 0 ? `<div class="footnote" style="margin-bottom:16px;">Nothing waiting right now.</div>` : pending.map(renderRow).join("")}
+      <div class="section-heading" style="font-size:12px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; margin:18px 0 8px;">Already sent to QuickBooks (${approved.length})</div>
+      ${approved.length === 0 ? `<div class="footnote">Nothing sent yet.</div>` : approved.map(renderRow).join("")}
+    `;
+
+    inner.querySelectorAll(".shift-btn-pickup[data-game]").forEach((btn) => {
+      btn.onclick = async () => {
+        const { game: gameId, key, name, position, amount, rawtotal, gamelabel } = btn.dataset;
+        if (!confirm(`Approve this invoice for QuickBooks payment? This creates a real Bill in QuickBooks against the matching Vendor.`)) return;
+        btn.disabled = true;
+        btn.textContent = "Approving…";
+
+        const approverName = (currentUser.displayName || currentUser.email || "Admin");
+        let qbResult = null;
+        let qbError = null;
+
+        // Try creating the actual Bill in QuickBooks first.
+        if (rawtotal) {
+          try {
+            const idToken = await currentUser.getIdToken();
+            const res = await fetch(
+              "https://us-central1-crowley-football.cloudfunctions.net/approveQbInvoice",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+                body: JSON.stringify({ data: { vendorName: name, amount: rawtotal, memo: `${position} — ${gamelabel}` } }),
+              }
+            );
+            const body = await res.json();
+            if (res.ok && body.result && body.result.success) {
+              qbResult = body.result;
+            } else {
+              qbError = (body.error && body.error.message) || "Unknown error creating the QuickBooks Bill.";
+            }
+          } catch (e) {
+            qbError = e.message || "Couldn't reach the QuickBooks connection.";
+          }
+        } else {
+          qbError = "No dollar total on this invoice — can't create a QuickBooks Bill from hours alone.";
+        }
+
+        // Always send the email too — a guaranteed backup so the office
+        // still knows to pay this within the 30-day window even if the
+        // QuickBooks API step above failed for any reason.
+        let emailOk = false;
+        try {
+          const res = await fetch(FORMSPREE_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({
+              _subject: `QB Payment Ready: ${name} (${position}) — ${amount}`,
+              name, position, amount, game: gamelabel,
+              approvedBy: approverName,
+              quickbooksStatus: qbResult ? `Bill #${qbResult.billId} created automatically` : `NOT created automatically — ${qbError}`,
+              message: `${approverName} approved this invoice for QuickBooks payment. Name: ${name}, Position: ${position}, Game: ${gamelabel}, Amount: ${amount}. ${qbResult ? "A QuickBooks Bill was created automatically." : "The automatic QuickBooks step failed (" + qbError + ") — please enter this payment manually."}`,
+            }),
+          });
+          emailOk = res.ok;
+        } catch (e) {
+          console.error("QB approval email failed:", e);
+        }
+
+        try {
+          await db.ref(`qbApprovals/${gameId}/${key}`).set({
+            approvedByEmail: currentUser.email || "",
+            approvedByName: approverName,
+            approvedAt: new Date().toISOString(),
+            emailSent: emailOk,
+            quickbooksBillCreated: !!qbResult,
+            quickbooksBillId: qbResult ? qbResult.billId : null,
+            quickbooksError: qbError,
+          });
+        } catch (e) {
+          alert("Couldn't save approval status: " + (e.message || "unknown error"));
+        }
+
+        if (qbResult) {
+          alert(`✓ Bill created in QuickBooks against ${qbResult.vendorMatched} (Bill #${qbResult.billId}).`);
+        } else {
+          alert("Couldn't create the QuickBooks Bill automatically (" + qbError + "). An email was still sent to " + INVOICE_RECIPIENT + " so it can be entered manually — this invoice is not lost.");
+        }
+        renderQbApproval();
+      };
+    });
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load QB approvals (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "qbApprovals" section — see the setup comment at the top of this file.</div>`;
+  }
+}
+
 async function renderAdminApprovals() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
@@ -1675,7 +1842,5 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 initFirebaseAndBoot();
 </script>
-
-<script src="blue-bonnet-widget.js"></script>
 </body>
 </html>
