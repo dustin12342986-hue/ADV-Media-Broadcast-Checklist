@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <title>ADV Media Teams</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#4A8FC0">
 
 <!--
   ============================================================================
@@ -79,6 +82,18 @@
          "qbApprovals": {
            ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
            ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         },
+         "confirmations": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+         },
+         "equipmentReports": {
+           ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+           ".write": "auth != null"
+         },
+         "pushSubscriptions": {
+           "$uid": {
+             ".write": "auth != null && auth.uid === $uid"
+           }
          }
        }
      }
@@ -121,6 +136,12 @@
   // reused here so QB approval pings land in the same invoices.advmedia@gmail.com
   // inbox that's already being watched for payment processing.
   const FORMSPREE_ENDPOINT = "https://formspree.io/f/meeybjgp";
+  // Crowley ISD Multi-Purpose Stadium — same coordinates used for geofenced clock-in.
+  const VENUE_LAT_FRONTEND = 32.609913;
+  const VENUE_LNG_FRONTEND = -97.339093;
+  // Public key for push notifications — this one is meant to be public,
+  // unlike the private key which stays server-side as a Cloud Function secret.
+  const VAPID_PUBLIC_KEY = "BBwANmkYcAnahWjWKj-Y1Mw2N73HXFEP4iwFZpa5nUlTT80lC8fJGNmxjbA1W_8Sv2nliM-9nJtJtkwHuPwdf8M";
   const INVOICE_RECIPIENT = "invoices.advmedia@gmail.com";
 </script>
 
@@ -190,6 +211,22 @@
     display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 4px; margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
+  .admin-menu-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin: -8px 0 18px;
+  }
+  .admin-menu-group { margin-bottom: 12px; }
+  .admin-menu-group:last-child { margin-bottom: 0; }
+  .admin-menu-group-label {
+    font-size: 10.5px; font-weight: 800; color: var(--text-faint); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .admin-menu-group-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .admin-menu-item {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2);
+    color: var(--text-muted); font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .admin-menu-item.active { background: var(--blue); border-color: var(--blue); color: #fff; }
   .tab-btn {
     flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px;
     padding: 9px 14px; border-radius: 9px; border: none; cursor: pointer; white-space: nowrap;
@@ -348,6 +385,9 @@
     <h1>ADV Media Teams</h1>
   </div>
   <p class="subhead">Your crew profile and digital ID card.</p>
+  <p style="font-size:11.5px; color:var(--text-faint); margin:-14px 0 20px;">
+    Need help? <a href="mailto:invoices.advmedia@gmail.com" style="color:var(--blue);">Contact support</a>
+  </p>
   <div id="setupWarning" class="setup-warning"></div>
 
   <div class="nav-links">
@@ -488,10 +528,61 @@ function renderAuthScreen() {
 // ============================================================================
 // Main app (Profile / ID Card)
 // ============================================================================
-const mainState = { view: "profile" };
+const mainState = { view: "today", adminMenuOpen: false };
 let unsubProfile = null;
 
 const ADMIN_EMAILS = ["dustin12342986@gmail.com", "aracely.valencia10@gmail.com"];
+// ============================================================================
+// Push notifications — optional, off by default. When someone taps "Enable
+// Notifications," this registers a service worker and subscribes their
+// browser to receive pushes (e.g. "you've been approved," "a shift opened
+// up"), saving the subscription so the backend can send to it later.
+// ============================================================================
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function wireUpNotifButton() {
+  const btn = document.getElementById("notifBtn");
+  if (!btn) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    btn.style.display = "none";
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const existingSub = reg ? await reg.pushManager.getSubscription() : null;
+    btn.textContent = existingSub ? "🔔 Notifications On" : "🔔 Notifications";
+  } catch (e) { /* leave default label */ }
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      const reg = await navigator.serviceWorker.register("sw.js");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        alert("Notifications weren't allowed — you can turn this on later from your browser's site settings.");
+        btn.disabled = false;
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+      await db.ref(`pushSubscriptions/${currentUser.uid}`).set(sub.toJSON());
+      btn.textContent = "🔔 Notifications On";
+    } catch (e) {
+      console.error("Push subscribe failed:", e);
+      alert("Couldn't enable notifications: " + (e.message || "unknown error"));
+    }
+    btn.disabled = false;
+  };
+}
+
 function isAdmin() {
   return currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase());
 }
@@ -556,45 +647,99 @@ function renderPendingApproval() {
   document.getElementById("pendingLogoutBtn").onclick = () => auth.signOut();
 }
 
+const ADMIN_GROUPS = [
+  { label: "Crew", items: [
+    { view: "admin", label: "Crew Directory" },
+    { view: "approvals", label: "Approvals" },
+  ]},
+  { label: "Financial", items: [
+    { view: "invoices", label: "Invoices" },
+    { view: "qb", label: "QB Approval" },
+  ]},
+  { label: "Operations", items: [
+    { view: "confirmations", label: "Confirmations" },
+    { view: "equipmentAdmin", label: "Equipment Reports" },
+    { view: "log", label: "Shift Log" },
+    { view: "locations", label: "Clock-In Locations" },
+    { view: "reset", label: "Reset Clock-Ins" },
+  ]},
+];
+const ADMIN_VIEWS = ADMIN_GROUPS.flatMap((g) => g.items.map((i) => i.view));
+
 function renderMainApp() {
   const root = document.getElementById("viewRoot");
   const admin = isAdmin();
+  const adminMenuOpen = mainState.adminMenuOpen && admin;
+
   root.innerHTML = `
     <button class="logout-btn" id="logoutBtn">Log Out</button>
+    <button class="logout-btn" id="notifBtn" style="margin-right:8px;">🔔 Notifications</button>
     <div style="clear:both"></div>
     <div class="tabs">
+      <button class="tab-btn ${mainState.view === "today" ? "active" : ""}" id="tabToday">Today</button>
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
-      ${admin ? `<button class="tab-btn ${mainState.view === "admin" ? "active" : ""}" id="tabAdmin">Crew</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "invoices" ? "active" : ""}" id="tabInvoices">Invoices</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "log" ? "active" : ""}" id="tabLog">Log</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "locations" ? "active" : ""}" id="tabLocations">Locations</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "reset" ? "active" : ""}" id="tabReset">Reset</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "approvals" ? "active" : ""}" id="tabApprovals">Approvals</button>` : ""}
-      ${admin ? `<button class="tab-btn ${mainState.view === "qb" ? "active" : ""}" id="tabQb">QB Approval</button>` : ""}
+      <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
+      ${admin ? `<button class="tab-btn ${ADMIN_VIEWS.includes(mainState.view) ? "active" : ""}" id="tabAdminMenu">Admin ${adminMenuOpen ? "▴" : "▾"}</button>` : ""}
     </div>
+    ${adminMenuOpen ? `
+      <div class="admin-menu-panel">
+        ${ADMIN_GROUPS.map((g) => `
+          <div class="admin-menu-group">
+            <div class="admin-menu-group-label">${g.label}</div>
+            <div class="admin-menu-group-items">
+              ${g.items.map((i) => `<button class="admin-menu-item ${mainState.view === i.view ? "active" : ""}" data-view="${i.view}">${i.label}</button>`).join("")}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
-  document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; renderMainApp(); };
-  document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; renderMainApp(); };
-  document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; renderMainApp(); };
-  document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; renderMainApp(); };
+  wireUpNotifButton();
+  document.getElementById("tabToday").onclick = () => { mainState.view = "today"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabEquipment").onclick = () => { mainState.view = "equipment"; mainState.adminMenuOpen = false; renderMainApp(); };
   if (admin) {
-    document.getElementById("tabAdmin").onclick = () => { mainState.view = "admin"; renderMainApp(); };
-    document.getElementById("tabInvoices").onclick = () => { mainState.view = "invoices"; renderMainApp(); };
-    document.getElementById("tabLog").onclick = () => { mainState.view = "log"; renderMainApp(); };
-    document.getElementById("tabLocations").onclick = () => { mainState.view = "locations"; renderMainApp(); };
-    document.getElementById("tabReset").onclick = () => { mainState.view = "reset"; renderMainApp(); };
-    document.getElementById("tabApprovals").onclick = () => { mainState.view = "approvals"; renderMainApp(); };
-    document.getElementById("tabQb").onclick = () => { mainState.view = "qb"; renderMainApp(); };
+    document.getElementById("tabAdminMenu").onclick = () => { mainState.adminMenuOpen = !mainState.adminMenuOpen; renderMainApp(); };
+    document.querySelectorAll(".admin-menu-item").forEach((btn) => {
+      btn.onclick = () => { mainState.view = btn.dataset.view; mainState.adminMenuOpen = false; renderMainApp(); };
+    });
+  }
+
+  if (mainState.view === "today") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderTodayView();
+    return;
+  }
+
+  if (mainState.view === "equipment") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderEquipmentSubmit();
+    return;
+  }
+
+  if (mainState.view === "equipmentAdmin" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderEquipmentReports();
+    return;
   }
 
   if (mainState.view === "admin" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminCrewList();
+    return;
+  }
+
+  if (mainState.view === "confirmations" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderConfirmations();
     return;
   }
 
@@ -691,6 +836,7 @@ async function renderAdminCrewList() {
             </div>
             ${p.bio ? `<div class="admin-crew-bio">${escapeHtml(p.bio)}</div>` : ""}
             ${p.phone ? `<div class="admin-crew-phone">📞 ${escapeHtml(p.phone)}</div>` : ""}
+            ${p.emergencyName ? `<div class="admin-crew-phone" style="color:var(--red);">🚨 Emergency: ${escapeHtml(p.emergencyName)}${p.emergencyPhone ? " — " + escapeHtml(p.emergencyPhone) : ""}</div>` : ""}
           </div>
         </div>
       `).join("")}
@@ -1057,6 +1203,52 @@ async function renderAdminApprovals() {
   }
 }
 
+// ============================================================================
+// Admin: Confirmations (Dustin & Aracely only) — who has replied ✅ to the
+// game-day reminder texts/emails, and who hasn't yet. This is populated
+// automatically by the scheduled reminder system; nothing to trigger here.
+// ============================================================================
+async function renderConfirmations() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const snap = await db.ref("confirmations").once("value");
+    const byGame = snap.val() || {};
+    const gameIds = Object.keys(byGame).sort();
+
+    if (gameIds.length === 0) {
+      inner.innerHTML = `<div class="footnote">No reminders have gone out yet — this fills in automatically starting 36 hours before each game.</div>`;
+      return;
+    }
+
+    inner.innerHTML = `
+      <div class="footnote" style="margin-bottom:12px;">Confirmed ✅ vs still waiting, per game. Updates automatically as people reply to texts.</div>
+      ${gameIds.map((gameId) => {
+        const game = GAMES.find((g) => g.id === gameId);
+        const label = game ? `${game.day} ${game.date} — ${game.opp}` : gameId;
+        const entries = Object.values(byGame[gameId]);
+        const confirmed = entries.filter((e) => e.confirmed);
+        const waiting = entries.filter((e) => !e.confirmed);
+        return `
+          <div class="shift-game-card">
+            <div class="shift-game-header">${escapeHtml(label)}</div>
+            <div class="log-reason" style="margin-bottom:8px;">${confirmed.length} confirmed · ${waiting.length} waiting</div>
+            ${entries.map((e) => `
+              <div class="shift-row">
+                <div class="shift-role">${escapeHtml(e.position || "")}</div>
+                <div class="shift-status ${e.confirmed ? "" : "shift-open"}">${escapeHtml(e.name || "")} ${e.confirmed ? "✅" : "— waiting"}</div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }).join("")}
+    `;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load confirmations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "confirmations" section — see the setup comment at the top of this file.</div>`;
+  }
+}
+
 function renderAdminReset() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `
@@ -1406,6 +1598,168 @@ async function confirmDrop() {
   }
 }
 
+// ============================================================================
+// Today — who's working today's game, plus live weather. Visible to
+// everyone, not just admins.
+// ============================================================================
+async function getVenueWeather() {
+  try {
+    const pointRes = await fetch(`https://api.weather.gov/points/${VENUE_LAT_FRONTEND},${VENUE_LNG_FRONTEND}`);
+    const pointData = await pointRes.json();
+    const forecastUrl = pointData.properties && pointData.properties.forecast;
+    if (!forecastUrl) return null;
+    const forecastRes = await fetch(forecastUrl);
+    const forecastData = await forecastRes.json();
+    const period = forecastData.properties && forecastData.properties.periods && forecastData.properties.periods[0];
+    return period ? { name: period.name, forecast: period.detailedForecast, temp: period.temperature, unit: period.temperatureUnit } : null;
+  } catch (e) {
+    console.error("Weather fetch failed:", e);
+    return null;
+  }
+}
+
+// ============================================================================
+// Equipment Reports — crew submits a quick post-shift condition report;
+// admins review all of them in one place.
+// ============================================================================
+async function renderEquipmentSubmit() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:14px;">Submit this after your shift, same as your invoice — takes 30 seconds.</div>
+    <div class="field-block">
+      <div class="label">Game</div>
+      <select id="eqGameSelect">
+        ${GAMES.map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field-block">
+      <div class="label">Position</div>
+      <select id="eqPositionSelect">
+        ${TRADEABLE_ROLES.concat(["EIC", "PM"]).map((p) => `<option value="${p}">${p}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field-block">
+      <div class="label">Equipment Condition</div>
+      <select id="eqCondition">
+        <option value="All Good">All Good — nothing to report</option>
+        <option value="Minor Issue">Minor Issue — noted, still usable</option>
+        <option value="Needs Attention">Needs Attention — repair or replace before next use</option>
+      </select>
+    </div>
+    <div class="field-block">
+      <div class="label">Notes</div>
+      <textarea id="eqNotes" rows="3" placeholder="Describe any issues, or leave blank if all good"></textarea>
+    </div>
+    <div id="eqMsg"></div>
+    <button class="primary-btn" id="eqSubmitBtn">Submit Equipment Report</button>
+  `;
+
+  document.getElementById("eqSubmitBtn").onclick = async () => {
+    const gameId = document.getElementById("eqGameSelect").value;
+    const position = document.getElementById("eqPositionSelect").value;
+    const condition = document.getElementById("eqCondition").value;
+    const notes = document.getElementById("eqNotes").value.trim();
+    const msgEl = document.getElementById("eqMsg");
+    const btn = document.getElementById("eqSubmitBtn");
+    btn.disabled = true;
+
+    try {
+      const profSnap = await db.ref(`profiles/${currentUser.uid}`).once("value");
+      const profile = profSnap.val() || {};
+      await db.ref(`equipmentReports/${gameId}`).push({
+        name: profile.legalName || currentUser.email || "Unknown",
+        position, condition, notes,
+        submittedAt: new Date().toISOString(),
+      });
+      msgEl.innerHTML = `<div class="save-confirm">✓ Equipment report submitted</div>`;
+      document.getElementById("eqNotes").value = "";
+    } catch (e) {
+      msgEl.innerHTML = `<div class="error-msg">Couldn't submit (${escapeHtml(e.message || "unknown error")}).</div>`;
+    }
+    btn.disabled = false;
+  };
+}
+
+async function renderEquipmentReports() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const snap = await db.ref("equipmentReports").once("value");
+    const byGame = snap.val() || {};
+    const entries = [];
+    for (const [gameId, pushes] of Object.entries(byGame)) {
+      for (const r of Object.values(pushes)) entries.push(Object.assign({ gameId }, r));
+    }
+    entries.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+    if (entries.length === 0) {
+      inner.innerHTML = `<div class="footnote">No equipment reports submitted yet.</div>`;
+      return;
+    }
+    const needsAttention = entries.filter((e) => e.condition === "Needs Attention");
+
+    inner.innerHTML = `
+      ${needsAttention.length > 0 ? `<div class="setup-warning" style="display:block; margin-bottom:14px;">⚠️ ${needsAttention.length} report${needsAttention.length === 1 ? "" : "s"} flagged "Needs Attention"</div>` : ""}
+      ${entries.map((r) => {
+        const game = GAMES.find((g) => g.id === r.gameId);
+        const label = game ? `${game.day} ${game.date} — ${game.opp}` : r.gameId;
+        const when = new Date(r.submittedAt);
+        const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const color = r.condition === "Needs Attention" ? "var(--red)" : r.condition === "Minor Issue" ? "var(--amber)" : "var(--green)";
+        return `
+          <div class="log-entry">
+            <div class="log-entry-top">
+              <span class="log-badge" style="background:${color};">${escapeHtml(r.condition)}</span>
+              <span class="log-when">${whenStr}</span>
+            </div>
+            <div class="log-entry-body"><strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.position)} — ${escapeHtml(label)}</div>
+            ${r.notes ? `<div class="log-reason">${escapeHtml(r.notes)}</div>` : ""}
+          </div>
+        `;
+      }).join("")}
+    `;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load equipment reports (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include an "equipmentReports" section.</div>`;
+  }
+}
+
+async function renderTodayView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+
+  const todayId = new Date().toISOString().slice(0, 10);
+  const game = GAMES.find((g) => g.id === todayId);
+
+  if (!game) {
+    inner.innerHTML = `<div class="footnote">No game scheduled today.</div>`;
+    return;
+  }
+
+  const positions = ROSTER_DATA[todayId] || {};
+  const filled = Object.entries(positions).filter(([, name]) => name && name !== "TBD");
+
+  inner.innerHTML = `
+    <div class="shift-game-card">
+      <div class="shift-game-header">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
+      <div id="todayWeather" class="footnote">Loading weather…</div>
+    </div>
+    <div class="footnote" style="margin:14px 0 8px;">Working today (${filled.length})</div>
+    ${filled.map(([role, name]) => `
+      <div class="shift-row">
+        <div class="shift-role">${escapeHtml(role)}</div>
+        <div class="shift-status">${escapeHtml(name)}</div>
+      </div>
+    `).join("")}
+  `;
+
+  const weather = await getVenueWeather();
+  const weatherEl = document.getElementById("todayWeather");
+  if (weatherEl) {
+    weatherEl.textContent = weather ? `${weather.name}: ${weather.temp}°${weather.unit} — ${weather.forecast}` : "Weather unavailable right now.";
+  }
+}
+
 function renderProfileEditor(profile) {
   const inner = document.getElementById("innerRoot");
   const skills = profile.skills || [];
@@ -1436,6 +1790,14 @@ function renderProfileEditor(profile) {
     <div class="field-block">
       <div class="label">Phone (internal only, not shown on ID card)</div>
       <input id="phone" type="tel" placeholder="(xxx) xxx-xxxx" value="${escapeAttr(profile.phone || "")}" />
+    </div>
+    <div class="field-block">
+      <div class="label">Emergency Contact Name (admin-only, safety use)</div>
+      <input id="emergencyName" placeholder="Who to contact if something goes wrong" value="${escapeAttr(profile.emergencyName || "")}" />
+    </div>
+    <div class="field-block">
+      <div class="label">Emergency Contact Phone</div>
+      <input id="emergencyPhone" type="tel" placeholder="(xxx) xxx-xxxx" value="${escapeAttr(profile.emergencyPhone || "")}" />
     </div>
     <button class="primary-btn" id="saveProfileBtn">Save Profile</button>
     <div id="saveMsg"></div>
@@ -1480,6 +1842,8 @@ function renderProfileEditor(profile) {
     const crewHandle = document.getElementById("crewHandle").value.trim();
     const bio = document.getElementById("bio").value.trim();
     const phone = document.getElementById("phone").value.trim();
+    const emergencyName = document.getElementById("emergencyName").value.trim();
+    const emergencyPhone = document.getElementById("emergencyPhone").value.trim();
     const msgEl = document.getElementById("saveMsg");
 
     if (!legalName) {
@@ -1488,7 +1852,7 @@ function renderProfileEditor(profile) {
     }
 
     const fullProfile = {
-      legalName, crewHandle, bio, phone,
+      legalName, crewHandle, bio, phone, emergencyName, emergencyPhone,
       skills: Array.from(selectedSkills),
       photoData: pendingPhotoData || null,
       updatedAt: new Date().toISOString(),
@@ -1840,7 +2204,16 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
+// Registered unconditionally (not gated behind the notifications button)
+// so the browser recognizes this as an installable PWA from the first
+// visit. Safe to call again later when notifications are enabled —
+// registering twice just returns the existing registration.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch((e) => console.error("Service worker registration failed:", e));
+}
+
 initFirebaseAndBoot();
 </script>
+<script src="blue-bonnet-widget.js"></script>
 </body>
 </html>

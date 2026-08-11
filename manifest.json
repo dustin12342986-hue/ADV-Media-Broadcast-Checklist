@@ -1,0 +1,12 @@
+{
+  "name": "ADV Media Teams",
+  "short_name": "ADV Media",
+  "start_url": "./adv-media-teams.html",
+  "display": "standalone",
+  "background_color": "#0A0D12",
+  "theme_color": "#4A8FC0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
