@@ -877,7 +877,7 @@ async function renderMyInvoices() {
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
       for (const [key, inv] of Object.entries(pushes)) {
-        if (inv.name && namesMatch(inv.name, myProfile.legalName)) {
+        if (inv.name && namesMatch(inv.name, myProfile.legalName, myProfile.crewHandle)) {
           entries.push(Object.assign({ gameId, key }, inv));
         }
       }
@@ -1452,6 +1452,7 @@ async function renderShiftsView() {
 function renderShiftsList(liveRoster) {
   const inner = document.getElementById("innerRoot");
   const myName = myProfileForShifts && myProfileForShifts.legalName;
+  const myHandle = myProfileForShifts && myProfileForShifts.crewHandle;
 
   if (!myName) {
     inner.innerHTML = `<div class="footnote">Fill out your Profile tab first — shifts are matched to your legal name.</div>`;
@@ -1465,7 +1466,7 @@ function renderShiftsList(liveRoster) {
       const rows = TRADEABLE_ROLES.map((role) => {
         const key = role.replace(/[^A-Za-z0-9]/g, "_");
         const entry = gameRoster[key] || { role, name: null, status: "open" };
-        const isMine = entry.status === "assigned" && namesMatch(entry.name, myName);
+        const isMine = entry.status === "assigned" && namesMatch(entry.name, myName, myHandle);
         let actionHtml = "";
         if (entry.status === "open") {
           actionHtml = `<button class="shift-btn shift-btn-pickup" data-game="${g.id}" data-role="${key}">Pick Up</button>`;
@@ -1499,6 +1500,7 @@ function renderShiftsList(liveRoster) {
 
 async function pickUpShift(gameId, roleKey) {
   const myName = myProfileForShifts && myProfileForShifts.legalName;
+  const myHandle = myProfileForShifts && myProfileForShifts.crewHandle;
   if (!myName) return;
   try {
     const snap = await db.ref(`liveRoster/${gameId}/${roleKey}`).once("value");
@@ -1583,6 +1585,7 @@ async function confirmDrop() {
   }
   const { gameId, roleKey, reason, otherText } = dropModalState;
   const myName = myProfileForShifts && myProfileForShifts.legalName;
+  const myHandle = myProfileForShifts && myProfileForShifts.crewHandle;
   try {
     const snap = await db.ref(`liveRoster/${gameId}/${roleKey}`).once("value");
     const entry = snap.val();
@@ -2146,20 +2149,78 @@ const ROSTER_DATA = {
 };
 
 function normalizeName(s) {
-  return (s || "").toLowerCase().replace(/\(.*?\)/g, "").trim();
-}
-function namesMatch(a, b) {
-  const na = normalizeName(a), nb = normalizeName(b);
-  if (!na || !nb) return false;
-  return na.includes(nb) || nb.includes(na);
+  return (s || "").toLowerCase().replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
 }
 
-function findScheduledEvent(legalName) {
+// A roster entry can be written a few ways: a bare first name ("Dustin"),
+// a first name plus last initial ("Dustin B"), a full name ("Larry
+// Harless"), a nickname in parens ("Frederick (Fred)"), or someone's crew
+// handle. Pull out every form worth trying to match against.
+function rosterAliases(rosterName) {
+  const raw = (rosterName || "").trim();
+  if (!raw) return [];
+  const aliases = [];
+  const parenMatch = raw.match(/^(.*?)\s*\((.*?)\)\s*$/);
+  if (parenMatch) {
+    aliases.push(normalizeName(parenMatch[1]));
+    aliases.push(normalizeName(parenMatch[2]));
+  } else {
+    aliases.push(normalizeName(raw));
+  }
+  return aliases.filter(Boolean);
+}
+
+// Match a roster entry to a specific person. Deliberately strict: a bare
+// first name matches only on first name, and "First L" requires the last
+// initial to line up — so two people sharing a first name no longer get
+// access to each other's shifts. Crew handle wins outright when set.
+//
+// IMPORTANT: if two crew members share a first name, write the roster entry
+// as "Dustin B" / "Dustin S" (or use their crew handles). A bare shared
+// first name can't be told apart by any amount of code.
+function namesMatch(rosterName, legalName, crewHandle) {
+  const aliases = rosterAliases(rosterName);
+  if (!aliases.length) return false;
+
+  const handle = normalizeName(crewHandle);
+  if (handle && aliases.includes(handle)) return true;
+
+  const legal = normalizeName(legalName);
+  if (!legal) return false;
+  if (aliases.includes(legal)) return true;
+
+  const legalParts = legal.split(" ").filter(Boolean);
+  const first = legalParts[0];
+  const last = legalParts.length > 1 ? legalParts[legalParts.length - 1] : "";
+  if (!first) return false;
+
+  return aliases.some((alias) => {
+    const parts = alias.split(" ").filter(Boolean);
+    if (parts.length === 1) {
+      // Bare first name (or nickname). Ambiguous if two people share it —
+      // that's what the last-initial convention above is for.
+      return parts[0] === first;
+    }
+    if (parts.length >= 2) {
+      const aFirst = parts[0];
+      const aLast = parts[parts.length - 1];
+      if (aFirst !== first) return false;
+      if (!last) return false;
+      if (aLast === last) return true;
+      // "Dustin B" style — single-letter last initial.
+      if (aLast.length === 1) return last.startsWith(aLast);
+      return false;
+    }
+    return false;
+  });
+}
+
+function findScheduledEvent(legalName, crewHandle) {
   const todayId = new Date().toISOString().slice(0, 10);
   const positions = ROSTER_DATA[todayId];
   if (!positions) return null;
   for (const [pos, name] of Object.entries(positions)) {
-    if (name && name !== "TBD" && namesMatch(name, legalName)) {
+    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
       const game = GAMES.find((g) => g.id === todayId);
       return { position: pos, game };
     }
@@ -2173,7 +2234,7 @@ function renderIdCard(profile) {
     inner.innerHTML = `<div class="footnote">Fill out your Profile tab first — your ID card builds from that.</div>`;
     return;
   }
-  const scheduled = findScheduledEvent(profile.legalName);
+  const scheduled = findScheduledEvent(profile.legalName, profile.crewHandle);
 
   inner.innerHTML = `
     <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
