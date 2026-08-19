@@ -1459,8 +1459,9 @@ function renderShiftsList(liveRoster) {
     return;
   }
 
+  const admin = isAdmin();
   inner.innerHTML = `
-    <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.</div>
+    <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
     ${GAMES.map((g) => {
       const gameRoster = liveRoster[g.id] || {};
       const rows = TRADEABLE_ROLES.map((role) => {
@@ -1470,8 +1471,19 @@ function renderShiftsList(liveRoster) {
         let actionHtml = "";
         if (entry.status === "open") {
           actionHtml = `<button class="shift-btn shift-btn-pickup" data-game="${g.id}" data-role="${key}">Pick Up</button>`;
+          if (admin) {
+            actionHtml += `<button class="shift-btn shift-btn-admin-assign" data-game="${g.id}" data-role="${key}" style="margin-left:6px; background:var(--panel2); border:1px solid var(--border); color:var(--text-muted);">Assign</button>`;
+          }
         } else if (isMine) {
           actionHtml = `<button class="shift-btn shift-btn-drop" data-game="${g.id}" data-role="${key}">Drop</button>`;
+          if (admin) {
+            actionHtml += `<button class="shift-btn shift-btn-admin-assign" data-game="${g.id}" data-role="${key}" style="margin-left:6px; background:var(--panel2); border:1px solid var(--border); color:var(--text-muted);">Reassign</button>`;
+          }
+        } else if (admin) {
+          actionHtml = `
+            <button class="shift-btn shift-btn-admin-assign" data-game="${g.id}" data-role="${key}" style="background:var(--panel2); border:1px solid var(--border); color:var(--text-muted);">Reassign</button>
+            <button class="shift-btn shift-btn-admin-remove" data-game="${g.id}" data-role="${key}" style="margin-left:6px; background:var(--panel2); border:1px solid var(--red); color:var(--red);">Remove</button>
+          `;
         }
         return `
           <div class="shift-row">
@@ -1496,6 +1508,135 @@ function renderShiftsList(liveRoster) {
   inner.querySelectorAll(".shift-btn-drop").forEach((btn) => {
     btn.onclick = () => openDropModal(btn.dataset.game, btn.dataset.role);
   });
+  inner.querySelectorAll(".shift-btn-admin-assign").forEach((btn) => {
+    btn.onclick = () => openAdminAssignModal(btn.dataset.game, btn.dataset.role);
+  });
+  inner.querySelectorAll(".shift-btn-admin-remove").forEach((btn) => {
+    btn.onclick = () => adminRemoveShift(btn.dataset.game, btn.dataset.role);
+  });
+}
+
+// ============================================================================
+// Admin shift controls — assign, reassign, or remove anyone's shift.
+// Every action is written to the same shiftLog as crew pickups/drops, but
+// tagged as an admin action with who did it, so the audit trail stays
+// complete.
+// ============================================================================
+let adminAssignState = null;
+
+async function openAdminAssignModal(gameId, roleKey) {
+  adminAssignState = { gameId, roleKey, crew: [], loading: true, manualName: "" };
+  renderAdminAssignModal();
+  try {
+    const snap = await db.ref("profiles").once("value");
+    const profiles = snap.val() || {};
+    adminAssignState.crew = Object.values(profiles)
+      .filter((p) => p && p.legalName)
+      .map((p) => ({ legalName: p.legalName, crewHandle: p.crewHandle || "" }))
+      .sort((a, b) => a.legalName.localeCompare(b.legalName));
+  } catch (e) {
+    console.error("Couldn't load crew list:", e);
+  }
+  adminAssignState.loading = false;
+  renderAdminAssignModal();
+}
+
+function renderAdminAssignModal() {
+  const existing = document.getElementById("adminAssignOverlay");
+  if (existing) existing.remove();
+  if (!adminAssignState) return;
+
+  const { crew, loading, roleKey, gameId } = adminAssignState;
+  const game = GAMES.find((g) => g.id === gameId);
+  const roleLabel = TRADEABLE_ROLES.find((r) => r.replace(/[^A-Za-z0-9]/g, "_") === roleKey) || roleKey;
+
+  const overlay = document.createElement("div");
+  overlay.id = "adminAssignOverlay";
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-title">Assign ${escapeHtml(roleLabel)}</div>
+      <div class="modal-subtitle">${game ? escapeHtml(game.day + " " + game.date + " — " + game.opp) : ""}</div>
+      ${loading ? `<div class="footnote">Loading crew…</div>` : `
+        <div style="max-height:260px; overflow-y:auto; margin-bottom:12px;">
+          ${crew.length === 0 ? `<div class="footnote">No crew profiles found — use the box below.</div>` : crew.map((c) => `
+            <button class="admin-assign-pick" data-name="${escapeAttr(c.legalName)}" style="display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:6px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font-size:13.5px; cursor:pointer;">
+              ${escapeHtml(c.legalName)}${c.crewHandle ? ` <span style="color:var(--text-faint);">"${escapeHtml(c.crewHandle)}"</span>` : ""}
+            </button>
+          `).join("")}
+        </div>
+        <div class="label" style="margin-bottom:6px;">Or type a name (for crew without a profile yet)</div>
+        <input id="adminAssignManual" placeholder="e.g. Dustin B" value="${escapeAttr(adminAssignState.manualName)}" />
+      `}
+      <div id="adminAssignError"></div>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button class="primary-btn" id="adminAssignCancel" style="background:var(--panel2); border:1px solid var(--border);">Cancel</button>
+        ${loading ? "" : `<button class="primary-btn" id="adminAssignManualBtn">Assign Typed Name</button>`}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelectorAll(".admin-assign-pick").forEach((btn) => {
+    btn.onclick = () => adminAssignShift(gameId, roleKey, btn.dataset.name);
+  });
+  const manualInput = document.getElementById("adminAssignManual");
+  if (manualInput) {
+    manualInput.oninput = (e) => { adminAssignState.manualName = e.target.value; };
+  }
+  const manualBtn = document.getElementById("adminAssignManualBtn");
+  if (manualBtn) {
+    manualBtn.onclick = () => {
+      const name = (adminAssignState.manualName || "").trim();
+      if (!name) {
+        document.getElementById("adminAssignError").innerHTML = `<div class="error-msg">Type a name first, or pick someone from the list.</div>`;
+        return;
+      }
+      adminAssignShift(gameId, roleKey, name);
+    };
+  }
+  document.getElementById("adminAssignCancel").onclick = () => { adminAssignState = null; renderAdminAssignModal(); };
+  overlay.onclick = (e) => { if (e.target === overlay) { adminAssignState = null; renderAdminAssignModal(); } };
+}
+
+async function adminAssignShift(gameId, roleKey, assigneeName) {
+  const adminName = (myProfileForShifts && myProfileForShifts.legalName) || currentUser.displayName || currentUser.email || "Admin";
+  try {
+    const snap = await db.ref(`liveRoster/${gameId}/${roleKey}`).once("value");
+    const entry = snap.val() || { role: roleKey };
+    const previousName = entry.name || null;
+    await db.ref(`liveRoster/${gameId}/${roleKey}`).set({ role: entry.role || roleKey, name: assigneeName, status: "assigned" });
+    await db.ref(`shiftLog/${gameId}`).push({
+      role: entry.role || roleKey,
+      action: previousName ? "reassigned by admin" : "assigned by admin",
+      byName: adminName, byUid: currentUser.uid,
+      reason: previousName ? `Reassigned from ${previousName} to ${assigneeName}` : `Assigned to ${assigneeName}`,
+      otherText: "", at: new Date().toISOString(),
+    });
+    adminAssignState = null;
+    renderAdminAssignModal();
+  } catch (e) {
+    const errEl = document.getElementById("adminAssignError");
+    if (errEl) errEl.innerHTML = `<div class="error-msg">Couldn't assign (${escapeHtml(e.message || "unknown error")}).</div>`;
+  }
+}
+
+async function adminRemoveShift(gameId, roleKey) {
+  const adminName = (myProfileForShifts && myProfileForShifts.legalName) || currentUser.displayName || currentUser.email || "Admin";
+  try {
+    const snap = await db.ref(`liveRoster/${gameId}/${roleKey}`).once("value");
+    const entry = snap.val();
+    if (!entry || entry.status !== "assigned") return;
+    if (!confirm(`Remove ${entry.name} from ${entry.role || roleKey}? The shift will go back to Open for anyone to pick up.`)) return;
+    await db.ref(`liveRoster/${gameId}/${roleKey}`).set({ role: entry.role || roleKey, name: null, status: "open" });
+    await db.ref(`shiftLog/${gameId}`).push({
+      role: entry.role || roleKey, action: "removed by admin",
+      byName: adminName, byUid: currentUser.uid,
+      reason: `Removed ${entry.name} — shift reopened`, otherText: "", at: new Date().toISOString(),
+    });
+  } catch (e) {
+    alert("Couldn't remove that shift: " + (e.message || "unknown error"));
+  }
 }
 
 async function pickUpShift(gameId, roleKey) {
