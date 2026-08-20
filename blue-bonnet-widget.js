@@ -26,6 +26,75 @@
   // without memory. Nothing here is load-bearing for answering a question.
   function memoryReady() { return typeof BlueBonnet !== "undefined" && !!BlueBonnet; }
 
+  // ---- Routing -----------------------------------------------------
+  // GATEWAY FIRST. The gateway (Groq / Gemini) is fast and free; Anthropic
+  // is the reserve. That order matters here more than anywhere: this tool
+  // is used by a whole crew on game night, and when the Anthropic balance
+  // hit zero the widget simply died \u2014 there was no second path at all.
+  //
+  // The kit's own ask() is Anthropic-first because it needs tools. This
+  // widget has no tools, so it calls the two providers directly in the
+  // order that suits it.
+  const GATEWAY_URL = "https://blue-bonnet-gateway.dustin12342986.workers.dev";
+  const GATEWAY_KEY = "e368f85d1ce08cb81e252c1f9e31294b7d8dc88cf295be38";
+
+  function kitReady() {
+    return typeof BBKit !== "undefined" && !!BBKit && typeof BBKit.gatewayAsk === "function";
+  }
+  if (kitReady()) {
+    BBKit.configure({
+      gatewayUrl: GATEWAY_URL,
+      gatewayKey: GATEWAY_KEY,
+      anthropicProxyUrl: PROXY_URL,
+      app: "adv-crew",
+    });
+  }
+
+  // The gateway speaks OpenAI format, so the block array has to be flattened
+  // into one system message. That is a format conversion, not a shortcut \u2014
+  // caching only exists on the Anthropic path anyway.
+  function flatten(system) {
+    if (typeof system === "string") return system;
+    if (kitReady() && typeof BBKit.systemToText === "function") return BBKit.systemToText(system);
+    return (system || []).map((b) => (b && b.text) || "").join("\n\n");
+  }
+
+  async function askAnywhere(system, msgs) {
+    let firstError = null;
+
+    if (kitReady()) {
+      try {
+        const g = await BBKit.gatewayAsk(
+          [{ role: "system", content: flatten(system) }].concat(
+            msgs.map((m) => ({ role: m.role,
+              content: typeof m.content === "string" ? m.content : "" }))),
+          { session: "crew", maxTokens: 1000 }
+        );
+        if (g && g.text) { lastProvider = g.provider || "gateway"; return g.text; }
+      } catch (e) { firstError = e; }
+    }
+
+    // Reserve: the Anthropic proxy, which is what this widget always used.
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ max_tokens: 1000, system: system, messages: msgs }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.type === "error" || data.error) {
+      const msg = (data && data.error && data.error.message) || (data && data.message)
+        || ("HTTP " + res.status);
+      const e = new Error(msg);
+      e.status = res.status;
+      e.gatewayError = firstError ? String(firstError.message || firstError) : null;
+      throw e;
+    }
+    lastProvider = "anthropic";
+    return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  }
+
+  let lastProvider = null;
+
   const CREW_SYSTEM_INTRO = "You are the on-call assistant for a live football broadcast crew at CISD Stadium. "
     + "Answer crew questions quickly and precisely \u2014 crew members are often reading this on their phone right "
     + "before or during a game. Keep answers short and direct. Use the crew knowledge base below as ground truth. "
@@ -370,26 +439,14 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
       if (PROXY_URL === "PASTE_YOUR_WORKER_URL_HERE") {
         throw new Error("PROXY_URL not configured yet");
       }
-      const res = await fetch(PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 1000,
-          // Two blocks when memory is available: the crew prompt never
-          // changes so the proxy can cache it, and what we know about this
-          // person rides alongside it and changes every message. Flattening
-          // these into one string would invalidate the cache on the whole
-          // knowledge base every single time.
-          system: memoryReady() ? BlueBonnet.systemPrompt(content) : CREW_SYSTEM,
-          messages: messages,
-        }),
-      });
-      const data = await res.json();
+      // Two blocks when memory is available: the crew prompt never changes so
+      // the proxy can cache it, and what we know about this person rides
+      // alongside it and changes every message. Flattening these into one
+      // string would invalidate the cache on the whole knowledge base.
+      const system = memoryReady() ? BlueBonnet.systemPrompt(content) : CREW_SYSTEM;
+      const text = (await askAnywhere(system, messages))
+        || "The assistant replied with nothing. Try asking again.";
       loadingRow.remove();
-      const text = (data.content || [])
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n") || "No response received.";
       renderMessage("assistant", text);
       messages.push({ role: "assistant", content: text });
       // This is what makes it remember. Without it the engine is loaded and
@@ -408,6 +465,8 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
         why = "The assistant is out of API credit. That's a billing thing, not you.";
       } else if (/rate.?limit|overload/i.test(raw)) {
         why = "Too many requests at once. Give it a few seconds.";
+      } else if (/system|invalid_request|max_tokens|model/i.test(raw)) {
+        why = "The assistant sent a request the server didn't accept. Show Dustin this: " + raw.slice(0, 160);
       } else if (/NetworkError|Failed to fetch|network/i.test(raw)) {
         why = "No connection right now \u2014 stadium signal, most likely. Try again when you have bars.";
       }
