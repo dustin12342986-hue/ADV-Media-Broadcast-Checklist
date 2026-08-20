@@ -62,14 +62,19 @@
   async function askAnywhere(system, msgs) {
     let firstError = null;
 
+    if (!kitReady()) firstError = new Error("blue-bonnet-kit.js not loaded, so the gateway was skipped");
     if (kitReady()) {
       try {
-        const g = await BBKit.gatewayAsk(
-          [{ role: "system", content: flatten(system) }].concat(
-            msgs.map((m) => ({ role: m.role,
-              content: typeof m.content === "string" ? m.content : "" }))),
-          { session: "crew", maxTokens: 1000 }
-        );
+        // Use the kit's own formatter rather than building the array here.
+        // It is the exact path the working Blue Bonnet apps take, so if the
+        // gateway accepts theirs it accepts this. Hand-rolling it was one
+        // more thing that could differ for no benefit.
+        const plain = (typeof BBKit.toPlainMessages === "function")
+          ? BBKit.toPlainMessages(flatten(system), msgs)
+          : [{ role: "system", content: flatten(system) }].concat(
+              msgs.map((m) => ({ role: m.role,
+                content: typeof m.content === "string" ? m.content : "" })));
+        const g = await BBKit.gatewayAsk(plain, { session: "crew", maxTokens: 1000 });
         if (g && g.text) { lastProvider = g.provider || "gateway"; return g.text; }
       } catch (e) { firstError = e; }
     }
@@ -458,6 +463,10 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
     } catch (e) {
       loadingRow.remove();
       const raw = (e && e.message) ? String(e.message) : String(e);
+      // The gateway's failure was being attached to the error and then never
+      // shown, so the message talked about Anthropic while hiding the reason
+      // the primary path didn't answer. Show both or the fault is invisible.
+      const gwy = e && e.gatewayError ? String(e.gatewayError) : null;
       let why = "Couldn't reach the assistant just now \u2014 try again in a moment.";
       if (/PROXY_URL not configured/.test(raw)) {
         why = "The assistant isn't set up yet \u2014 PROXY_URL needs filling in.";
@@ -470,7 +479,7 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
       } else if (/NetworkError|Failed to fetch|network/i.test(raw)) {
         why = "No connection right now \u2014 stadium signal, most likely. Try again when you have bars.";
       }
-      renderMessage("assistant", why);
+      renderMessage("assistant", why + (gwy ? "\n\nGateway also failed: " + gwy : ""));
       console.error("Blue Bonnet error:", e);
     } finally {
       setLoading(false);
