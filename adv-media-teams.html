@@ -207,10 +207,21 @@
     padding: 10px 0; border-radius: 10px; font-weight: 700; font-size: 12.5px; cursor: pointer;
     border: 1px solid var(--border); background: var(--panel); color: var(--text-muted); text-decoration: none;
   }
+  /* Wrapper exists so we can lay a fade over the right edge — iOS hides
+     scrollbars entirely, so without this there's no visual cue that tabs
+     continue past the edge of a narrow screen. */
+  .tabs-wrap { position: relative; }
+  .tabs-wrap::after {
+    content: ""; position: absolute; top: 0; right: 0; bottom: 18px; width: 28px;
+    pointer-events: none; border-radius: 0 12px 12px 0;
+    background: linear-gradient(to right, rgba(18,24,31,0), var(--panel));
+  }
   .tabs {
     display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 4px; margin-bottom: 18px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .admin-menu-panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 14px; margin: -8px 0 18px;
@@ -651,6 +662,7 @@ const ADMIN_GROUPS = [
   { label: "Crew", items: [
     { view: "admin", label: "Crew Directory" },
     { view: "approvals", label: "Approvals" },
+    { view: "laborRequests", label: "Labor Requests" },
   ]},
   { label: "Financial", items: [
     { view: "invoices", label: "Invoices" },
@@ -659,6 +671,7 @@ const ADMIN_GROUPS = [
   { label: "Operations", items: [
     { view: "confirmations", label: "Confirmations" },
     { view: "equipmentAdmin", label: "Equipment Reports" },
+    { view: "checkout", label: "Equipment Checkout" },
     { view: "log", label: "Shift Log" },
     { view: "locations", label: "Clock-In Locations" },
     { view: "reset", label: "Reset Clock-Ins" },
@@ -675,7 +688,7 @@ function renderMainApp() {
     <button class="logout-btn" id="logoutBtn">Log Out</button>
     <button class="logout-btn" id="notifBtn" style="margin-right:8px;">🔔 Notifications</button>
     <div style="clear:both"></div>
-    <div class="tabs">
+    <div class="tabs-wrap"><div class="tabs">
       <button class="tab-btn ${mainState.view === "today" ? "active" : ""}" id="tabToday">Today</button>
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
@@ -683,7 +696,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
       <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
       ${admin ? `<button class="tab-btn ${ADMIN_VIEWS.includes(mainState.view) ? "active" : ""}" id="tabAdminMenu">Admin ${adminMenuOpen ? "▴" : "▾"}</button>` : ""}
-    </div>
+    </div></div>
     ${adminMenuOpen ? `
       <div class="admin-menu-panel">
         ${ADMIN_GROUPS.map((g) => `
@@ -699,6 +712,12 @@ function renderMainApp() {
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
+  // Keep the active tab visible — on a narrow phone the bar scrolls, and
+  // without this the current tab can sit off-screen after a re-render.
+  const activeTabBtn = document.querySelector(".tab-btn.active");
+  if (activeTabBtn && activeTabBtn.scrollIntoView) {
+    activeTabBtn.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
   wireUpNotifButton();
   document.getElementById("tabToday").onclick = () => { mainState.view = "today"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -722,6 +741,18 @@ function renderMainApp() {
   if (mainState.view === "equipment") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderEquipmentSubmit();
+    return;
+  }
+
+  if (mainState.view === "laborRequests" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderLaborRequests();
+    return;
+  }
+
+  if (mainState.view === "checkout" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderCheckoutAdmin();
     return;
   }
 
@@ -1418,7 +1449,37 @@ async function seedLiveRosterIfNeeded() {
       }
     }
   }
-  await db.ref("liveRoster").set(seed);
+  // update() rather than set() so this can never blow away client-event
+  // slots if it were ever to run with data present.
+  await db.ref("liveRoster").update(seed);
+}
+
+// AISD (and any future client) events are created from approved labor
+// requests, so they live in Firebase rather than the hardcoded GAMES list.
+// Loaded into here when the Shifts view opens.
+let clientEvents = {};
+
+// Every event the shift board should show: the hardcoded season schedule
+// plus anything created from a client request. Each entry carries its own
+// role list, since a client event only staffs the positions they asked for.
+function allShiftEvents() {
+  const built = GAMES.map((g) => ({ ...g, roles: TRADEABLE_ROLES, client: "CISD" }));
+  Object.entries(clientEvents).forEach(([id, ev]) => {
+    if (!ev) return;
+    built.push({
+      id,
+      day: ev.day || "",
+      date: ev.date || "",
+      opp: ev.name || "Event",
+      roles: Array.isArray(ev.roles) && ev.roles.length ? ev.roles : TRADEABLE_ROLES,
+      client: ev.client || "Client",
+      venue: ev.venue || "",
+      callTime: ev.callTime || "",
+      scheduledHours: ev.scheduledHours || null,
+    });
+  });
+  // Soonest first.
+  return built.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
 async function renderShiftsView() {
@@ -1436,6 +1497,8 @@ async function renderShiftsView() {
   try {
     const profSnap = await db.ref(`profiles/${currentUser.uid}`).once("value");
     myProfileForShifts = profSnap.val() || {};
+    const evSnap = await db.ref("clientEvents").once("value");
+    clientEvents = evSnap.val() || {};
   } catch (e) {
     myProfileForShifts = {};
   }
@@ -1462,9 +1525,9 @@ function renderShiftsList(liveRoster) {
   const admin = isAdmin();
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
-    ${GAMES.map((g) => {
+    ${allShiftEvents().map((g) => {
       const gameRoster = liveRoster[g.id] || {};
-      const rows = TRADEABLE_ROLES.map((role) => {
+      const rows = (g.roles || TRADEABLE_ROLES).map((role) => {
         const key = role.replace(/[^A-Za-z0-9]/g, "_");
         const entry = gameRoster[key] || { role, name: null, status: "open" };
         const isMine = entry.status === "assigned" && namesMatch(entry.name, myName, myHandle);
@@ -1495,7 +1558,11 @@ function renderShiftsList(liveRoster) {
       }).join("");
       return `
         <div class="shift-game-card">
-          <div class="shift-game-header">${g.day} ${g.date} — ${escapeHtml(g.opp)}</div>
+          <div class="shift-game-header">
+            ${g.day} ${g.date} — ${escapeHtml(g.opp)}
+            ${g.client && g.client !== "CISD" ? `<span style="background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">${escapeHtml(g.client)}</span>` : ""}
+          </div>
+          ${g.venue || g.callTime ? `<div class="log-reason" style="margin:-4px 0 8px;">${escapeHtml(g.venue || "")}${g.venue && g.callTime ? " · " : ""}${g.callTime ? "Call " + escapeHtml(g.callTime) : ""}</div>` : ""}
           ${rows}
         </div>
       `;
@@ -1822,6 +1889,284 @@ async function renderEquipmentSubmit() {
     }
     btn.disabled = false;
   };
+}
+
+// ============================================================================
+// Admin: Equipment Checkout — live view of what's out of the audio and video
+// booths and who has it, fed by the booth iPads running
+// equipment-checkout.html. Read-only here; the booths are the source of truth.
+// ============================================================================
+// ============================================================================
+// Admin: Labor Requests — incoming crew requests from clients (AISD), sent
+// from aisd-request.html. Approving one turns it into a real event on the
+// shift board with open slots the crew can pick up.
+// ============================================================================
+
+// Maps the position IDs the client picks from to the internal role names the
+// billing engine and shift board use.
+const REQUEST_POSITION_ROLES = {
+  stagehand:   "Stagehand",
+  spotlight:   "Spotlight Operator",
+  gav:         "GAV",
+  coordinator: "Coordinator",
+  lead:        "A1",
+  graphics:    "GFX",
+  senior:      "Producer",
+};
+
+async function renderLaborRequests() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const snap = await db.ref("laborRequests").once("value");
+    const all = snap.val() || {};
+    const entries = Object.entries(all)
+      .map(([key, r]) => ({ key, ...r }))
+      .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+    if (entries.length === 0) {
+      inner.innerHTML = `<div class="footnote">No labor requests yet. They'll show up here when a client submits one.</div>`;
+      return;
+    }
+
+    const open = entries.filter((r) => r.status !== "scheduled" && r.status !== "declined");
+    const closed = entries.filter((r) => r.status === "scheduled" || r.status === "declined");
+
+    const fmtDate = (d) => {
+      if (!d) return "";
+      const dt = new Date(d + "T12:00:00");
+      return isNaN(dt) ? d : dt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    };
+
+    const card = (r) => {
+      const badge = r.status === "scheduled" ? { t: "Scheduled", c: "var(--green)" }
+        : r.status === "declined" ? { t: "Declined", c: "var(--red)" }
+        : { t: "New", c: "var(--amber)" };
+      return `
+        <div class="shift-game-card">
+          <div class="shift-game-header">
+            ${escapeHtml(r.eventName || "Untitled event")}
+            <span style="background:${badge.c}; color:#08120C; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">${badge.t}</span>
+          </div>
+          <div class="log-reason" style="margin-bottom:8px;">
+            ${escapeHtml(r.client || "Client")} · ${fmtDate(r.eventDate)}${r.callTime ? " · call " + escapeHtml(r.callTime) : ""}${r.endTime ? "–" + escapeHtml(r.endTime) : ""}
+            ${r.venue ? "<br />" + escapeHtml(r.venue) : ""}
+          </div>
+          ${(r.positions || []).map((p) => `
+            <div class="shift-row">
+              <div class="shift-role">${escapeHtml(p.name)}</div>
+              <div class="shift-status">${p.qty} requested</div>
+            </div>
+          `).join("")}
+          ${r.notes ? `<div class="log-reason" style="margin-top:8px;"><strong>Notes:</strong> ${escapeHtml(r.notes)}</div>` : ""}
+          <div class="log-reason" style="margin-top:8px; color:var(--text-faint);">
+            ${escapeHtml(r.contactName || "")}${r.contactEmail ? " · " + escapeHtml(r.contactEmail) : ""}${r.contactPhone ? " · " + escapeHtml(r.contactPhone) : ""}
+            <br />Submitted ${new Date(r.submittedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} via ${escapeHtml(r.submittedVia || "google")}
+          </div>
+          ${r.status !== "scheduled" && r.status !== "declined" ? `
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <button class="shift-btn shift-btn-pickup" data-approve="${escapeAttr(r.key)}">Schedule It</button>
+              <button class="shift-btn" data-decline="${escapeAttr(r.key)}" style="background:var(--panel2); border:1px solid var(--red); color:var(--red);">Decline</button>
+            </div>
+          ` : r.status === "scheduled" ? `
+            <div class="log-reason" style="margin-top:10px; color:var(--green);">✓ On the shift board — crew can pick these up.</div>
+          ` : ""}
+        </div>
+      `;
+    };
+
+    inner.innerHTML = `
+      ${open.length ? `<div class="footnote" style="margin-bottom:10px;">${open.length} awaiting action</div>` : ""}
+      ${open.map(card).join("")}
+      ${closed.length ? `<div class="footnote" style="margin:22px 0 10px;">Handled</div>` : ""}
+      ${closed.map(card).join("")}
+    `;
+
+    inner.querySelectorAll("[data-approve]").forEach((b) => {
+      b.onclick = () => scheduleLaborRequest(b.dataset.approve, all[b.dataset.approve]);
+    });
+    inner.querySelectorAll("[data-decline]").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm("Decline this request? The client isn't notified automatically — follow up with them directly.")) return;
+        await db.ref(`laborRequests/${b.dataset.decline}/status`).set("declined");
+        renderLaborRequests();
+      };
+    });
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load labor requests (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "laborRequests" section.</div>`;
+  }
+}
+
+// Turn an approved request into a real event with open shift slots.
+async function scheduleLaborRequest(key, req) {
+  if (!req) return;
+
+  // How long is each person booked for? This drives scheduled-overtime
+  // billing later, so it's captured now rather than guessed at invoice time.
+  const defaultHours = estimateScheduledHours(req);
+  const entered = prompt(
+    `How many hours is each crew member booked for?\n\n` +
+    `This is what the client gets billed if the shift wraps early — booked overtime still bills.\n\n` +
+    `Leave as-is to use the call-to-end window.`,
+    String(defaultHours)
+  );
+  if (entered === null) return;
+  const scheduledHours = Number(entered);
+  if (!(scheduledHours > 0)) { alert("Enter a number of hours greater than zero."); return; }
+
+  const eventId = `${req.eventDate}__${key.slice(-6)}`;
+  const dt = req.eventDate ? new Date(req.eventDate + "T12:00:00") : null;
+
+  // Build one roster slot per requested head, e.g. 3 stagehands becomes
+  // Stagehand 1, Stagehand 2, Stagehand 3. The base role is kept separately
+  // because the billing engine matches on "Stagehand", not "Stagehand 2".
+  const roles = [];
+  const billingRoles = {};
+  (req.positions || []).forEach((p) => {
+    const roleName = REQUEST_POSITION_ROLES[p.id] || p.name;
+    for (let i = 1; i <= p.qty; i++) {
+      const display = p.qty > 1 ? `${roleName} ${i}` : roleName;
+      roles.push(display);
+      billingRoles[display.replace(/[^A-Za-z0-9]/g, "_")] = roleName;
+    }
+  });
+
+  try {
+    await db.ref(`clientEvents/${eventId}`).set({
+      name: req.eventName || "Event",
+      client: req.client || "AISD",
+      venue: req.venue || "",
+      date: dt && !isNaN(dt) ? `${dt.getMonth() + 1}/${dt.getDate()}` : (req.eventDate || ""),
+      day: dt && !isNaN(dt) ? dt.toLocaleDateString([], { weekday: "short" }) : "",
+      eventDate: req.eventDate || "",
+      callTime: req.callTime || "",
+      endTime: req.endTime || "",
+      scheduledHours,
+      roles,
+      billingRoles,
+      fromRequest: key,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Open slots for everything requested.
+    const rosterUpdates = {};
+    roles.forEach((role) => {
+      const roleKey = role.replace(/[^A-Za-z0-9]/g, "_");
+      rosterUpdates[`liveRoster/${eventId}/${roleKey}`] = {
+        role, name: null, status: "open",
+        billingRole: billingRoles[roleKey] || role,
+        scheduledHours,
+      };
+    });
+    await db.ref().update(rosterUpdates);
+
+    await db.ref(`laborRequests/${key}`).update({
+      status: "scheduled",
+      scheduledEventId: eventId,
+      scheduledHours,
+      scheduledAt: new Date().toISOString(),
+    });
+
+    alert(`Scheduled — ${roles.length} open shift${roles.length === 1 ? "" : "s"} added to the board.`);
+    renderLaborRequests();
+  } catch (e) {
+    alert("Couldn't schedule that: " + (e.message || "unknown error"));
+  }
+}
+
+// Best guess at booked hours from the call and end times on the request.
+function estimateScheduledHours(req) {
+  if (req.callTime && req.endTime) {
+    const [sh, sm] = req.callTime.split(":").map(Number);
+    const [eh, em] = req.endTime.split(":").map(Number);
+    if (!isNaN(sh) && !isNaN(eh)) {
+      let hrs = (eh + em / 60) - (sh + sm / 60);
+      if (hrs < 0) hrs += 24; // ran past midnight
+      if (hrs > 0) return Math.round(hrs * 4) / 4;
+    }
+  }
+  return 10;
+}
+
+async function renderCheckoutAdmin() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  try {
+    const [outSnap, logSnap] = await Promise.all([
+      db.ref("equipmentCheckouts").once("value"),
+      db.ref("equipmentLog").once("value"),
+    ]);
+    const byBooth = outSnap.val() || {};
+    const logByBooth = logSnap.val() || {};
+
+    const boothLabels = { audio: "Audio Booth", video: "Video Booth" };
+    const boothKeys = ["audio", "video"];
+
+    // Flatten the log so we can show one combined recent-activity list.
+    const recent = [];
+    boothKeys.forEach((b) => {
+      Object.values(logByBooth[b] || {}).forEach((e) => recent.push(e));
+    });
+    recent.sort((a, b) => new Date(b.inAt || b.outAt) - new Date(a.inAt || a.outAt));
+
+    const fmt = (iso) => {
+      const d = new Date(iso);
+      return isNaN(d) ? "" : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    };
+    const hoursOut = (iso) => {
+      const d = new Date(iso);
+      if (isNaN(d)) return 0;
+      return (Date.now() - d.getTime()) / 36e5;
+    };
+
+    let html = "";
+    boothKeys.forEach((booth) => {
+      const items = Object.values(byBooth[booth] || {});
+      items.sort((a, b) => new Date(a.outAt) - new Date(b.outAt));
+      const overdue = items.filter((e) => hoursOut(e.outAt) > 24);
+      html += `
+        <div class="shift-game-card">
+          <div class="shift-game-header">${boothLabels[booth]} — ${items.length} out</div>
+          ${overdue.length ? `<div class="setup-warning" style="display:block; margin-bottom:10px;">⚠️ ${overdue.length} item${overdue.length === 1 ? "" : "s"} out more than 24 hours</div>` : ""}
+          ${items.length === 0
+            ? `<div class="footnote">Everything's checked in.</div>`
+            : items.map((e) => `
+                <div class="shift-row">
+                  <div class="shift-role">${escapeHtml(e.itemName)} #${escapeHtml(String(e.unitNum))}</div>
+                  <div class="shift-status ${hoursOut(e.outAt) > 24 ? "shift-open" : ""}">${escapeHtml(e.personName || "—")} · ${fmt(e.outAt)}</div>
+                </div>
+              `).join("")}
+        </div>
+      `;
+    });
+
+    html += `<div class="footnote" style="margin:18px 0 8px;">Recent activity</div>`;
+    if (recent.length === 0) {
+      html += `<div class="footnote">Nothing logged yet.</div>`;
+    } else {
+      html += recent.slice(0, 40).map((e) => {
+        const isIn = e.action === "in";
+        return `
+          <div class="log-entry">
+            <div class="log-entry-top">
+              <span class="log-badge" style="background:${isIn ? "var(--green)" : "var(--amber)"};">${isIn ? "Returned" : "Out"}</span>
+              <span class="log-when">${fmt(e.inAt || e.outAt)}</span>
+            </div>
+            <div class="log-entry-body"><strong>${escapeHtml(e.itemName)} #${escapeHtml(String(e.unitNum))}</strong> · ${escapeHtml(boothLabels[e.booth] || e.booth || "")}</div>
+            <div class="log-reason">${isIn
+              ? `Taken by ${escapeHtml(e.personName || "—")}, returned by ${escapeHtml(e.returnedBy || "—")}`
+              : `Checked out to ${escapeHtml(e.personName || "—")}`}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    inner.innerHTML = html;
+  } catch (e) {
+    console.error(e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load checkout data (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include "equipmentCheckouts" and "equipmentLog" — see the setup note at the top of equipment-checkout.html.</div>`;
+  }
 }
 
 async function renderEquipmentReports() {
@@ -2416,6 +2761,10 @@ if ("serviceWorker" in navigator) {
 
 initFirebaseAndBoot();
 </script>
+<!-- The widget alone is not enough. Without the kit there is no gateway,
+     so the assistant falls through to the dead Anthropic proxy and reports
+     "out of API credit" — which is not a billing problem at all, it is a
+     missing script. Order matters: kit, then assistant, then widget. -->
 <script src="blue-bonnet-kit.js"></script>
 <script src="blue-bonnet-assistant.js"></script>
 <script src="blue-bonnet-widget.js"></script>
