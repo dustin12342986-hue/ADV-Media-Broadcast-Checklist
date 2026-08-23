@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media Teams</title>
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="theme-color" content="#4A8FC0" />
+
+<!--
+  ============================================================================
+  ADV MEDIA TEAMS — landing page
+  ============================================================================
+  The front door. Crew sign in here once, then pick which contract they're
+  working. Everything else lives behind these cards.
+
+  WHY SIGN IN HERE AND NOT LATER: every app is served from
+  dustin12342986-hue.github.io, so they're all the same origin. Firebase auth
+  carries across them. Signing in on this page means crew are already signed
+  in when they land in CISD or AISD — no second prompt.
+
+  ADDING A CONTRACT: copy a block in CONTRACTS below. Set live:false and it
+  renders greyed out instead of linking anywhere.
+  ============================================================================
+-->
+
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",
+    authDomain: "crowley-football.firebaseapp.com",
+    databaseURL: "https://crowley-football-default-rtdb.firebaseio.com",
+    projectId: "crowley-football",
+    storageBucket: "crowley-football.firebasestorage.app",
+    messagingSenderId: "56102489603",
+    appId: "1:56102489603:web:1a81953b6dd0d2fb84c836",
+  };
+  const GOOGLE_CLIENT_ID = "56102489603-cam8dpnm79ktgm32adp5e3djoccd7hdr.apps.googleusercontent.com";
+  const ADMIN_EMAILS = ["dustin12342986@gmail.com", "aracely.valencia10@gmail.com"];
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap { max-width:680px; margin:0 auto; padding:0 18px 70px; }
+
+  .banner {
+    text-align:center; padding:38px 0 30px; border-bottom:1px solid var(--border);
+    margin-bottom:28px;
+  }
+  .banner-name {
+    font-family:Georgia,"Times New Roman",serif; font-size:34px; font-weight:700;
+    letter-spacing:-0.5px; margin:0;
+  }
+  .banner-sub {
+    color:var(--text-muted); font-size:13px; margin:6px 0 0; letter-spacing:0.3px;
+  }
+
+  .section-label {
+    font-size:11.5px; font-weight:800; color:var(--text-faint);
+    text-transform:uppercase; letter-spacing:0.6px; margin:0 0 12px;
+  }
+
+  .contract {
+    display:block; text-decoration:none; color:inherit;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:20px; margin-bottom:12px;
+  }
+  .contract:active { border-color:var(--blue); }
+  .contract.off { opacity:0.45; }
+  .contract-top { display:flex; align-items:center; gap:10px; margin-bottom:5px; }
+  .contract-name { font-size:19px; font-weight:800; }
+  .chip {
+    font-size:10.5px; font-weight:800; padding:3px 8px; border-radius:6px;
+    text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .chip-live { background:var(--blue); color:#fff; }
+  .chip-soon { background:var(--panel2); color:var(--text-faint); border:1px solid var(--border); }
+  .contract-desc { font-size:13px; color:var(--text-muted); line-height:1.5; }
+  .contract-go { font-size:12.5px; color:var(--blue); font-weight:700; margin-top:10px; }
+
+  .tools { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .tool {
+    display:block; text-decoration:none; color:inherit; text-align:center;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:15px 12px;
+  }
+  .tool:active { border-color:var(--blue); }
+  .tool-name { font-size:13.5px; font-weight:700; }
+  .tool-sub { font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+
+  .auth-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:26px 20px; text-align:center;
+  }
+  .who {
+    display:flex; align-items:center; gap:10px; font-size:12.5px;
+    color:var(--text-faint); margin-bottom:22px;
+  }
+  .link-btn {
+    background:none; border:none; color:var(--blue); font-size:12.5px;
+    cursor:pointer; padding:0; text-decoration:underline;
+  }
+  .footnote { color:var(--text-faint); font-size:12.5px; line-height:1.6; }
+  .error-msg {
+    background:#2A1512; border:1px solid var(--red); color:#F2B8B1;
+    border-radius:10px; padding:12px 14px; font-size:13px; margin-top:12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">
+    <h1 class="banner-name">ADV Media Teams</h1>
+    <p class="banner-sub">Live Broadcast &amp; Event Production</p>
+  </div>
+  <div id="root"><div class="footnote">Loading…</div></div>
+</div>
+
+<script>
+// ============================================================================
+// CONTRACTS — add a block when a new one starts.
+// ============================================================================
+const CONTRACTS = [
+  {
+    name: "CISD",
+    live: true,
+    desc: "Crowley ISD football broadcasts.",
+    url: "adv-media-teams.html",
+  },
+  {
+    name: "AISD",
+    live: true,
+    desc: "Arlington ISD event labor — stagehands, AV, and production crew.",
+    url: "https://dustin12342986-hue.github.io/AISD-Portal/adv-media-aisd.html",
+  },
+  {
+    name: "Frisco ISD",
+    live: false,
+    label: "Coming soon",
+    desc: "Not started yet — this lights up when the contract begins.",
+  },
+  {
+    name: "Corporate",
+    live: false,
+    label: "Coming soon",
+    desc: "Corporate events, conferences, and one-off productions.",
+  },
+];
+
+const TOOLS = [
+  { name: "Time Clock", sub: "Clock in / out",   url: "index.html" },
+  { name: "Checklist",  sub: "Pre & post shift", url: "checklist.html" },
+  { name: "Equipment",  sub: "Booth checkout",   url: "https://dustin12342986-hue.github.io/Equipment-Checkout/equipment-checkout.html" },
+];
+
+let auth = null, db = null, currentUser = null, gsiInitialized = false;
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function isAdmin() {
+  return currentUser && currentUser.email &&
+    ADMIN_EMAILS.includes(currentUser.email.toLowerCase());
+}
+
+function init() {
+  try {
+    if (typeof firebase === "undefined") {
+      document.getElementById("root").innerHTML =
+        `<div class="error-msg">Couldn't load. Check your connection and reload.</div>`;
+      return;
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    auth = firebase.auth();
+    db = firebase.database();
+  } catch (e) {
+    document.getElementById("root").innerHTML =
+      `<div class="error-msg">Couldn't connect (${esc(e.message)}).</div>`;
+    return;
+  }
+
+  auth.onAuthStateChanged((user) => {
+    currentUser = user;
+    if (!user) { renderSignIn(); return; }
+    checkApprovalThenShow(user);
+  });
+}
+
+// Same approval gate as the apps: new sign-ins wait until an admin lets
+// them in. Admins are auto-approved so they can't lock themselves out.
+async function checkApprovalThenShow(user) {
+  document.getElementById("root").innerHTML = `<div class="footnote">Checking your access…</div>`;
+  if (isAdmin()) {
+    try { await db.ref(`approvedUsers/${user.uid}`).set(true); } catch (e) { /* non-fatal */ }
+    renderHome();
+    return;
+  }
+  try {
+    const snap = await db.ref(`approvedUsers/${user.uid}`).once("value");
+    if (snap.val() === true) { renderHome(); return; }
+  } catch (e) {
+    console.error("Approval check failed:", e);
+  }
+  try {
+    await db.ref(`pendingApprovals/${user.uid}`).set({
+      email: user.email || "", displayName: user.displayName || "",
+      requestedAt: new Date().toISOString(),
+    });
+  } catch (e) { console.error("Couldn't register pending approval:", e); }
+  renderPending();
+}
+
+function handleGoogleCredential(response) {
+  try {
+    const cred = firebase.auth.GoogleAuthProvider.credential(response.credential);
+    auth.signInWithCredential(cred).catch((e) => {
+      const el = document.getElementById("signInError");
+      if (el) el.innerHTML = `<div class="error-msg">${esc(e.message || "Couldn't sign in.")}</div>`;
+    });
+  } catch (e) {
+    const el = document.getElementById("signInError");
+    if (el) el.innerHTML = `<div class="error-msg">${esc(e.message || "Something went wrong.")}</div>`;
+  }
+}
+
+function renderSignIn() {
+  document.getElementById("root").innerHTML = `
+    <div class="auth-card">
+      <p class="footnote" style="margin:0 0 18px;">Sign in to see your contracts and shifts.</p>
+      <div id="gsiButton" style="display:flex; justify-content:center;"></div>
+      <div id="signInError"></div>
+    </div>
+  `;
+  if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
+    document.getElementById("signInError").innerHTML =
+      `<div class="error-msg">Google sign-in hasn't loaded yet. Give it a second and reload.</div>`;
+    return;
+  }
+  if (!gsiInitialized) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false,
+    });
+    gsiInitialized = true;
+  }
+  google.accounts.id.renderButton(document.getElementById("gsiButton"),
+    { theme: "filled_white", size: "large", text: "signin_with", shape: "pill", width: 260 });
+}
+
+function renderPending() {
+  document.getElementById("root").innerHTML = `
+    <div class="auth-card">
+      <div style="font-size:16px; font-weight:800; margin-bottom:10px;">Waiting on approval</div>
+      <p class="footnote" style="margin:0 0 16px;">
+        You're signed in as <strong>${esc(currentUser.email || "")}</strong>, but your account
+        hasn't been approved yet. Dustin or Aracely need to add you to the crew first.
+        No need to sign in again — just check back later.
+      </p>
+      <button class="link-btn" id="signOutBtn">Sign out</button>
+    </div>
+  `;
+  document.getElementById("signOutBtn").onclick = () => auth.signOut();
+}
+
+function renderHome() {
+  document.getElementById("root").innerHTML = `
+    <div class="who">
+      <span style="flex:1;">Signed in as ${esc(currentUser.email || "")}</span>
+      <button class="link-btn" id="signOutBtn">Sign out</button>
+    </div>
+
+    <div class="section-label">Contracts</div>
+    ${CONTRACTS.map((c) => {
+      const inner = `
+        <div class="contract-top">
+          <span class="contract-name">${esc(c.name)}</span>
+          <span class="chip ${c.live ? "chip-live" : "chip-soon"}">${c.live ? "Active" : esc(c.label || "Soon")}</span>
+        </div>
+        <div class="contract-desc">${esc(c.desc)}</div>
+        ${c.live ? `<div class="contract-go">Open →</div>` : ""}
+      `;
+      return c.live
+        ? `<a class="contract" href="${esc(c.url)}">${inner}</a>`
+        : `<div class="contract off">${inner}</div>`;
+    }).join("")}
+
+    <div class="section-label" style="margin-top:28px;">Shared Tools</div>
+    <div class="tools">
+      ${TOOLS.map((t) => `
+        <a class="tool" href="${esc(t.url)}">
+          <div class="tool-name">${esc(t.name)}</div>
+          <div class="tool-sub">${esc(t.sub)}</div>
+        </a>
+      `).join("")}
+    </div>
+
+    <p class="footnote" style="margin-top:30px; text-align:center;">
+      Bookmark this page — everything is one tap from here.
+    </p>
+  `;
+  document.getElementById("signOutBtn").onclick = () => auth.signOut();
+}
+
+init();
+</script>
+</body>
+</html>
