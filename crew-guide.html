@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media — Crew Guide</title>
+<meta name="theme-color" content="#4A8FC0" />
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.6;
+  }
+  .wrap { max-width:720px; margin:0 auto; padding:0 18px 80px; }
+
+  .banner { text-align:center; padding:36px 0 26px; border-bottom:1px solid var(--border); margin-bottom:26px; }
+  .banner h1 { font-family:Georgia,serif; font-size:30px; margin:0; letter-spacing:-0.4px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:8px 0 0; }
+
+  .toc { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:30px; }
+  .toc-title { font-size:11.5px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px; }
+  .toc a { display:block; color:var(--blue); text-decoration:none; font-size:14px; padding:5px 0; font-weight:600; }
+
+  h2 {
+    font-size:21px; margin:38px 0 4px; scroll-margin-top:16px;
+    padding-top:22px; border-top:1px solid var(--border);
+  }
+  h2:first-of-type { border-top:none; padding-top:0; }
+  h3 { font-size:15.5px; margin:22px 0 6px; color:var(--text); }
+  p { font-size:14.5px; color:var(--text-muted); margin:8px 0; }
+  ol, ul { font-size:14.5px; color:var(--text-muted); padding-left:22px; margin:10px 0; }
+  li { margin:7px 0; }
+  strong { color:var(--text); }
+
+  .callout {
+    border-radius:12px; padding:14px 16px; margin:16px 0; font-size:14px;
+    background:var(--panel); border:1px solid var(--border);
+  }
+  .callout.important { background:#1F1810; border-color:var(--amber); color:#FFD699; }
+  .callout.warn { background:#2A1512; border-color:var(--red); color:#F2B8B1; }
+  .callout.good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+  .callout strong { color:inherit; }
+
+  .btn-link {
+    display:inline-block; background:var(--blue); color:#fff; text-decoration:none;
+    padding:11px 20px; border-radius:10px; font-weight:800; font-size:14px; margin:10px 0;
+  }
+  .step-num {
+    display:inline-block; background:var(--blue); color:#fff; width:22px; height:22px;
+    border-radius:50%; text-align:center; line-height:22px; font-size:12px;
+    font-weight:800; margin-right:8px;
+  }
+  code {
+    background:var(--panel2); padding:2px 6px; border-radius:5px;
+    font-size:13px; color:var(--blue);
+  }
+  .footer { margin-top:44px; padding-top:22px; border-top:1px solid var(--border); text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">
+    <h1>Crew Guide</h1>
+    <p>Everything you need to know to work an ADV Media event.</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Jump to</div>
+    <a href="#start">1. Getting Set Up</a>
+    <a href="#profile">2. Your Profile &amp; Photo</a>
+    <a href="#idcard">3. Digital ID Card — Gate Access</a>
+    <a href="#shifts">4. Picking Up &amp; Dropping Shifts</a>
+    <a href="#gameday">5. Game Day — Start to Finish</a>
+    <a href="#clock">6. Clocking In &amp; Out</a>
+    <a href="#checklist">7. Broadcast Checklist</a>
+    <a href="#equipment">8. Equipment Checkout &amp; Reports</a>
+    <a href="#invoice">9. Getting Paid — Submitting Your Invoice</a>
+    <a href="#help">10. Questions</a>
+  </div>
+
+  <h2 id="start">1. Getting Set Up</h2>
+  <p>Everything starts from one page. Bookmark it — you won't need any other links.</p>
+  <a class="btn-link" href="https://dustin12342986-hue.github.io/ADV-Media-Broadcast-Checklist/home.html">Open ADV Media Teams</a>
+  <ol>
+    <li><strong>Sign in with Google.</strong> Use whichever Google account you check regularly.</li>
+    <li><strong>Wait for approval.</strong> First time in, you'll see a "waiting on approval" screen. Dustin or Aracely have to approve you. You'll get in once they do — no need to sign in again, just check back.</li>
+    <li><strong>Pick your contract.</strong> Once approved, you'll see cards for CISD, AISD, and others. Tap the one you're working.</li>
+  </ol>
+  <div class="callout important">
+    <strong>Do this before Thursday.</strong> If you wait until game day to sign in and you're not approved yet, you won't be able to clock in.
+  </div>
+
+  <h2 id="profile">2. Your Profile &amp; Photo</h2>
+  <p>Open the <strong>Profile</strong> tab and fill it out completely. This takes two minutes and it drives everything else.</p>
+  <ul>
+    <li><strong>Legal name</strong> — as it appears on your ID. This is how the system matches you to shifts and invoices, so get it right.</li>
+    <li><strong>Crew handle</strong> — what people actually call you. Important if someone else on crew shares your first name.</li>
+    <li><strong>Skills / positions</strong> — what you're qualified for.</li>
+    <li><strong>Phone</strong> — internal only, never shown on your ID card.</li>
+    <li><strong>Emergency contact</strong> — name and number. Admin-only. We need this if something happens on site.</li>
+    <li><strong>Photo</strong> — see below. This one matters most.</li>
+  </ul>
+
+  <h3>Your photo — read this part</h3>
+  <div class="callout warn">
+    <strong>Your photo is what gets you through the gate.</strong> Security compares your face to the ID card on your phone. A bad photo means you get held up at the gate, or turned away.
+  </div>
+  <ul>
+    <li><strong>Face clearly visible</strong>, looking at the camera</li>
+    <li><strong>Good light</strong> — no backlighting, no heavy shadow</li>
+    <li><strong>Plain background</strong> if you can</li>
+    <li><strong>No sunglasses, no hat brim over your eyes</strong></li>
+    <li>Head and shoulders, like a work badge — not a full-body shot</li>
+  </ul>
+  <p>Think driver's license, not Instagram. If a stranger couldn't match the photo to your face in three seconds, retake it.</p>
+
+  <h2 id="idcard">3. Digital ID Card — Gate Access</h2>
+  <p>The <strong>ID Card</strong> tab is your credential. Pull it up on your phone at the gate.</p>
+  <p>It shows your photo, your name, and <strong>the position you're working today</strong> — pulled live from the schedule. It updates on its own; there's nothing to request or print.</p>
+  <div class="callout important">
+    <strong>If you're not on today's schedule, the card shows "Not Scheduled Today"</strong> and security will turn you away. That's working as intended — but if you believe you <em>are</em> scheduled and it says otherwise, contact Dustin before you head to the venue, not when you're standing at the gate.
+  </div>
+  <p><strong>Screenshot it before you leave.</strong> Stadium cell service is unreliable and the card needs a connection to load. A screenshot always works.</p>
+
+  <h2 id="shifts">4. Picking Up &amp; Dropping Shifts</h2>
+  <p>The <strong>Shifts</strong> tab shows every event and every position. Open positions say "Open." Yours show a Drop button.</p>
+
+  <h3>Picking up a shift</h3>
+  <p>Find an open position and tap <strong>Pick Up</strong>. It's yours immediately — first come, first served. If two people tap at the same time, the second person gets a message that it was just taken.</p>
+
+  <h3>Dropping a shift</h3>
+  <p>Tap <strong>Drop</strong> on a shift you can't work. You'll be asked for a reason — that's required, and it's logged.</p>
+  <div class="callout warn">
+    <strong>Drop early.</strong> The moment you know you can't make it, drop it. A shift dropped a week out gets filled easily. One dropped the morning of leaves us scrambling, and it's noticed.
+  </div>
+  <p>Dropping puts the position back on the board for someone else. It does not notify anyone automatically — if it's last minute, <strong>text Dustin or Aracely directly too.</strong></p>
+
+  <h2 id="gameday">5. Game Day — Start to Finish</h2>
+  <p>The short version of what a normal event looks like:</p>
+  <ol>
+    <li><span class="step-num">1</span><strong>Before you leave:</strong> check the <strong>Today</strong> tab for call time, weather, and who else is working. Screenshot your ID card.</li>
+    <li><span class="step-num">2</span><strong>Arrive on site.</strong> Get through the gate with your ID card.</li>
+    <li><span class="step-num">3</span><strong>Clock in</strong> — has to be done at the venue, see below.</li>
+    <li><span class="step-num">4</span><strong>Check out any gear</strong> you're taking from the audio booth.</li>
+    <li><span class="step-num">5</span><strong>Pre-shift checklist</strong> for your position.</li>
+    <li><span class="step-num">6</span><strong>Work the show.</strong></li>
+    <li><span class="step-num">7</span><strong>Post-shift checklist</strong> during wrap.</li>
+    <li><span class="step-num">8</span><strong>Return all gear</strong> and submit an equipment report if anything's wrong.</li>
+    <li><span class="step-num">9</span><strong>Clock out.</strong></li>
+    <li><span class="step-num">10</span><strong>Submit your invoice</strong> — same night is best.</li>
+  </ol>
+
+  <h2 id="clock">6. Clocking In &amp; Out</h2>
+  <p>Open the <strong>Time Clock</strong> from the home page, pick the event, pick your position, and tap Clock In.</p>
+  <div class="callout important">
+    <strong>You must physically be at the venue.</strong> The app checks your location and only allows clock-in within about 500 feet. You can't clock in from the parking lot down the road, from home, or on the drive over. Allow location access when your phone asks — if you deny it, you can't clock in at all.
+  </div>
+  <p>You only need to allow location <strong>at the moment you clock in</strong>. The app doesn't track you during your shift or afterward. "Allow Once" or "While Using App" both work fine.</p>
+  <p><strong>Clock out when you're actually done</strong> — after wrap, not when the game clock hits zero. Your hours come from this.</p>
+
+  <h2 id="checklist">7. Broadcast Checklist</h2>
+  <p>Open the <strong>Checklist</strong> from the home page. Pick your position and work through the list. No login needed.</p>
+  <p>Every position has its own <strong>Pre-Shift</strong> and <strong>Post-Shift</strong> list — Camera Lead, Camera Op, Replay, Clips, Shader, Audio A1, A2, Utility, Director, Producer, PM, EIC.</p>
+  <ul>
+    <li><strong>Check items off as you go.</strong> It saves automatically — there's no submit button.</li>
+    <li><strong>Signal Up</strong> when your position is ready. The EIC sees it on the dashboard, so nobody has to come find you.</li>
+    <li><strong>Request Help</strong> if you're stuck. It flags your position red on the dashboard with your note. Use it — that's what it's for, and it's faster than hunting someone down mid-show.</li>
+  </ul>
+  <p>The <strong>Dashboard</strong> view shows every position's status live, so you can see whether the rest of the crew is ready.</p>
+
+  <h2 id="equipment">8. Equipment Checkout &amp; Reports</h2>
+
+  <h3>Checking gear out of the audio booth</h3>
+  <p>There's an iPad in the audio booth. <strong>Anything you take out of that booth gets checked out</strong> — mics, beltpacks, headsets, batteries, cables, the console, all of it.</p>
+  <ol>
+    <li>Tap your name</li>
+    <li>Tap what you're taking</li>
+    <li>Tap it again when you bring it back</li>
+  </ol>
+  <p>Takes about five seconds. It exists so that when a mic goes missing, we know who had it last instead of guessing.</p>
+  <div class="callout important">
+    <strong>Mics and wireless comms need a battery checked out too.</strong> The iPad will remind you. Grab one every time.
+  </div>
+  <div class="callout warn">
+    <strong>Mic stands: do not go down to the mezzanine.</strong> Tap Request on the iPad and one will be brought up to you.
+  </div>
+  <p>If you're taking something that isn't on the list, use <strong>"Check out something else"</strong> and type what it is. Nothing should leave the booth unlogged.</p>
+
+  <h3>Equipment reports</h3>
+  <p>After your shift, open the <strong>Equipment</strong> tab in the crew app and submit a report. Takes thirty seconds.</p>
+  <ul>
+    <li><strong>All Good</strong> — nothing to report</li>
+    <li><strong>Minor Issue</strong> — noted, still usable</li>
+    <li><strong>Needs Attention</strong> — repair or replace before next use</li>
+  </ul>
+  <p>Be specific in the notes. "Camera 2 tripod head slips under load" is useful. "Tripod weird" is not.</p>
+  <div class="callout good">
+    <strong>Report it even if you worked around it.</strong> If you jiggled a cable to make it work, that's exactly what we need to know — otherwise the next person hits it cold during a live show.
+  </div>
+
+  <h2 id="invoice">9. Getting Paid — Submitting Your Invoice</h2>
+  <p>You get paid from the invoice you submit. No invoice, no payment — it doesn't happen automatically from your clock-in.</p>
+
+  <h3>How to submit</h3>
+  <ol>
+    <li>Open the <strong>Time Clock</strong> from the home page</li>
+    <li>Tap the <strong>Invoice</strong> tab</li>
+    <li>Pick the event</li>
+    <li>Fill in your name, position, hours, and rate — the total calculates itself</li>
+    <li>Add notes if anything needs explaining (extra hours, unusual circumstances)</li>
+    <li>Tap Submit</li>
+  </ol>
+  <div class="callout important">
+    <strong>Submit the same night, or the next morning at the latest.</strong> Hours get fuzzy fast, and late invoices hold up the whole payment batch — not just yours.
+  </div>
+
+  <h3>Where to find your invoices</h3>
+  <p>The <strong>My Invoices</strong> tab in the crew app shows everything you've submitted. Check there before asking whether one went through.</p>
+  <p>You can delete one you submitted by mistake. A permanent copy is kept on the admin side regardless, so deleting yours doesn't erase the record — if you need something corrected, say so rather than deleting and resubmitting.</p>
+
+  <h2 id="help">10. Questions</h2>
+  <p>Ask <strong>Dustin</strong> or <strong>Aracely</strong> — text is fastest. Better to ask before the event than to guess during it.</p>
+  <p>App problems (can't sign in, can't clock in, ID card won't load): <a href="mailto:invoices.advmedia@gmail.com" style="color:var(--blue);">invoices.advmedia@gmail.com</a></p>
+  <div class="callout good">
+    <strong>Before Thursday:</strong> sign in, get approved, fill out your profile, and upload a good photo. Ten minutes now saves a problem at the gate.
+  </div>
+
+  <div class="footer">
+    <a class="btn-link" href="https://dustin12342986-hue.github.io/ADV-Media-Broadcast-Checklist/home.html">Open ADV Media Teams</a>
+    <p style="font-size:12.5px; color:var(--text-faint); margin-top:14px;">ADV Media Limited Company</p>
+  </div>
+</div>
+</body>
+</html>
