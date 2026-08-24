@@ -2446,6 +2446,7 @@ async function renderLaborRequests() {
             </div>
           ` : r.status === "scheduled" ? `
             <div class="log-reason" style="margin-top:10px; color:var(--green);">✓ On the shift board — crew can pick these up.</div>
+            <button class="shift-btn" data-unschedule="${escapeAttr(r.key)}" style="margin-top:10px; background:var(--panel2); border:1px solid var(--red); color:var(--red);">Remove from Board</button>
           ` : ""}
         </div>
       `;
@@ -2461,6 +2462,28 @@ async function renderLaborRequests() {
     inner.querySelectorAll("[data-approve]").forEach((b) => {
       b.onclick = () => scheduleLaborRequest(b.dataset.approve, all[b.dataset.approve]);
     });
+    // Undo a scheduling — deletes the event and its shift slots, and puts
+    // the request back in the queue. Mainly for cleaning up test runs.
+    inner.querySelectorAll("[data-unschedule]").forEach((b) => {
+      b.onclick = async () => {
+        const key = b.dataset.unschedule;
+        const req = all[key];
+        if (!req || !req.scheduledEventId) return;
+        const eventId = req.scheduledEventId;
+        if (!confirm(`Remove "${req.eventName || "this event"}" from the shift board?\n\nDeletes the event and all its shift slots, including any crew have already picked up. The request goes back to New.`)) return;
+        try {
+          await db.ref(`liveRoster/${eventId}`).remove();
+          await db.ref(`clientEvents/${eventId}`).remove();
+          await db.ref(`laborRequests/${key}`).update({
+            status: "new", scheduledEventId: null, scheduledHours: null, scheduledAt: null,
+          });
+          renderLaborRequests();
+        } catch (e) {
+          alert("Couldn't remove that: " + (e.message || "unknown error"));
+        }
+      };
+    });
+
     inner.querySelectorAll("[data-decline]").forEach((b) => {
       b.onclick = async () => {
         if (!confirm("Decline this request? The client isn't notified automatically — follow up with them directly.")) return;
