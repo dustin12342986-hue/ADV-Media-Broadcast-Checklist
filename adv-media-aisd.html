@@ -4,8 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <title>ADV Media — AISD</title>
-<link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="theme-color" content="#4A8FC0">
 
 <!--
@@ -2391,8 +2389,18 @@ async function renderLaborRequests() {
     // their own back. Flatten it here, keeping the full path on each entry.
     const all = {};
     const entries = [];
-    Object.entries(byUid).forEach(([uid, reqs]) => {
-      Object.entries(reqs || {}).forEach(([k, r]) => {
+    Object.entries(byUid).forEach(([uid, val]) => {
+      if (!val || typeof val !== "object") return;
+      // Requests submitted before the per-user restructure sit flat at
+      // laborRequests/{key}. Detect those by the fields a request always
+      // has, and read them at their original path.
+      if (val.eventName || val.submittedAt || val.positions) {
+        all[uid] = val;
+        entries.push({ key: uid, ...val });
+        return;
+      }
+      Object.entries(val).forEach(([k, r]) => {
+        if (!r || typeof r !== "object") return;
         const path = `${uid}/${k}`;
         all[path] = r;
         entries.push({ key: path, ...r });
@@ -2996,12 +3004,10 @@ function escapeAttr(str) { return escapeHtml(str); }
 // so the browser recognizes this as an installable PWA from the first
 // visit. Safe to call again later when notifications are enabled —
 // registering twice just returns the existing registration.
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch((e) => console.error("Service worker registration failed:", e));
-}
+// No service worker in this repo — PWA install lives on the main
+// ADV Media Teams site, not here.
 
 initFirebaseAndBoot();
 </script>
-<script src="blue-bonnet-widget.js"></script>
 </body>
 </html>
