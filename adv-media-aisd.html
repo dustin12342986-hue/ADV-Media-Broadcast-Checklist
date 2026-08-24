@@ -2242,11 +2242,74 @@ async function renderAisdInvoices() {
                 <div class="shift-status" style="font-size:17px; font-weight:800; color:var(--green);">${money(invoice.subtotal)}</div>
               </div>
               <div class="log-reason" style="margin-top:6px;">Terms: ${escapeHtml(invoice.terms)}</div>
-              <button class="shift-btn shift-btn-pickup" data-copy="${escapeAttr(eventId)}" style="margin-top:12px;">Copy Invoice Text</button>
+              <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                <button class="shift-btn shift-btn-pickup" data-copy="${escapeAttr(eventId)}">Copy Invoice Text</button>
+                <button class="shift-btn" data-release="${escapeAttr(eventId)}" style="background:var(--panel2); border:1px solid var(--green); color:var(--green);">
+                  ${ev.invoiceReleased ? "Update Client Invoice" : "Send Invoice to Client"}
+                </button>
+              </div>
+              ${ev.invoiceReleased ? `<div class="log-reason" style="margin-top:8px; color:var(--green);">✓ Visible to the client in their portal since ${new Date(ev.invoiceReleased).toLocaleDateString()}</div>` : ""}
             `}
         </div>
       `;
     }).join("");
+
+    // Publish a client-safe copy of the invoice to their portal. Deliberately
+    // omits crew names and anything about what ADV pays its contractors —
+    // the client sees rate classes, hours, and totals only.
+    inner.querySelectorAll("[data-release]").forEach((btn) => {
+      btn.onclick = async () => {
+        const eventId = btn.dataset.release;
+        const ev = events[eventId] || {};
+        if (!ev.fromRequest) {
+          alert("This event isn't linked to a client request, so there's nowhere to publish it.");
+          return;
+        }
+        const slots = roster[eventId] || {};
+        const clockForEvent = clock[eventId] || {};
+        const shifts = [];
+        Object.entries(slots).forEach(([, slot]) => {
+          if (!slot || slot.status !== "assigned" || !slot.name) return;
+          const rec = Object.values(clockForEvent).find((c) => c && c.name && namesMatch(slot.name, c.name));
+          if (rec && rec.clockInAt && rec.clockOutAt) {
+            shifts.push({
+              personName: slot.name, role: slot.billingRole || slot.role,
+              clockIn: rec.clockInAt, clockOut: rec.clockOutAt,
+              mealStart: rec.mealStart || null, mealEnd: rec.mealEnd || null,
+              scheduledHours: slot.scheduledHours || ev.scheduledHours || 0,
+            });
+          }
+        });
+        const inv = buildInvoice(shifts, {});
+        if (inv.lines.length === 0) {
+          alert("Nothing billable yet — crew need to clock in and out first.");
+          return;
+        }
+        if (!confirm(`Publish this invoice to the client's portal?\n\nTotal: $${inv.subtotal.toFixed(2)}\n\nThey'll see rate classes, hours, and totals — no crew names.`)) return;
+
+        const clientLines = inv.lines.map((l) => ({
+          rateClass: l.rateClass,
+          billedHours: l.billedHours,
+          rate: l.rate,
+          amount: l.amount,
+          detail: [l.straightHours ? l.straightHours + "h ST" : "",
+                   l.otHours ? l.otHours + "h OT" : "",
+                   l.dtHours ? l.dtHours + "h DT" : ""].filter(Boolean).join(", "),
+        }));
+        try {
+          const issuedAt = new Date().toISOString();
+          await db.ref(`laborRequests/${ev.fromRequest}`).update({
+            status: "completed",
+            clientInvoice: { lines: clientLines, total: inv.subtotal, terms: inv.terms, issuedAt },
+          });
+          await db.ref(`clientEvents/${eventId}/invoiceReleased`).set(issuedAt);
+          alert("Sent — the client can see it in their portal now.");
+          renderAisdInvoices();
+        } catch (e) {
+          alert("Couldn't publish that: " + (e.message || "unknown error"));
+        }
+      };
+    });
 
     // Plain-text invoice for pasting into an email or accounting system.
     inner.querySelectorAll("[data-copy]").forEach((btn) => {
@@ -2323,10 +2386,19 @@ async function renderLaborRequests() {
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
   try {
     const snap = await db.ref("laborRequests").once("value");
-    const all = snap.val() || {};
-    const entries = Object.entries(all)
-      .map(([key, r]) => ({ key, ...r }))
-      .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+    const byUid = snap.val() || {};
+    // Stored as laborRequests/{submitterUid}/{pushKey} so clients can read
+    // their own back. Flatten it here, keeping the full path on each entry.
+    const all = {};
+    const entries = [];
+    Object.entries(byUid).forEach(([uid, reqs]) => {
+      Object.entries(reqs || {}).forEach(([k, r]) => {
+        const path = `${uid}/${k}`;
+        all[path] = r;
+        entries.push({ key: path, ...r });
+      });
+    });
+    entries.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
     if (entries.length === 0) {
       inner.innerHTML = `<div class="footnote">No labor requests yet. They'll show up here when a client submits one.</div>`;
