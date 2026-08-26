@@ -713,9 +713,13 @@ function renderMainApp() {
         `).join("")}
       </div>
     ` : ""}
+    <div id="confirmCard"></div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
   `;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
+  db.ref(`profiles/${currentUser.uid}`).once("value")
+    .then((s) => { const p = s.val(); if (p) renderConfirmCard(p); })
+    .catch((e) => console.error("Confirm card:", e));
   // Keep the active tab visible — on a narrow phone the bar scrolls, and
   // without this the current tab can sit off-screen after a re-render.
   const activeTabBtn = document.querySelector(".tab-btn.active");
@@ -1243,6 +1247,156 @@ async function renderAdminApprovals() {
 // game-day reminder texts/emails, and who hasn't yet. This is populated
 // automatically by the scheduled reminder system; nothing to trigger here.
 // ============================================================================
+// ============================================================================
+// Shift confirmation — asks crew to confirm the night before. Shows call
+// time, the venue forecast, and live traffic from both Dallas and Fort
+// Worth so nobody's guessing about the drive.
+// ============================================================================
+const TRAFFIC_ORIGINS = [
+  { label: "from Dallas", origin: "Dallas, TX" },
+  { label: "from Fort Worth", origin: "Fort Worth, TX" },
+];
+
+function trafficLink(origin) {
+  return "https://www.google.com/maps/dir/?api=1"
+    + "&origin=" + encodeURIComponent(origin)
+    + "&destination=" + VENUE_LAT_FRONTEND + "," + VENUE_LNG_FRONTEND
+    + "&travelmode=driving";
+}
+
+async function renderConfirmCard(profile) {
+  const host = document.getElementById("confirmCard");
+  if (!host) return;
+  const dateId = tomorrowId();
+  const sched = findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  if (!sched) { host.innerHTML = ""; return; }
+
+  const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
+  let already = false;
+  try {
+    const snap = await db.ref(`confirmations/${dateId}/${roleKey}`).once("value");
+    already = !!(snap.val() && snap.val().confirmed);
+  } catch (e) { /* fall through and show the card */ }
+
+  const g = sched.game;
+  const label = g ? `${g.day} ${g.date} — ${g.opp}` : dateId;
+
+  if (already) {
+    host.innerHTML = `
+      <div class="setup-warning" style="display:block; margin-bottom:16px; background:#10201A; border-color:var(--green); color:#A8E0C4;">
+        ✓ You're confirmed for ${escapeHtml(label)}. See you there.
+      </div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div style="background:var(--panel); border:2px solid var(--amber); border-radius:14px; padding:18px; margin-bottom:18px;">
+      <div style="font-size:11.5px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Confirm tomorrow's shift</div>
+      <div style="font-size:17px; font-weight:800; margin-bottom:3px;">${escapeHtml(label)}</div>
+      <div class="log-reason" style="margin-bottom:12px;">You're on as <strong>${escapeHtml(sched.position)}</strong>${g && g.call ? ` · call ${escapeHtml(g.call)}` : ""}</div>
+      <div id="confirmWeather" class="log-reason" style="margin-bottom:12px;">Checking the forecast…</div>
+      <div class="log-reason" style="margin-bottom:6px;">Live traffic to the venue:</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        ${TRAFFIC_ORIGINS.map((t) => `
+          <a class="nav-link-btn" href="${trafficLink(t.origin)}" target="_blank" rel="noopener" style="flex:1; min-width:130px;">
+            🚗 ${escapeHtml(t.label)}
+          </a>
+        `).join("")}
+      </div>
+      <button class="primary-btn" id="confirmShiftBtn">I'll be there — Confirm</button>
+      <div id="confirmMsg"></div>
+    </div>
+  `;
+
+  const btn = document.getElementById("confirmShiftBtn");
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = "Confirming…";
+    try {
+      await db.ref(`confirmations/${dateId}/${roleKey}`).set({
+        name: profile.legalName || "",
+        position: sched.position,
+        confirmed: true,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: currentUser.uid,
+      });
+      renderConfirmCard(profile);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "I'll be there — Confirm";
+      document.getElementById("confirmMsg").innerHTML =
+        `<div class="error-msg">Couldn't confirm (${escapeHtml(e.message || "unknown error")}).</div>`;
+    }
+  };
+
+  getVenueWeather().then((w) => {
+    const el = document.getElementById("confirmWeather");
+    if (el) el.textContent = w ? `${w.name}: ${w.temp}°${w.unit} — ${w.forecast}` : "Forecast unavailable right now.";
+  });
+}
+
+// ============================================================================
+// Text tomorrow's crew — builds a group message with everyone working, then
+// hands it to the phone's Messages app with all recipients filled in. You
+// review and hit send. No third-party texting service involved.
+// ============================================================================
+function normalizePhoneForSms(phone) {
+  const d = (phone || "").replace(/\D/g, "");
+  if (d.length === 10) return "+1" + d;
+  if (d.length === 11 && d.startsWith("1")) return "+" + d;
+  return null;
+}
+
+async function textTomorrowsCrew() {
+  const dateId = tomorrowId();
+  const positions = ROSTER_DATA[dateId];
+  const game = GAMES.find((g) => g.id === dateId);
+  if (!positions || !game) {
+    alert("Nothing on the schedule for tomorrow.");
+    return;
+  }
+
+  const snap = await db.ref("profiles").once("value");
+  const profiles = Object.values(snap.val() || {});
+
+  const numbers = [];
+  const missing = [];
+  Object.entries(positions).forEach(([pos, name]) => {
+    if (!name || name === "TBD") return;
+    const p = profiles.find((pr) => pr.legalName && namesMatch(name, pr.legalName, pr.crewHandle));
+    const num = p && normalizePhoneForSms(p.phone);
+    if (num) { if (!numbers.includes(num)) numbers.push(num); }
+    else missing.push(`${name} (${pos})`);
+  });
+
+  if (numbers.length === 0) {
+    alert("No usable phone numbers for tomorrow's crew. Check the Crew Directory — profiles need a phone number filled in.");
+    return;
+  }
+
+  const w = await getVenueWeather();
+  const weather = w ? `${w.temp}°${w.unit}, ${w.forecast.split(".")[0]}.` : "";
+
+  const body = [
+    `${game.day} ${game.date} — ${game.opp}`,
+    game.call ? `Call time: ${game.call}` : "",
+    weather ? `Weather: ${weather}` : "",
+    `Traffic from Dallas: ${trafficLink("Dallas, TX")}`,
+    `From Fort Worth: ${trafficLink("Fort Worth, TX")}`,
+    "",
+    "Please confirm in ADV Media Teams so we know you're locked in.",
+  ].filter(Boolean).join("\n");
+
+  if (missing.length) {
+    if (!confirm(`No phone number on file for:\n\n${missing.join("\n")}\n\nText the other ${numbers.length}?`)) return;
+  }
+
+  // iOS wants &body, Android wants ?body — this form works on both.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const sep = isIOS ? "&" : "?";
+  window.location.href = `sms:${numbers.join(",")}${sep}body=${encodeURIComponent(body)}`;
+}
+
 async function renderConfirmations() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
@@ -1252,12 +1406,18 @@ async function renderConfirmations() {
     const gameIds = Object.keys(byGame).sort();
 
     if (gameIds.length === 0) {
-      inner.innerHTML = `<div class="footnote">No reminders have gone out yet — this fills in automatically starting 36 hours before each game.</div>`;
+      inner.innerHTML = `
+        <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
+        <div class="footnote">Nobody's confirmed yet. Green checkmarks appear here as crew confirm in the app.</div>
+      `;
+      const tb0 = document.getElementById("textCrewBtn");
+      if (tb0) tb0.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
       return;
     }
 
     inner.innerHTML = `
-      <div class="footnote" style="margin-bottom:12px;">Confirmed ✅ vs still waiting, per game. Updates automatically as people reply to texts.</div>
+      <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
+      <div class="footnote" style="margin-bottom:12px;">Confirmed ✅ vs still waiting, per game. Fills in as crew confirm in the app.</div>
       ${gameIds.map((gameId) => {
         const game = GAMES.find((g) => g.id === gameId);
         const label = game ? `${game.day} ${game.date} — ${game.opp}` : gameId;
@@ -1278,6 +1438,8 @@ async function renderConfirmations() {
         `;
       }).join("")}
     `;
+    const tb = document.getElementById("textCrewBtn");
+    if (tb) tb.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
   } catch (e) {
     console.error(e);
     inner.innerHTML = `<div class="error-msg">Couldn't load confirmations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "confirmations" section — see the setup comment at the top of this file.</div>`;
@@ -2703,6 +2865,26 @@ function namesMatch(rosterName, legalName, crewHandle) {
     }
     return false;
   });
+}
+
+// Same lookup as findScheduledEvent but for any date — used by the
+// confirmation card, which asks about tomorrow's game.
+function findScheduledEventOn(dateId, legalName, crewHandle) {
+  const positions = ROSTER_DATA[dateId];
+  if (!positions) return null;
+  for (const [pos, name] of Object.entries(positions)) {
+    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
+      const game = GAMES.find((g) => g.id === dateId);
+      return { position: pos, game };
+    }
+  }
+  return null;
+}
+
+function tomorrowId() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function findScheduledEvent(legalName, crewHandle) {
