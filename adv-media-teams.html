@@ -1403,35 +1403,52 @@ async function renderConfirmations() {
   try {
     const snap = await db.ref("confirmations").once("value");
     const byGame = snap.val() || {};
-    const gameIds = Object.keys(byGame).sort();
 
-    if (gameIds.length === 0) {
-      inner.innerHTML = `
-        <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
-        <div class="footnote">Nobody's confirmed yet. Green checkmarks appear here as crew confirm in the app.</div>
-      `;
-      const tb0 = document.getElementById("textCrewBtn");
-      if (tb0) tb0.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
+    // Build the list from the ROSTER, not from the confirmation records.
+    // Someone who hasn't confirmed has no record yet, so reading the
+    // records alone silently drops them — they'd show as neither
+    // confirmed nor waiting.
+    const todayId = new Date().toISOString().slice(0, 10);
+    const upcoming = GAMES.filter((g) => g.id >= todayId);
+
+    if (upcoming.length === 0) {
+      inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
       return;
     }
 
     inner.innerHTML = `
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
-      <div class="footnote" style="margin-bottom:12px;">Confirmed ✅ vs still waiting, per game. Fills in as crew confirm in the app.</div>
-      ${gameIds.map((gameId) => {
-        const game = GAMES.find((g) => g.id === gameId);
-        const label = game ? `${game.day} ${game.date} — ${game.opp}` : gameId;
-        const entries = Object.values(byGame[gameId]);
-        const confirmed = entries.filter((e) => e.confirmed);
-        const waiting = entries.filter((e) => !e.confirmed);
+      <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
+      ${upcoming.map((game) => {
+        const positions = ROSTER_DATA[game.id] || {};
+        const confirms = byGame[game.id] || {};
+
+        const rows = Object.entries(positions)
+          .filter(([, name]) => name && name !== "TBD")
+          .map(([pos, name]) => {
+            const key = pos.replace(/[^A-Za-z0-9]/g, "_");
+            const rec = confirms[key];
+            return { pos, name, confirmed: !!(rec && rec.confirmed), at: rec && rec.confirmedAt };
+          });
+
+        if (rows.length === 0) return "";
+
+        const open = Object.entries(positions).filter(([, n]) => !n || n === "TBD").length;
+        const yes = rows.filter((r) => r.confirmed).length;
+        const no = rows.length - yes;
+
         return `
           <div class="shift-game-card">
-            <div class="shift-game-header">${escapeHtml(label)}</div>
-            <div class="log-reason" style="margin-bottom:8px;">${confirmed.length} confirmed · ${waiting.length} waiting</div>
-            ${entries.map((e) => `
+            <div class="shift-game-header">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
+            <div class="log-reason" style="margin-bottom:8px;">
+              ${yes} confirmed · ${no} waiting${open ? ` · ${open} position${open === 1 ? "" : "s"} unfilled` : ""}
+            </div>
+            ${rows.map((r) => `
               <div class="shift-row">
-                <div class="shift-role">${escapeHtml(e.position || "")}</div>
-                <div class="shift-status ${e.confirmed ? "" : "shift-open"}">${escapeHtml(e.name || "")} ${e.confirmed ? "✅" : "— waiting"}</div>
+                <div class="shift-role">${escapeHtml(r.pos)}</div>
+                <div class="shift-status ${r.confirmed ? "" : "shift-open"}">
+                  ${escapeHtml(r.name)} ${r.confirmed ? "✅" : "— waiting"}
+                </div>
               </div>
             `).join("")}
           </div>
@@ -1442,7 +1459,7 @@ async function renderConfirmations() {
     if (tb) tb.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
   } catch (e) {
     console.error(e);
-    inner.innerHTML = `<div class="error-msg">Couldn't load confirmations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "confirmations" section — see the setup comment at the top of this file.</div>`;
+    inner.innerHTML = `<div class="error-msg">Couldn't load confirmations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "confirmations" section.</div>`;
   }
 }
 
