@@ -453,18 +453,39 @@
   .ros-dur { font-size: 11px; color: var(--text-faint); font-weight: 700; }
   .ros-event { font-size: 14.5px; font-weight: 700; line-height: 1.35; }
   .ros-now .ros-event { font-size: 17px; }
-  .ros-field { display: flex; gap: 8px; font-size: 12.5px; margin-top: 5px; line-height: 1.4; }
+  .ros-field {
+    display: flex; gap: 8px; font-size: 12.5px; margin-top: 6px; line-height: 1.4;
+    border-left: 3px solid var(--dept, var(--border)); padding-left: 9px;
+  }
   .ros-field-label {
-    flex: 0 0 58px; color: var(--text-faint); font-weight: 800;
+    flex: 0 0 58px; color: var(--dept, var(--text-faint)); font-weight: 800;
     text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding-top: 2px;
   }
   .ros-field-val { flex: 1; color: var(--text-muted); }
-  .ros-field.ros-note .ros-field-val { color: var(--amber); font-weight: 600; }
+
+  /* One colour per department, so an A2 can find their lines without reading
+     the whole card. Announcer keeps the brand blue it already had. */
+  .d-read   { --dept: #4A8FC0; }
+  .d-screen { --dept: #A87BD4; }
+  .d-ribbon { --dept: #3FBFB0; }
+  .d-audio  { --dept: #46B36B; }
+  .d-note   { --dept: #E0A63C; }
+  .d-note .ros-field-val { color: var(--amber); font-weight: 600; }
+
+  .ros-legend {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px;
+  }
+  .ros-key {
+    font-size: 9.5px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--dept); padding: 3px 8px 3px 7px;
+    border-radius: 5px; background: var(--panel);
+    border: 1px solid var(--border); border-left: 3px solid var(--dept);
+  }
   /* Word-for-word announcer copy. Left rule and roomier line height because
      this is the one thing on the card that gets read aloud under pressure. */
   .ros-read {
     margin-top: 8px; padding: 8px 0 8px 11px;
-    border-left: 3px solid var(--blue);
+    border-left: 3px solid var(--dept, var(--blue));
     font-size: 13.5px; line-height: 1.55; color: var(--text);
     white-space: pre-wrap;
   }
@@ -836,7 +857,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v3 (tally+primary) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v4 (dept colors) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3381,7 +3402,7 @@ function rosRender() {
       <div class="footnote" style="margin-top:14px;">
         No run of show for ${escapeHtml(game ? game.opp : "this game")} yet.${admin ? " Tap Edit, then Add Cue." : ""}
       </div>
-    ` : rosState.editing ? rosEditListHtml(cues) : rosShowListHtml(cues, cur)}
+    ` : rosState.editing ? rosEditListHtml(cues) : rosLegendHtml() + rosShowListHtml(cues, cur)}
 
     ${rosState.editing ? `
       <button class="primary-btn" id="rosAddCue" style="margin-top:14px;">+ Add Cue</button>
@@ -3502,6 +3523,22 @@ function rosFieldHtml(label, value, cls) {
     : "";
 }
 
+// Each department gets its own colour so an A2 can find their lines without
+// reading the whole card. Announcer keeps the brand blue it already had.
+const ROS_DEPTS = [
+  { key: "read",   label: "Announcer", cls: "d-read" },
+  { key: "screen", label: "Screen",    cls: "d-screen" },
+  { key: "ribbon", label: "Ribbon",    cls: "d-ribbon" },
+  { key: "audio",  label: "Audio",     cls: "d-audio" },
+  { key: "notes",  label: "Note",      cls: "d-note" },
+];
+
+function rosLegendHtml() {
+  return `<div class="ros-legend">
+    ${ROS_DEPTS.map((d) => `<span class="ros-key ${d.cls}">${escapeHtml(d.label)}</span>`).join("")}
+  </div>`;
+}
+
 function rosShowListHtml(cues, cur) {
   const offLive = !rosState.following;
   let lastSection = null;
@@ -3521,11 +3558,11 @@ function rosShowListHtml(cues, cur) {
           ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
         </div>
         <div class="ros-event">${escapeHtml(c.event || "")}</div>
-        ${c.read ? `<div class="ros-read">${escapeHtml(c.read)}</div>` : ""}
-        ${rosFieldHtml("Screen", c.screen)}
-        ${rosFieldHtml("Ribbon", c.ribbon)}
-        ${rosFieldHtml("Audio", c.audio)}
-        ${rosFieldHtml("Note", c.notes, "ros-note")}
+        ${c.read ? `<div class="ros-read d-read">${escapeHtml(c.read)}</div>` : ""}
+        ${rosFieldHtml("Screen", c.screen, "d-screen")}
+        ${rosFieldHtml("Ribbon", c.ribbon, "d-ribbon")}
+        ${rosFieldHtml("Audio", c.audio, "d-audio")}
+        ${rosFieldHtml("Note", c.notes, "d-note")}
       </div>`;
   }).join("");
 }
