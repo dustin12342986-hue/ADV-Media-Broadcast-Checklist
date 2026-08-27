@@ -442,6 +442,15 @@
 
   /* Lit like an on-air light. Whoever is driving should never have to wonder
      whether they are. */
+  .pass-row { display: flex; gap: 10px; justify-content: center; }
+  .pass-box {
+    width: 52px; height: 62px; text-align: center;
+    font-size: 26px; font-weight: 800; font-family: inherit;
+    border-radius: 12px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); padding: 0;
+  }
+  .pass-box:focus { outline: none; border-color: var(--blue); }
+
   .ros-onair {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     background: var(--red); color: #fff; border-radius: 10px;
@@ -880,7 +889,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v7 (primary fix) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v8 (primary passcode) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3109,18 +3118,123 @@ function rosIsPrimary() {
 // Claim the show. One person drives; everyone else is pulled back to their
 // position after they stop touching their own screen. Touching any transport
 // control claims it implicitly — nobody should have to think about this
-// mid-show.
-function rosClaimPrimary() {
-  if (rosIsPrimary()) return;
-  // myProfileForShifts is the module-level copy. `myProfile` exists too, but
-  // only as a local inside renderMyInvoices — reaching for it from here threw
-  // a ReferenceError and killed every handler that called this.
+// mid-show. See rosTryClaimPrimary below for the passcode gate.
+// The passcode that has to be entered to take the show. Stored at
+// showSettings/primaryCode; admins set it and are never prompted themselves.
+// If no code is set, anyone can claim — that's the out-of-the-box behaviour.
+//
+// Worth being clear about what this is: a guard against someone grabbing the
+// show by accident or on a whim mid-broadcast. It is not security. The code
+// is checked on the device, so anyone determined enough to read the database
+// could find it.
+let rosPrimaryCode = null;
+
+async function rosLoadPrimaryCode() {
+  try {
+    const s = await db.ref("showSettings/primaryCode").once("value");
+    rosPrimaryCode = s.val() || null;
+  } catch (e) {
+    rosPrimaryCode = null;
+  }
+  // The first render usually beats this read, so repaint once it lands or the
+  // lock hint never appears.
+  if (mainState.view === "runofshow") rosRender();
+}
+
+// Resolves true if the claim went through. Everything that takes control runs
+// through here — the button, Play, and the speed steppers — so the gate can't
+// be walked around by tapping something else.
+async function rosTryClaimPrimary() {
+  if (rosIsPrimary()) return true;
+  if (rosPrimaryCode && !isAdmin()) {
+    const entered = await rosAskPasscode();
+    if (entered === null) return false;
+    if (entered !== rosPrimaryCode) {
+      alert("That passcode isn't right.");
+      return false;
+    }
+  }
   const name = (myProfileForShifts && myProfileForShifts.legalName)
     || currentUser.displayName || currentUser.email || "";
   const p = { uid: currentUser.uid, name, at: rosNow() };
   rosState.primary = p;
   rosWrite({ primary: p });
+  return true;
 }
+
+// Four boxes rather than a prompt() so phones bring up the number pad and
+// the whole thing is one thumb away.
+function rosAskPasscode() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-card" style="max-width:320px; text-align:center;">
+        <div class="modal-title" style="margin-bottom:6px;">Take the show</div>
+        <div class="footnote" style="margin:0 0 16px;">Enter the 4-digit passcode.</div>
+        <div class="pass-row">
+          ${[0,1,2,3].map((i) => `<input class="pass-box" id="pass${i}" inputmode="numeric"
+             pattern="[0-9]*" maxlength="1" autocomplete="off" />`).join("")}
+        </div>
+        <button class="primary-btn" id="passOk" style="margin-top:16px;">Take Over</button>
+        <button class="shift-btn shift-btn-ghost" id="passCancel"
+          style="width:100%; margin-top:10px; padding:11px 0;">Cancel</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+
+    const boxes = [0,1,2,3].map((i) => overlay.querySelector("#pass" + i));
+    boxes.forEach((box, i) => {
+      box.oninput = () => {
+        box.value = box.value.replace(/\D/g, "").slice(0, 1);
+        if (box.value && i < 3) boxes[i + 1].focus();
+        if (boxes.every((b) => b.value)) submit();
+      };
+      // Backspace on an empty box steps back, the way a PIN field should.
+      box.onkeydown = (e) => {
+        if (e.key === "Backspace" && !box.value && i > 0) boxes[i - 1].focus();
+        if (e.key === "Enter") submit();
+      };
+    });
+    setTimeout(() => boxes[0].focus(), 60);
+
+    let done = false;
+    function close() {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      document.body.style.overflow = "";
+    }
+    function submit() {
+      const code = boxes.map((b) => b.value).join("");
+      if (code.length < 4) return;
+      close();
+      resolve(code);
+    }
+    overlay.querySelector("#passOk").onclick = submit;
+    overlay.querySelector("#passCancel").onclick = () => { close(); resolve(null); };
+    overlay.onclick = (e) => { if (e.target === overlay) { close(); resolve(null); } };
+  });
+}
+
+// Admin-only, from Edit mode. Blank clears it and lets anyone claim again.
+async function rosSetPasscode() {
+  const cur = rosPrimaryCode ? `Current code: ${rosPrimaryCode}\n\n` : "";
+  const v = prompt(`${cur}Enter a new 4-digit passcode for taking the show.\n\nLeave blank to remove it and let anyone take over.`);
+  if (v === null) return;
+  const code = v.replace(/\D/g, "");
+  if (v.trim() && code.length !== 4) { alert("It needs to be exactly 4 digits."); return; }
+  try {
+    await db.ref("showSettings/primaryCode").set(code.length === 4 ? code : null);
+    rosPrimaryCode = code.length === 4 ? code : null;
+    alert(rosPrimaryCode ? `Passcode set to ${rosPrimaryCode}.` : "Passcode removed — anyone can take the show.");
+    rosRender();
+  } catch (e) {
+    alert("Couldn't save the passcode: " + (e.message || "unknown error")
+      + "\n\nIf this says permission denied, the database rules need a \"showSettings\" section.");
+  }
+}
+
 function rosReleasePrimary() {
   rosState.primary = null;
   rosRender();
@@ -3333,6 +3447,7 @@ function rosSubscribe() {
   db.ref(".info/serverTimeOffset").once("value")
     .then((s) => { rosClockOffset = s.val() || 0; })
     .catch(() => { rosClockOffset = 0; });
+  rosLoadPrimaryCode();
 
   const gameId = rosState.gameId;
   const ref = db.ref(`runOfShow/${gameId}`);
@@ -3445,6 +3560,13 @@ function rosRender() {
         <div class="footnote" style="margin-top:6px;">
           Replaces every cue with the version built into the app. Any edits made here are lost.
         </div>` : ""}
+      <button class="shift-btn shift-btn-ghost" id="rosSetPass"
+        style="width:100%; margin-top:14px; padding:11px 0;">
+        ${rosPrimaryCode ? `Primary passcode: ${escapeHtml(rosPrimaryCode)} — tap to change` : "Set a primary passcode"}
+      </button>
+      <div class="footnote" style="margin-top:6px;">
+        Crew need this code to take the show. Admins are never asked for it.
+      </div>
     ` : cues.length ? `
       <div class="ros-prompt">
         <button class="ros-play ${prompterRunning ? "on" : ""}" id="rosPlay">${prompterRunning ? "❚❚" : "▶"}</button>
@@ -3457,8 +3579,8 @@ function rosRender() {
         ${rosIsPrimary()
           ? "You're driving — tap to release"
           : (rosState.primary
-              ? `Following ${escapeHtml(rosState.primary.name || "primary")} — tap to take over`
-              : "Make me primary")}
+              ? `${rosPrimaryCode && !admin ? "🔒 " : ""}Following ${escapeHtml(rosState.primary.name || "primary")} — tap to take over`
+              : `${rosPrimaryCode && !admin ? "🔒 " : ""}Make me primary`)}
       </button>
       <div class="ros-controls">
         <button class="ros-nav" id="rosPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
@@ -3485,8 +3607,8 @@ function rosRender() {
   if (next) next.onclick = () => rosSetCurrent(rosState.current + 1);
 
   const play = document.getElementById("rosPlay");
-  if (play) play.onclick = () => {
-    rosClaimPrimary();
+  if (play) play.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
     const running = !prompterRunning;
     // Starting from a stop picks up at the called cue, not wherever the page
     // happens to be sitting.
@@ -3496,13 +3618,23 @@ function rosRender() {
   };
   const slower = document.getElementById("rosSlower");
   const faster = document.getElementById("rosFaster");
-  if (slower) slower.onclick = () => { rosClaimPrimary(); rosPromptWrite({ speed: Math.max(0.5, +(speed - 0.5).toFixed(1)) }); };
-  if (faster) faster.onclick = () => { rosClaimPrimary(); rosPromptWrite({ speed: Math.min(12, +(speed + 0.5).toFixed(1)) }); };
+  if (slower) slower.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
+    rosPromptWrite({ speed: Math.max(0.5, +(speed - 0.5).toFixed(1)) });
+  };
+  if (faster) faster.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
+    rosPromptWrite({ speed: Math.min(12, +(speed + 0.5).toFixed(1)) });
+  };
 
   const primaryBtn = document.getElementById("rosPrimaryBtn");
-  if (primaryBtn) primaryBtn.onclick = () => {
-    if (rosIsPrimary()) rosReleasePrimary(); else { rosClaimPrimary(); rosRender(); }
+  if (primaryBtn) primaryBtn.onclick = async () => {
+    if (rosIsPrimary()) { rosReleasePrimary(); return; }
+    if (await rosTryClaimPrimary()) rosRender();
   };
+
+  const setPass = document.getElementById("rosSetPass");
+  if (setPass) setPass.onclick = () => rosSetPasscode();
 
   inner.querySelectorAll("[data-golive]").forEach((el) => {
     el.onclick = (e) => { e.stopPropagation(); rosResumeFollowing(); };
