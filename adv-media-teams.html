@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ADV Media Teams</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -249,9 +249,13 @@
     letter-spacing: 0.6px; margin-bottom: 6px;
   }
   .field-block { margin-bottom: 14px; }
+  /* 16px is deliberate: iOS auto-zooms the page whenever you tap into a field
+     smaller than that. The old fix was maximum-scale=1 in the viewport, which
+     killed pinch-to-zoom for the whole app. Sizing the fields properly gets
+     both — no jump on focus, and pinch still works. */
   select, input, textarea {
     width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    border-radius: 10px; padding: 11px 12px; font-size: 14px; font-weight: 600; font-family: inherit;
+    border-radius: 10px; padding: 11px 12px; font-size: 16px; font-weight: 600; font-family: inherit;
   }
   textarea { font-weight: 400; resize: vertical; }
   input::placeholder, textarea::placeholder { color: var(--text-faint); }
@@ -353,7 +357,7 @@
   }
   .ct-row:first-of-type { border-top: none; }
   .ct-role { flex: 1; font-size: 13px; color: var(--text-muted); font-weight: 700; }
-  .ct-input { flex: 0 0 128px; padding: 8px 10px; font-size: 14px; }
+  .ct-input { flex: 0 0 132px; padding: 8px 10px; font-size: 16px; }
   .row2 { display: flex; gap: 10px; }
   .row2 > * { flex: 1; min-width: 0; }
   .shift-row {
@@ -362,6 +366,28 @@
   }
   .shift-row:first-of-type { border-top: none; }
   .shift-role { flex: 0 0 90px; font-size: 12px; color: var(--text-muted); font-weight: 700; }
+  /* Camera colour, as it reads on the floor — cable, tally, tape. */
+  .cam-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    margin-right: 6px; vertical-align: baseline;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.22);
+  }
+  /* Camera position sits under the role name in the same column, so the
+     roster still reads as one list rather than sprouting a second column. */
+  .role-pos {
+    display: block; font-size: 10px; font-weight: 700; color: var(--text-faint);
+    line-height: 1.25; margin-top: 2px;
+  }
+  .camera-notice {
+    background: #1F1810; border: 1px solid var(--amber); border-radius: 12px;
+    padding: 12px 14px; margin: 0 0 14px; font-size: 12.5px; line-height: 1.5;
+    color: #FFD699;
+  }
+  .camera-notice-title {
+    font-size: 11px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 5px;
+  }
+  .camera-notice strong { color: #FFE9C2; }
   .shift-status { flex: 1; font-size: 13px; font-weight: 600; }
   .shift-status.shift-open { color: var(--amber); }
   .shift-action { flex: 0 0 auto; }
@@ -389,8 +415,26 @@
     border: 1px solid var(--blue); background: #1B2A38; color: #8FC6F0;
     font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer;
   }
+  /* Full screen — hide the app's own chrome so the cue list gets the page.
+     Everything needed to run the show stays: game picker, Edit, Exit, Guide,
+     the prompter bar and the transport. */
+  body.ros-full .header-row,
+  body.ros-full .subhead,
+  body.ros-full .nav-links,
+  body.ros-full .setup-warning,
+  body.ros-full .tabs-wrap,
+  body.ros-full #logoutBtn,
+  body.ros-full #notifBtn,
+  body.ros-full #confirmCard,
+  body.ros-full #bb-bubble { display: none !important; }
+  body.ros-full .wrap { padding-top: 10px; padding-left: 10px; padding-right: 10px; max-width: 100%; }
+  /* The bubble is gone in full screen, so the transport can use the corner. */
+  body.ros-full .ros-controls { margin-right: 0; }
+  /* Support-link paragraph sits inline in the shell with no class of its own. */
+  body.ros-full #app > p { display: none !important; }
+
   .ros-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
-  .ros-gamesel { flex: 1; min-width: 0; padding: 9px 10px; font-size: 13.5px; }
+  .ros-gamesel { flex: 1; min-width: 0; padding: 9px 10px; font-size: 16px; }
   .ghost-pill {
     flex: 0 0 auto; background: var(--panel2); border: 1px solid var(--border);
     color: var(--text); border-radius: 9px; padding: 9px 15px;
@@ -889,7 +933,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v10 (guide link) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v11 · camera colors · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -976,6 +1020,7 @@ function renderMainApp() {
   }
 
   if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
+  if (mainState.view !== "runofshow") rosExitFullscreenIfNeeded();
 
   if (mainState.view === "runofshow") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
@@ -1815,7 +1860,7 @@ async function renderConfirmations() {
             </div>
             ${rows.map((r) => `
               <div class="shift-row">
-                <div class="shift-role">${escapeHtml(r.pos)}</div>
+                <div class="shift-role">${roleLabelHtml(r.pos)}</div>
                 <div class="shift-status ${r.confirmed ? "" : "shift-open"}">
                   ${escapeHtml(r.name)} ${r.confirmed ? "✅" : "— waiting"}
                 </div>
@@ -2086,6 +2131,7 @@ function renderShiftsList(liveRoster) {
   const admin = isAdmin();
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
+    ${CAMERA_NOTICE_HTML}
     ${allShiftEvents().map((g) => {
       const gameRoster = liveRoster[g.id] || {};
       const rows = (g.roles || TRADEABLE_ROLES).map((role) => {
@@ -2111,7 +2157,7 @@ function renderShiftsList(liveRoster) {
         }
         return `
           <div class="shift-row">
-            <div class="shift-role">${escapeHtml(role)}</div>
+            <div class="shift-role">${roleLabelHtml(role)}</div>
             <div class="shift-status ${entry.status === "open" ? "shift-open" : ""}">${entry.status === "open" ? "Open" : escapeHtml(entry.name)}</div>
             <div class="shift-action">${actionHtml}</div>
           </div>
@@ -2976,6 +3022,44 @@ function openCallTimeEditor(gameId) {
   };
 }
 
+// Where each camera physically sits, and its colour. The colour is how the
+// camera is identified on the floor — cable, tally, gaff tape — so it belongs
+// next to the role wherever an operator reads their assignment.
+// Camera 4 has no fixed position yet; it still has a colour.
+const CAMERA_POSITIONS = {
+  "Camera 1": "High 50",
+  "Camera 2": "Low north end zone",
+  "Camera 3": "VIP camera",
+  "Camera 4": "Home sideline",
+};
+const CAMERA_COLORS = {
+  "Camera 1": { name: "Blue",   hex: "#4A8FC0" },
+  "Camera 2": { name: "Red",    hex: "#D65A4E" },
+  "Camera 3": { name: "Green",  hex: "#33A870" },
+  "Camera 4": { name: "Yellow", hex: "#E6CE3A" },
+};
+
+function roleLabelHtml(role) {
+  const pos = CAMERA_POSITIONS[role];
+  const col = CAMERA_COLORS[role];
+  const sub = [col && col.name, pos].filter(Boolean).join(" · ");
+  return `
+    ${col ? `<span class="cam-dot" style="background:${col.hex}"
+        title="${escapeAttr(col.name)}"></span>` : ""}${escapeHtml(role)}
+    ${sub ? `<span class="role-pos">${escapeHtml(sub)}</span>` : ""}`;
+}
+
+// Camera slots are penciled in, not locked. Aracely sets the final assignment
+// at check-in on the day, so this notice sits on both the Today roster and
+// the Shifts board rather than living only in someone's memory.
+const CAMERA_NOTICE_HTML = `
+  <div class="camera-notice">
+    <div class="camera-notice-title">Camera assignments are tentative</div>
+    Operators are not assigned a camera until you check in with
+    <strong>Aracely</strong> on the day of the event. Until you're given your
+    camera, work to the position you're scheduled for below.
+  </div>`;
+
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
@@ -3048,9 +3132,10 @@ async function renderTodayView() {
     <div class="footnote" style="margin:14px 0 8px;">
       ${isTomorrow ? "Working tomorrow" : "Working today"} (${assignedCount})${openCount ? ` · ${openCount} open` : ""}
     </div>
+    ${rows.some((r) => CAMERA_POSITIONS[r.role]) ? CAMERA_NOTICE_HTML : ""}
     ${rows.map((r) => `
       <div class="shift-row">
-        <div class="shift-role">${escapeHtml(r.role)}</div>
+        <div class="shift-role">${roleLabelHtml(r.role)}</div>
         <div class="shift-status ${r.open ? "shift-open" : ""}">${escapeHtml(r.name)}</div>
         ${r.call ? `<div class="row-call ${r.callEarly ? "row-call-early" : ""}">${escapeHtml(r.call)}</div>` : ""}
       </div>
@@ -3089,6 +3174,44 @@ async function renderTodayView() {
 // opened it's flattened and written; after that the stored copy is the truth
 // and the constant is never read again.
 // ============================================================================
+// ---- Full screen ------------------------------------------------------------
+// Two things at once. The CSS class hides the app's own chrome — banner, nav,
+// tabs, log out — so the cue list gets the whole page. The Fullscreen API then
+// hides the *browser's* chrome on top of that, where the browser supports it.
+//
+// iPhone Safari doesn't support the Fullscreen API at all, so the class is
+// what does the work there. That's deliberate: the class alone is still a big
+// gain, and it degrades quietly rather than throwing.
+let rosFull = false;
+
+function rosSetFullscreen(on) {
+  rosFull = on;
+  document.body.classList.toggle("ros-full", on);
+  try {
+    if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else if (!on && document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  } catch (e) { /* unsupported — the class already did the useful part */ }
+  rosRender();
+}
+
+// Leaving the tab must not strand the app with its navigation hidden.
+function rosExitFullscreenIfNeeded() {
+  if (rosFull) rosSetFullscreen(false);
+}
+
+// Browser chrome can be dismissed by the user (Esc, swipe). Keep our state
+// in step so the button doesn't lie about what's happening.
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && rosFull) {
+    rosFull = false;
+    document.body.classList.remove("ros-full");
+    if (mainState.view === "runofshow") rosRender();
+  }
+});
+
 let unsubRos = null;
 const rosState = { gameId: null, editing: false, cues: [], current: 0, loaded: false,
                    prompter: null, primary: null, following: true, lastTouch: 0 };
@@ -3543,8 +3666,9 @@ function rosRender() {
           </option>`).join("")}
       </select>
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
+      <button class="ghost-pill" id="rosFullToggle" title="Full screen">${rosFull ? "Exit" : "⛶"}</button>
       <a class="ghost-pill" href="producer-guide.html" target="_blank" rel="noopener"
-         style="text-decoration:none;" title="Producer guide">?</a>
+         style="text-decoration:none;">Guide</a>
     </div>
     ${rosIsPrimary() ? `
       <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE PRODUCER</div>
@@ -3606,6 +3730,9 @@ function rosRender() {
   };
   const editBtn = document.getElementById("rosEditToggle");
   if (editBtn) editBtn.onclick = () => { rosState.editing = !rosState.editing; rosRender(); };
+
+  const fullBtn = document.getElementById("rosFullToggle");
+  if (fullBtn) fullBtn.onclick = () => rosSetFullscreen(!rosFull);
 
   const prev = document.getElementById("rosPrev");
   const next = document.getElementById("rosNext");
