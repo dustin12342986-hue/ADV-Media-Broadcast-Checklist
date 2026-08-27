@@ -2488,9 +2488,50 @@ async function renderTodayView() {
     return;
   }
 
-  const positions = ROSTER_DATA[gameId] || {};
-  const filled = Object.entries(positions).filter(([, name]) => name && name !== "TBD");
   const ros = RUN_OF_SHOW[gameId];
+
+  // The crew list comes from liveRoster — the same record the Shifts tab
+  // reads and writes. ROSTER_DATA is only the original seed; once anyone
+  // picks up, drops, or gets reassigned a shift, ROSTER_DATA is stale and
+  // liveRoster is the truth.
+  let gameRoster = null;
+  try {
+    const snap = await db.ref(`liveRoster/${gameId}`).once("value");
+    gameRoster = snap.val();
+  } catch (e) {
+    console.error("Couldn't read liveRoster for Today:", e);
+  }
+
+  // EIC and PM aren't tradeable shifts, so they never appear on the shift
+  // board. They still belong on this list, so they come from the schedule.
+  const seed = ROSTER_DATA[gameId] || {};
+  const rows = [];
+  for (const role of ["EIC", "PM"]) {
+    const name = seed[role];
+    if (name && name !== "TBD") rows.push({ role, name, open: false });
+  }
+
+  if (gameRoster) {
+    for (const role of TRADEABLE_ROLES) {
+      const entry = gameRoster[role.replace(/[^A-Za-z0-9]/g, "_")];
+      if (!entry) continue;
+      if (entry.status === "assigned" && entry.name) {
+        rows.push({ role, name: entry.name, open: false });
+      } else {
+        rows.push({ role, name: "Open", open: true });
+      }
+    }
+  } else {
+    // Shift board hasn't been seeded yet — fall back to the schedule so the
+    // tab still shows something useful.
+    for (const role of TRADEABLE_ROLES) {
+      const name = seed[role];
+      if (name && name !== "TBD") rows.push({ role, name, open: false });
+    }
+  }
+
+  const assignedCount = rows.filter((r) => !r.open).length;
+  const openCount = rows.length - assignedCount;
 
   inner.innerHTML = `
     <div class="shift-game-card">
@@ -2501,12 +2542,12 @@ async function renderTodayView() {
       ${ros ? `<button class="ros-btn" id="rosOpenBtn">📋 Run of Show</button>` : ""}
     </div>
     <div class="footnote" style="margin:14px 0 8px;">
-      ${isTomorrow ? "Working tomorrow" : "Working today"} (${filled.length})
+      ${isTomorrow ? "Working tomorrow" : "Working today"} (${assignedCount})${openCount ? ` · ${openCount} open` : ""}
     </div>
-    ${filled.map(([role, name]) => `
+    ${rows.map((r) => `
       <div class="shift-row">
-        <div class="shift-role">${escapeHtml(role)}</div>
-        <div class="shift-status">${escapeHtml(name)}</div>
+        <div class="shift-role">${escapeHtml(r.role)}</div>
+        <div class="shift-status ${r.open ? "shift-open" : ""}">${escapeHtml(r.name)}</div>
       </div>
     `).join("")}
   `;
