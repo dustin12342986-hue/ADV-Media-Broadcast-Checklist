@@ -119,15 +119,65 @@
     border-radius:10px; padding:12px 14px; font-size:13px; margin-top:12px;
   }
 
-  /* Code of Conduct — opens the real PDF, exactly as Aracely built it. */
+  /* ---- Code of Conduct ----------------------------------------------------
+     Opens in-page like everything else, but the content is the actual
+     document pages as images — Aracely's layout, fonts, and logo untouched.
+     Images are only fetched when the modal is first opened. */
   .coc-btn {
-    display:block; text-decoration:none; color:inherit; text-align:center;
+    display:block; width:100%; text-align:center; cursor:pointer;
     background:var(--panel); border:1px solid var(--border); border-radius:12px;
-    padding:13px 12px; margin-bottom:22px;
+    color:var(--text); font-family:inherit; padding:13px 12px; margin-bottom:22px;
   }
   .coc-btn:active { border-color:var(--blue); }
   .coc-btn-name { font-size:13.5px; font-weight:700; }
   .coc-btn-sub  { font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+
+  .coc-overlay {
+    position:fixed; inset:0; background:rgba(5,8,12,0.88);
+    display:none; z-index:900; padding:12px;
+  }
+  .coc-overlay.open { display:block; }
+  .coc-sheet {
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    max-width:760px; margin:0 auto; height:100%;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .coc-head {
+    display:flex; align-items:center; gap:10px; padding:14px 16px;
+    border-bottom:1px solid var(--border); flex-shrink:0;
+  }
+  .coc-head-title { flex:1; min-width:0; font-size:15.5px; font-weight:800; }
+  .coc-head-title span {
+    display:block; font-size:10.5px; font-weight:700; color:var(--text-faint);
+    letter-spacing:0.5px; text-transform:uppercase; margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .coc-hbtn {
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:9px; font-size:12.5px; font-weight:700; font-family:inherit;
+    padding:8px 12px; cursor:pointer; flex-shrink:0; white-space:nowrap;
+  }
+  .coc-hbtn:active { border-color:var(--blue); }
+
+  /* The scroller holds the pages. Zoomed state widens the pages past the
+     container so it scrolls sideways too — needed because a letter-size page
+     squeezed into a phone width is hard to read. */
+  .coc-scroll {
+    flex:1; overflow:auto; -webkit-overflow-scrolling:touch;
+    background:var(--bg); padding:12px;
+  }
+  .coc-pages { width:100%; }
+  .coc-scroll.zoom .coc-pages { width:190%; }
+  .coc-page {
+    display:block; width:100%; height:auto; border-radius:6px;
+    background:#fff; margin-bottom:12px;
+  }
+  .coc-loading { color:var(--text-faint); font-size:13px; text-align:center; padding:26px 0; }
+  .coc-foot {
+    flex-shrink:0; border-top:1px solid var(--border); padding:11px 16px;
+    text-align:center; font-size:11.5px; color:var(--text-faint);
+  }
+  .coc-foot a { color:var(--blue); font-weight:700; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -136,13 +186,34 @@
     <h1 class="banner-name">ADV Media Teams</h1>
     <p class="banner-sub">Live Broadcast &amp; Event Production</p>
   </div>
-  <a class="coc-btn" href="./ADV_Media_Code_of_Conduct_2026_2027.pdf"
-     target="_blank" rel="noopener">
+  <button class="coc-btn" id="cocOpen">
     <div class="coc-btn-name">Code of Conduct</div>
     <div class="coc-btn-sub">2026–2027 · Internal use</div>
-  </a>
+  </button>
 
   <div id="root"><div class="footnote">Loading…</div></div>
+</div>
+
+<div class="coc-overlay" id="cocOverlay">
+  <div class="coc-sheet" role="dialog" aria-modal="true" aria-label="Code of Conduct">
+    <div class="coc-head">
+      <div class="coc-head-title">
+        Code of Conduct
+        <span>2026–2027 · Confidential</span>
+      </div>
+      <button class="coc-hbtn" id="cocZoom">Zoom in</button>
+      <button class="coc-hbtn" id="cocClose">Close</button>
+    </div>
+    <div class="coc-scroll" id="cocScroll">
+      <div class="coc-pages" id="cocPages">
+        <div class="coc-loading" id="cocLoading">Loading document…</div>
+      </div>
+    </div>
+    <div class="coc-foot">
+      ADV Media — 2026–2027 — Do Not Distribute ·
+      <a href="./ADV_Media_Code_of_Conduct_2026_2027.pdf" target="_blank" rel="noopener">Open PDF</a>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -190,6 +261,66 @@ const TOOLS = [
 ];
 
 let auth = null, db = null, currentUser = null, gsiInitialized = false;
+
+// ---- Code of Conduct -------------------------------------------------------
+// Sits outside #root so it works signed in or signed out. Pages load on first
+// open, not on page load — they're ~400KB and most visits never open it.
+(function () {
+  const COC_PAGES = ["coc-p1.png", "coc-p2.png", "coc-p3.png"];
+  const overlay = document.getElementById("cocOverlay");
+  const scroll  = document.getElementById("cocScroll");
+  const pages   = document.getElementById("cocPages");
+  const zoomBtn = document.getElementById("cocZoom");
+  let loaded = false;
+
+  function loadPages() {
+    if (loaded) return;
+    loaded = true;
+    let remaining = COC_PAGES.length, failed = false;
+    const imgs = COC_PAGES.map((src, i) => {
+      const img = new Image();
+      img.className = "coc-page";
+      img.alt = "Code of Conduct — page " + (i + 1);
+      img.onload  = () => { if (--remaining === 0 && !failed) done(); };
+      img.onerror = () => {
+        failed = true;
+        pages.innerHTML =
+          `<div class="coc-loading">Couldn't load the document.<br>` +
+          `<a href="./ADV_Media_Code_of_Conduct_2026_2027.pdf" ` +
+          `target="_blank" rel="noopener" style="color:var(--blue);">Open the PDF instead →</a></div>`;
+      };
+      img.src = src;
+      return img;
+    });
+    function done() {
+      pages.innerHTML = "";
+      imgs.forEach((i) => pages.appendChild(i));
+    }
+  }
+
+  function open() {
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+    loadPages();
+    scroll.scrollTop = 0; scroll.scrollLeft = 0;
+  }
+  function close() {
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  document.getElementById("cocOpen").onclick  = open;
+  document.getElementById("cocClose").onclick = close;
+  zoomBtn.onclick = () => {
+    const on = scroll.classList.toggle("zoom");
+    zoomBtn.textContent = on ? "Zoom out" : "Zoom in";
+    if (!on) scroll.scrollLeft = 0;
+  };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && overlay.classList.contains("open")) close();
+  });
+})();
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
