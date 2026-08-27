@@ -1270,7 +1270,7 @@ async function renderConfirmCard(profile) {
   const dateId = tomorrowId();
   const roster = await currentRosterFor(dateId);
   let sched = null;
-  for (const [pos, name] of Object.entries(roster)) {
+  for (const [pos, name] of Object.entries(roster.assigned)) {
     if (namesMatch(name, profile.legalName, profile.crewHandle)) {
       sched = { position: pos, game: GAMES.find((g) => g.id === dateId) };
       break;
@@ -1367,7 +1367,7 @@ async function textTomorrowsCrew() {
     alert("Nothing on the schedule for tomorrow.");
     return;
   }
-  const positions = await currentRosterFor(dateId);
+  const positions = (await currentRosterFor(dateId)).assigned;
   if (Object.keys(positions).length === 0) {
     alert("Nobody's assigned to tomorrow's game yet.");
     return;
@@ -1441,7 +1441,7 @@ async function renderConfirmations() {
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
       <div class="footnote" style="margin-bottom:12px;">Live roster · v2 — everyone currently assigned, and whether they've confirmed. Reflects pickups and drops.</div>
       ${upcoming.map((game) => {
-        const positions = rosters[game.id] || {};
+        const positions = (rosters[game.id] || {}).assigned || {};
         const confirms = byGame[game.id] || {};
 
         const rows = Object.entries(positions)
@@ -1453,8 +1453,7 @@ async function renderConfirmations() {
 
         if (rows.length === 0) return "";
 
-        const planned = Object.entries(ROSTER_DATA[game.id] || {});
-        const open = planned.filter(([, n]) => !n || n === "TBD").length;
+        const open = (rosters[game.id] || {}).open || 0;
         const yes = rows.filter((r) => r.confirmed).length;
         const no = rows.length - yes;
 
@@ -2421,23 +2420,18 @@ async function renderEquipmentReports() {
 // pickups and drops; ROSTER_DATA is just the original season plan, so
 // reading it alone shows a stale lineup once any shift changes hands.
 async function currentRosterFor(gameId) {
-  const out = {};
+  const out = { assigned: {}, open: 0 };
   try {
     const snap = await db.ref(`liveRoster/${gameId}`).once("value");
-    const live = snap.val();
-    if (live && Object.keys(live).length) {
-      Object.values(live).forEach((slot) => {
-        if (slot && slot.status === "assigned" && slot.name) out[slot.role] = slot.name;
-      });
-      return out;
-    }
+    const live = snap.val() || {};
+    Object.values(live).forEach((slot) => {
+      if (!slot) return;
+      if (slot.status === "assigned" && slot.name) out.assigned[slot.role] = slot.name;
+      else out.open++;
+    });
   } catch (e) {
-    console.error("liveRoster read failed, falling back to schedule:", e);
+    console.error("liveRoster read failed:", e);
   }
-  // Nothing live yet for this game — fall back to the planned roster.
-  Object.entries(ROSTER_DATA[gameId] || {}).forEach(([pos, name]) => {
-    if (name && name !== "TBD") out[pos] = name;
-  });
   return out;
 }
 
@@ -2453,8 +2447,8 @@ async function renderTodayView() {
     return;
   }
 
-  const positions = await currentRosterFor(todayId);
-  const filled = Object.entries(positions);
+  const roster = await currentRosterFor(todayId);
+  const filled = Object.entries(roster.assigned);
 
   inner.innerHTML = `
     <div class="shift-game-card">
@@ -2929,19 +2923,6 @@ function namesMatch(rosterName, legalName, crewHandle) {
   });
 }
 
-// Same lookup as findScheduledEvent but for any date — used by the
-// confirmation card, which asks about tomorrow's game.
-function findScheduledEventOn(dateId, legalName, crewHandle) {
-  const positions = ROSTER_DATA[dateId];
-  if (!positions) return null;
-  for (const [pos, name] of Object.entries(positions)) {
-    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
-      const game = GAMES.find((g) => g.id === dateId);
-      return { position: pos, game };
-    }
-  }
-  return null;
-}
 
 // Local calendar date, not UTC. toISOString() rolls over at 7pm Central,
 // which made the app think tomorrow had already started.
@@ -2957,26 +2938,21 @@ function tomorrowId() {
   return localDateId(1);
 }
 
-function findScheduledEvent(legalName, crewHandle) {
-  const todayId = localDateId(0);
-  const positions = ROSTER_DATA[todayId];
-  if (!positions) return null;
-  for (const [pos, name] of Object.entries(positions)) {
-    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
-      const game = GAMES.find((g) => g.id === todayId);
-      return { position: pos, game };
-    }
-  }
-  return null;
-}
 
-function renderIdCard(profile) {
+async function renderIdCard(profile) {
   const inner = document.getElementById("innerRoot");
   if (!profile.legalName) {
     inner.innerHTML = `<div class="footnote">Fill out your Profile tab first — your ID card builds from that.</div>`;
     return;
   }
-  const scheduled = findScheduledEvent(profile.legalName, profile.crewHandle);
+  const todayRoster = await currentRosterFor(localDateId(0));
+  let scheduled = null;
+  for (const [pos, name] of Object.entries(todayRoster.assigned)) {
+    if (namesMatch(name, profile.legalName, profile.crewHandle)) {
+      scheduled = { position: pos, game: GAMES.find((g) => g.id === localDateId(0)) };
+      break;
+    }
+  }
 
   inner.innerHTML = `
     <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
