@@ -889,7 +889,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v9 (producer lock) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v10 (guide link) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3543,6 +3543,8 @@ function rosRender() {
           </option>`).join("")}
       </select>
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
+      <a class="ghost-pill" href="producer-guide.html" target="_blank" rel="noopener"
+         style="text-decoration:none;" title="Producer guide">?</a>
     </div>
     ${rosIsPrimary() ? `
       <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE PRODUCER</div>
