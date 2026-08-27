@@ -1363,7 +1363,7 @@ async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
   const dateId = tomorrowId();
-  const sched = findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  const sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
   if (!sched) { host.innerHTML = ""; return; }
 
   const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
@@ -1442,12 +1442,62 @@ function normalizePhoneForSms(phone) {
   return null;
 }
 
+// ============================================================================
+// Who's actually on a game
+// ============================================================================
+// One source of truth: liveRoster, the same record the Shifts tab reads and
+// writes. ROSTER_DATA is only the original seed — the moment anyone picks up,
+// drops, or gets reassigned a shift it's stale, so nothing reads it directly.
+//
+// EIC and PM aren't tradeable roles, so they never reach the shift board and
+// still come from the schedule.
+async function loadLiveRoster() {
+  try {
+    const snap = await db.ref("liveRoster").once("value");
+    return snap.val() || {};
+  } catch (e) {
+    console.error("Couldn't read liveRoster:", e);
+    return {};
+  }
+}
+
+function rosterRowsFor(gameId, gameRoster) {
+  const seed = ROSTER_DATA[gameId] || {};
+  const rows = [];
+  for (const role of ["EIC", "PM"]) {
+    const name = seed[role];
+    if (name && name !== "TBD") rows.push({ role, name, open: false });
+  }
+  if (gameRoster) {
+    for (const role of TRADEABLE_ROLES) {
+      const entry = gameRoster[role.replace(/[^A-Za-z0-9]/g, "_")];
+      if (!entry) continue;
+      const assigned = entry.status === "assigned" && entry.name;
+      rows.push({ role, name: assigned ? entry.name : "Open", open: !assigned });
+    }
+  } else {
+    // Shift board not seeded for this game yet — fall back to the schedule so
+    // the view still shows something useful.
+    for (const role of TRADEABLE_ROLES) {
+      const name = seed[role];
+      if (name && name !== "TBD") rows.push({ role, name, open: false });
+    }
+  }
+  return rows;
+}
+
 async function textTomorrowsCrew() {
   const dateId = tomorrowId();
-  const positions = ROSTER_DATA[dateId];
   const game = GAMES.find((g) => g.id === dateId);
-  if (!positions || !game) {
+  if (!game) {
     alert("Nothing on the schedule for tomorrow.");
+    return;
+  }
+
+  const liveRoster = await loadLiveRoster();
+  const assigned = rosterRowsFor(dateId, liveRoster[dateId]).filter((r) => !r.open);
+  if (assigned.length === 0) {
+    alert("Nobody is assigned to tomorrow's game yet.");
     return;
   }
 
@@ -1456,8 +1506,7 @@ async function textTomorrowsCrew() {
 
   const numbers = [];
   const missing = [];
-  Object.entries(positions).forEach(([pos, name]) => {
-    if (!name || name === "TBD") return;
+  assigned.forEach(({ role: pos, name }) => {
     const p = profiles.find((pr) => pr.legalName && namesMatch(name, pr.legalName, pr.crewHandle));
     const num = p && normalizePhoneForSms(p.phone);
     if (num) { if (!numbers.includes(num)) numbers.push(num); }
@@ -1506,6 +1555,7 @@ async function renderConfirmations() {
   try {
     const snap = await db.ref("confirmations").once("value");
     const byGame = snap.val() || {};
+    const liveRoster = await loadLiveRoster();
 
     // Build the list from the ROSTER, not from the confirmation records.
     // Someone who hasn't confirmed has no record yet, so reading the
@@ -1523,20 +1573,18 @@ async function renderConfirmations() {
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
       <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
       ${upcoming.map((game) => {
-        const positions = ROSTER_DATA[game.id] || {};
+        const all = rosterRowsFor(game.id, liveRoster[game.id]);
         const confirms = byGame[game.id] || {};
 
-        const rows = Object.entries(positions)
-          .filter(([, name]) => name && name !== "TBD")
-          .map(([pos, name]) => {
-            const key = pos.replace(/[^A-Za-z0-9]/g, "_");
-            const rec = confirms[key];
-            return { pos, name, confirmed: !!(rec && rec.confirmed), at: rec && rec.confirmedAt };
-          });
+        const rows = all.filter((r) => !r.open).map((r) => {
+          const key = r.role.replace(/[^A-Za-z0-9]/g, "_");
+          const rec = confirms[key];
+          return { pos: r.role, name: r.name, confirmed: !!(rec && rec.confirmed), at: rec && rec.confirmedAt };
+        });
 
         if (rows.length === 0) return "";
 
-        const open = Object.entries(positions).filter(([, n]) => !n || n === "TBD").length;
+        const open = all.filter((r) => r.open).length;
         const yes = rows.filter((r) => r.confirmed).length;
         const no = rows.length - yes;
 
@@ -2716,9 +2764,7 @@ async function renderTodayView() {
   const ros = RUN_OF_SHOW[gameId];
 
   // The crew list comes from liveRoster — the same record the Shifts tab
-  // reads and writes. ROSTER_DATA is only the original seed; once anyone
-  // picks up, drops, or gets reassigned a shift, ROSTER_DATA is stale and
-  // liveRoster is the truth.
+  // reads and writes. See rosterRowsFor().
   let gameRoster = null;
   try {
     const snap = await db.ref(`liveRoster/${gameId}`).once("value");
@@ -2727,33 +2773,7 @@ async function renderTodayView() {
     console.error("Couldn't read liveRoster for Today:", e);
   }
 
-  // EIC and PM aren't tradeable shifts, so they never appear on the shift
-  // board. They still belong on this list, so they come from the schedule.
-  const seed = ROSTER_DATA[gameId] || {};
-  const rows = [];
-  for (const role of ["EIC", "PM"]) {
-    const name = seed[role];
-    if (name && name !== "TBD") rows.push({ role, name, open: false });
-  }
-
-  if (gameRoster) {
-    for (const role of TRADEABLE_ROLES) {
-      const entry = gameRoster[role.replace(/[^A-Za-z0-9]/g, "_")];
-      if (!entry) continue;
-      if (entry.status === "assigned" && entry.name) {
-        rows.push({ role, name: entry.name, open: false });
-      } else {
-        rows.push({ role, name: "Open", open: true });
-      }
-    }
-  } else {
-    // Shift board hasn't been seeded yet — fall back to the schedule so the
-    // tab still shows something useful.
-    for (const role of TRADEABLE_ROLES) {
-      const name = seed[role];
-      if (name && name !== "TBD") rows.push({ role, name, open: false });
-    }
-  }
+  const rows = rosterRowsFor(gameId, gameRoster);
 
   // Every position carries its own call time, not just the ones that differ —
   // crew shouldn't have to work out whether "no time on my row" means the
@@ -3427,15 +3447,14 @@ function namesMatch(rosterName, legalName, crewHandle) {
   });
 }
 
-// Same lookup as findScheduledEvent but for any date — used by the
-// confirmation card, which asks about tomorrow's game.
-function findScheduledEventOn(dateId, legalName, crewHandle) {
-  const positions = ROSTER_DATA[dateId];
-  if (!positions) return null;
-  for (const [pos, name] of Object.entries(positions)) {
-    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
-      const game = GAMES.find((g) => g.id === dateId);
-      return { position: pos, game };
+// Which position this person is working on a given date, if any. Reads
+// liveRoster so a shift someone picked up (or dropped) is reflected here too.
+async function findScheduledEventOn(dateId, legalName, crewHandle) {
+  const liveRoster = await loadLiveRoster();
+  const rows = rosterRowsFor(dateId, liveRoster[dateId]);
+  for (const r of rows) {
+    if (!r.open && namesMatch(r.name, legalName, crewHandle)) {
+      return { position: r.role, game: GAMES.find((g) => g.id === dateId) };
     }
   }
   return null;
@@ -3458,25 +3477,16 @@ function tomorrowId() {
 }
 
 function findScheduledEvent(legalName, crewHandle) {
-  const todayId = localDateId();
-  const positions = ROSTER_DATA[todayId];
-  if (!positions) return null;
-  for (const [pos, name] of Object.entries(positions)) {
-    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
-      const game = GAMES.find((g) => g.id === todayId);
-      return { position: pos, game };
-    }
-  }
-  return null;
+  return findScheduledEventOn(localDateId(), legalName, crewHandle);
 }
 
-function renderIdCard(profile) {
+async function renderIdCard(profile) {
   const inner = document.getElementById("innerRoot");
   if (!profile.legalName) {
     inner.innerHTML = `<div class="footnote">Fill out your Profile tab first — your ID card builds from that.</div>`;
     return;
   }
-  const scheduled = findScheduledEvent(profile.legalName, profile.crewHandle);
+  const scheduled = await findScheduledEvent(profile.legalName, profile.crewHandle);
 
   inner.innerHTML = `
     <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
