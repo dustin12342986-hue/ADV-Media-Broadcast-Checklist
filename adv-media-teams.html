@@ -1268,7 +1268,14 @@ async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
   const dateId = tomorrowId();
-  const sched = findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  const roster = await currentRosterFor(dateId);
+  let sched = null;
+  for (const [pos, name] of Object.entries(roster)) {
+    if (namesMatch(name, profile.legalName, profile.crewHandle)) {
+      sched = { position: pos, game: GAMES.find((g) => g.id === dateId) };
+      break;
+    }
+  }
   if (!sched) { host.innerHTML = ""; return; }
 
   const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
@@ -1355,10 +1362,14 @@ function normalizePhoneForSms(phone) {
 
 async function textTomorrowsCrew() {
   const dateId = tomorrowId();
-  const positions = ROSTER_DATA[dateId];
   const game = GAMES.find((g) => g.id === dateId);
-  if (!positions || !game) {
+  if (!game) {
     alert("Nothing on the schedule for tomorrow.");
+    return;
+  }
+  const positions = await currentRosterFor(dateId);
+  if (Object.keys(positions).length === 0) {
+    alert("Nobody's assigned to tomorrow's game yet.");
     return;
   }
 
@@ -1422,15 +1433,18 @@ async function renderConfirmations() {
       return;
     }
 
+    // Pull the live roster for each upcoming game so pickups and drops show.
+    const rosters = {};
+    for (const g of upcoming) rosters[g.id] = await currentRosterFor(g.id);
+
     inner.innerHTML = `
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
-      <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
+      <div class="footnote" style="margin-bottom:12px;">Live roster · v2 — everyone currently assigned, and whether they've confirmed. Reflects pickups and drops.</div>
       ${upcoming.map((game) => {
-        const positions = ROSTER_DATA[game.id] || {};
+        const positions = rosters[game.id] || {};
         const confirms = byGame[game.id] || {};
 
         const rows = Object.entries(positions)
-          .filter(([, name]) => name && name !== "TBD")
           .map(([pos, name]) => {
             const key = pos.replace(/[^A-Za-z0-9]/g, "_");
             const rec = confirms[key];
@@ -1439,7 +1453,8 @@ async function renderConfirmations() {
 
         if (rows.length === 0) return "";
 
-        const open = Object.entries(positions).filter(([, n]) => !n || n === "TBD").length;
+        const planned = Object.entries(ROSTER_DATA[game.id] || {});
+        const open = planned.filter(([, n]) => !n || n === "TBD").length;
         const yes = rows.filter((r) => r.confirmed).length;
         const no = rows.length - yes;
 
