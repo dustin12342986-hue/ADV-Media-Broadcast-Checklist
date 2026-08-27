@@ -889,7 +889,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v8 (primary passcode) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v9 (producer lock) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3120,8 +3120,12 @@ function rosIsPrimary() {
 // control claims it implicitly — nobody should have to think about this
 // mid-show. See rosTryClaimPrimary below for the passcode gate.
 // The passcode that has to be entered to take the show. Stored at
-// showSettings/primaryCode; admins set it and are never prompted themselves.
-// If no code is set, anyone can claim — that's the out-of-the-box behaviour.
+// showSettings/primaryCode; set from Edit mode, where it's also displayed so
+// it can be looked up.
+//
+// Everyone is asked, admins included. An earlier version let admins skip it,
+// which meant the one person most likely to be testing it could always take
+// the show and it looked like the gate did nothing.
 //
 // Worth being clear about what this is: a guard against someone grabbing the
 // show by accident or on a whim mid-broadcast. It is not security. The code
@@ -3146,7 +3150,7 @@ async function rosLoadPrimaryCode() {
 // be walked around by tapping something else.
 async function rosTryClaimPrimary() {
   if (rosIsPrimary()) return true;
-  if (rosPrimaryCode && !isAdmin()) {
+  if (rosPrimaryCode) {
     const entered = await rosAskPasscode();
     if (entered === null) return false;
     if (entered !== rosPrimaryCode) {
@@ -3220,14 +3224,14 @@ function rosAskPasscode() {
 // Admin-only, from Edit mode. Blank clears it and lets anyone claim again.
 async function rosSetPasscode() {
   const cur = rosPrimaryCode ? `Current code: ${rosPrimaryCode}\n\n` : "";
-  const v = prompt(`${cur}Enter a new 4-digit passcode for taking the show.\n\nLeave blank to remove it and let anyone take over.`);
+  const v = prompt(`${cur}Enter a new 4-digit passcode for taking the show as producer.\n\nLeave blank to remove it and let anyone take over.`);
   if (v === null) return;
   const code = v.replace(/\D/g, "");
   if (v.trim() && code.length !== 4) { alert("It needs to be exactly 4 digits."); return; }
   try {
     await db.ref("showSettings/primaryCode").set(code.length === 4 ? code : null);
     rosPrimaryCode = code.length === 4 ? code : null;
-    alert(rosPrimaryCode ? `Passcode set to ${rosPrimaryCode}.` : "Passcode removed — anyone can take the show.");
+    alert(rosPrimaryCode ? `Passcode set to ${rosPrimaryCode}.` : "Passcode removed — anyone can take the show now.");
     rosRender();
   } catch (e) {
     alert("Couldn't save the passcode: " + (e.message || "unknown error")
@@ -3541,9 +3545,9 @@ function rosRender() {
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
     </div>
     ${rosIsPrimary() ? `
-      <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE PRIMARY</div>
+      <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE PRODUCER</div>
     ` : rosState.primary ? `
-      <div class="ros-onair following">${escapeHtml(rosState.primary.name || "Someone")} is primary</div>
+      <div class="ros-onair following">${escapeHtml(rosState.primary.name || "Someone")} is the producer</div>
     ` : ""}
 
     ${cues.length === 0 ? `
@@ -3562,10 +3566,10 @@ function rosRender() {
         </div>` : ""}
       <button class="shift-btn shift-btn-ghost" id="rosSetPass"
         style="width:100%; margin-top:14px; padding:11px 0;">
-        ${rosPrimaryCode ? `Primary passcode: ${escapeHtml(rosPrimaryCode)} — tap to change` : "Set a primary passcode"}
+        ${rosPrimaryCode ? `Producer passcode: ${escapeHtml(rosPrimaryCode)} — tap to change` : "Set a producer passcode"}
       </button>
       <div class="footnote" style="margin-top:6px;">
-        Crew need this code to take the show. Admins are never asked for it.
+        Everyone needs this code to take the show, including you — it is shown here so you can look it up.
       </div>
     ` : cues.length ? `
       <div class="ros-prompt">
@@ -3577,10 +3581,10 @@ function rosRender() {
       </div>
       <button class="ros-primary ${rosIsPrimary() ? "on" : ""}" id="rosPrimaryBtn">
         ${rosIsPrimary()
-          ? "You're driving — tap to release"
+          ? "You're the producer — tap to release"
           : (rosState.primary
-              ? `${rosPrimaryCode && !admin ? "🔒 " : ""}Following ${escapeHtml(rosState.primary.name || "primary")} — tap to take over`
-              : `${rosPrimaryCode && !admin ? "🔒 " : ""}Make me primary`)}
+              ? `${rosPrimaryCode ? "🔒 " : ""}Producer: ${escapeHtml(rosState.primary.name || "someone")} — tap to take over`
+              : `${rosPrimaryCode ? "🔒 " : ""}Make me producer`)}
       </button>
       <div class="ros-controls">
         <button class="ros-nav" id="rosPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
@@ -3603,8 +3607,16 @@ function rosRender() {
 
   const prev = document.getElementById("rosPrev");
   const next = document.getElementById("rosNext");
-  if (prev) prev.onclick = () => rosSetCurrent(rosState.current - 1);
-  if (next) next.onclick = () => rosSetCurrent(rosState.current + 1);
+  // Next and Prev move everyone's screen, not just this one, so they need the
+  // same gate as the transport. Anyone tapping them is asking to drive.
+  if (prev) prev.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
+    rosSetCurrent(rosState.current - 1);
+  };
+  if (next) next.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
+    rosSetCurrent(rosState.current + 1);
+  };
 
   const play = document.getElementById("rosPlay");
   if (play) play.onclick = async () => {
@@ -3641,7 +3653,8 @@ function rosRender() {
   });
 
   const toTop = document.getElementById("rosToTop");
-  if (toTop) toTop.onclick = () => {
+  if (toTop) toTop.onclick = async () => {
+    if (!(await rosTryClaimPrimary())) return;
     rosPromptWrite({ anchor: rosState.current });
     rosState.following = true;
     rosUpdateFollowPill();
