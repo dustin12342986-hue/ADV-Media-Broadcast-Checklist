@@ -1320,7 +1320,13 @@ async function renderConfirmCard(profile) {
         confirmedAt: new Date().toISOString(),
         confirmedBy: currentUser.uid,
       });
-      renderConfirmCard(profile);
+      // Show success straight from the successful write. Re-reading to
+      // check would fail silently if read access is restricted, which
+      // makes a successful confirm look like nothing happened.
+      host.innerHTML = `
+        <div class="setup-warning" style="display:block; margin-bottom:16px; background:#10201A; border-color:var(--green); color:#A8E0C4;">
+          ✓ You're confirmed for ${escapeHtml(label)}. See you there.
+        </div>`;
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "I'll be there — Confirm";
@@ -1408,7 +1414,7 @@ async function renderConfirmations() {
     // Someone who hasn't confirmed has no record yet, so reading the
     // records alone silently drops them — they'd show as neither
     // confirmed nor waiting.
-    const todayId = new Date().toISOString().slice(0, 10);
+    const todayId = localDateId(0);
     const upcoming = GAMES.filter((g) => g.id >= todayId);
 
     if (upcoming.length === 0) {
@@ -2396,11 +2402,35 @@ async function renderEquipmentReports() {
   }
 }
 
+// Who is ACTUALLY on a game, as { position: name }. liveRoster reflects
+// pickups and drops; ROSTER_DATA is just the original season plan, so
+// reading it alone shows a stale lineup once any shift changes hands.
+async function currentRosterFor(gameId) {
+  const out = {};
+  try {
+    const snap = await db.ref(`liveRoster/${gameId}`).once("value");
+    const live = snap.val();
+    if (live && Object.keys(live).length) {
+      Object.values(live).forEach((slot) => {
+        if (slot && slot.status === "assigned" && slot.name) out[slot.role] = slot.name;
+      });
+      return out;
+    }
+  } catch (e) {
+    console.error("liveRoster read failed, falling back to schedule:", e);
+  }
+  // Nothing live yet for this game — fall back to the planned roster.
+  Object.entries(ROSTER_DATA[gameId] || {}).forEach(([pos, name]) => {
+    if (name && name !== "TBD") out[pos] = name;
+  });
+  return out;
+}
+
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
 
-  const todayId = new Date().toISOString().slice(0, 10);
+  const todayId = localDateId(0);
   const game = GAMES.find((g) => g.id === todayId);
 
   if (!game) {
@@ -2408,8 +2438,8 @@ async function renderTodayView() {
     return;
   }
 
-  const positions = ROSTER_DATA[todayId] || {};
-  const filled = Object.entries(positions).filter(([, name]) => name && name !== "TBD");
+  const positions = await currentRosterFor(todayId);
+  const filled = Object.entries(positions);
 
   inner.innerHTML = `
     <div class="shift-game-card">
@@ -2898,14 +2928,22 @@ function findScheduledEventOn(dateId, legalName, crewHandle) {
   return null;
 }
 
-function tomorrowId() {
+// Local calendar date, not UTC. toISOString() rolls over at 7pm Central,
+// which made the app think tomorrow had already started.
+function localDateId(offsetDays) {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  if (offsetDays) d.setDate(d.getDate() + offsetDays);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function tomorrowId() {
+  return localDateId(1);
 }
 
 function findScheduledEvent(legalName, crewHandle) {
-  const todayId = new Date().toISOString().slice(0, 10);
+  const todayId = localDateId(0);
   const positions = ROSTER_DATA[todayId];
   if (!positions) return null;
   for (const [pos, name] of Object.entries(positions)) {
