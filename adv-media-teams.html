@@ -427,6 +427,15 @@
   }
   .ros-field-val { flex: 1; color: var(--text-muted); }
   .ros-field.ros-note .ros-field-val { color: var(--amber); font-weight: 600; }
+  /* Word-for-word announcer copy. Left rule and roomier line height because
+     this is the one thing on the card that gets read aloud under pressure. */
+  .ros-read {
+    margin-top: 8px; padding: 8px 0 8px 11px;
+    border-left: 3px solid var(--blue);
+    font-size: 13.5px; line-height: 1.55; color: var(--text);
+    white-space: pre-wrap;
+  }
+  .ros-now .ros-read { font-size: 15px; line-height: 1.6; }
 
   /* Advance bar sits above the thumb, not under the browser chrome. */
   .ros-controls {
@@ -2960,6 +2969,7 @@ function rosFlattenSeed(gameId) {
       out.push({
         section: sec.name || "",
         time: c.time || "", dur: c.dur || "", event: c.event || "",
+        read: c.read || "",
         screen: c.screen || "", ribbon: c.ribbon || "",
         audio: c.audio || "", notes: c.notes || "",
       });
@@ -3084,6 +3094,12 @@ function rosRender() {
 
     ${rosState.editing ? `
       <button class="primary-btn" id="rosAddCue" style="margin-top:14px;">+ Add Cue</button>
+      ${RUN_OF_SHOW[rosState.gameId] ? `
+        <button class="shift-btn shift-btn-ghost" id="rosReload"
+          style="width:100%; margin-top:10px; padding:11px 0;">Reload from script</button>
+        <div class="footnote" style="margin-top:6px;">
+          Replaces every cue with the version built into the app. Any edits made here are lost.
+        </div>` : ""}
     ` : cues.length ? `
       <div class="ros-controls">
         <button class="ros-nav" id="rosPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
@@ -3108,6 +3124,14 @@ function rosRender() {
 
   const add = document.getElementById("rosAddCue");
   if (add) add.onclick = () => rosOpenCueEditor(-1);
+
+  const reload = document.getElementById("rosReload");
+  if (reload) reload.onclick = () => {
+    const seeded = rosFlattenSeed(rosState.gameId);
+    if (!seeded.length) return;
+    if (!confirm(`Replace all ${rosState.cues.length} cues with the ${seeded.length}-cue version built into the app?\n\nAnything edited here is lost.`)) return;
+    rosSaveCues(seeded, 0);
+  };
 
   inner.querySelectorAll("[data-jump]").forEach((el) => {
     el.onclick = () => rosSetCurrent(Number(el.dataset.jump));
@@ -3150,6 +3174,7 @@ function rosShowListHtml(cues, cur) {
           ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
         </div>
         <div class="ros-event">${escapeHtml(c.event || "")}</div>
+        ${c.read ? `<div class="ros-read">${escapeHtml(c.read)}</div>` : ""}
         ${rosFieldHtml("Screen", c.screen)}
         ${rosFieldHtml("Ribbon", c.ribbon)}
         ${rosFieldHtml("Audio", c.audio)}
@@ -3240,6 +3265,10 @@ function rosOpenCueEditor(index) {
         ${field("cuDur", "Duration", c.dur, "30 sec")}
       </div>
       ${field("cuEvent", "Speaker / Event", c.event, "What happens")}
+      <div class="field-block">
+        <div class="label">Read Copy (announcer)</div>
+        <textarea id="cuRead" rows="5" placeholder="Word-for-word copy, if there is any">${escapeHtml(c.read || "")}</textarea>
+      </div>
       ${field("cuScreen", "Big Screen", c.screen, "")}
       ${field("cuRibbon", "Ribbon", c.ribbon, "")}
       ${field("cuAudio", "Audio", c.audio, "")}
@@ -3259,8 +3288,8 @@ function rosOpenCueEditor(index) {
     const v = (id) => overlay.querySelector("#" + id).value.trim();
     const updated = {
       section: v("cuSection"), time: v("cuTime"), dur: v("cuDur"),
-      event: v("cuEvent"), screen: v("cuScreen"), ribbon: v("cuRibbon"),
-      audio: v("cuAudio"), notes: v("cuNotes"),
+      event: v("cuEvent"), read: v("cuRead"), screen: v("cuScreen"),
+      ribbon: v("cuRibbon"), audio: v("cuAudio"), notes: v("cuNotes"),
     };
     if (!updated.event && !updated.time) {
       alert("Give the cue a time or an event — otherwise there's nothing to call.");
@@ -3401,80 +3430,111 @@ function renderProfileEditor(profile) {
 // optional — leave a field off and its row just doesn't render.
 // ============================================================================
 const RUN_OF_SHOW = {
-  "2026-08-27": {
-    header: "Texas Wesleyan Rams vs University of Central Oklahoma",
-    sub: "Kickoff 6:00 PM",
+  "2026-08-28": {
+    header: "Texas Wesleyan University Rams vs University of Central Oklahoma Bronchos",
+    sub: "August 27, 2026 · 6:00 PM kickoff · Times are approximations",
     sections: [
+      {
+        name: "Game Notes — Standing Calls",
+        cues: [
+          { time: "Standing", event: "Every Ram first down", read: "Standard 1st Down announcement: \"That’s another RAM First Down!\" or \"Result of the play is good for a RAM First Down.\" I will also work in the BC saying of \"Funkytown First Down\" / \"Funkytown Touchdown\"." },
+          { time: "Standing", event: "Every Ram scoring drive", read: "THAT RAMS SCORING DRIVE IS MONEY IN THE BANK. ALL RAM SCORING DRIVES BROUGHT TO YOU BY NBT FINANCIAL — NBT FINANCIAL THINK GLOBAL BANK LOCAL.", screen: "NBT Logo", notes: "Do this call after the extra point is kicked, to allow time for the band." },
+          { time: "Standing", event: "Every third down, Rams on defense", read: "LET THE RAM BELLS RING. IT’S THIRD DOWN FOR YOUR RAMS DEFENSE.", notes: "Fans should have more bells this game, so this should work better. Combination — Hells Bells, For Whom the Bell Tolls, Rambells, etc." },
+          { time: "Standing", event: "Moritz video placement", screen: "Moritz Video", notes: "Pregame / 1st timeout of first half / end of half / 1st timeout of second half." },
+          { time: "Standing", event: "Coin toss note", notes: "COIN TOSS: __________ — anything special about coin toss." },
+        ],
+      },
       {
         name: "Pregame",
         cues: [
-          { time: "4:00:00 PM", dur: "1 hr 35 min", event: "House Music", screen: "Rams Welcome", audio: "House Music", notes: "Team to provide" },
-          { time: "5:35:00 PM", dur: "2 min 30 sec", event: "LCS Announcement AD", screen: "LCS Video AD", audio: "Commercial" },
-          { time: "5:38:00 PM", dur: "1 min", event: "10 Years FB AD", screen: "10 Year Ad", audio: "Commercial" },
-          { time: "5:40:00 PM", dur: "30 sec", event: "Welcome", screen: "Rams Logo", audio: "Announcer" },
-          { time: "5:41:20 PM", dur: "15 sec", event: "Welcome to Central OK Univ", screen: "COKU Logo", audio: "Announcer" },
-          { time: "5:41:30 PM", dur: "30 sec", event: "CISD Thank You", screen: "TXWES CISD Logo", audio: "Announcer" },
-          { time: "5:42:00 PM", dur: "45 sec", event: "NAIA CofC", screen: "Rams Logo", audio: "Announcer" },
-          { time: "5:42:45 PM", dur: "1 min", event: "COKU starting offense", screen: "COKU Logo", audio: "Announcer" },
-          { time: "5:44:15 PM", dur: "1 min 30 sec", event: "RAMS starting defense", screen: "RAMS Defense Videos", audio: "Announcer" },
-          { time: "5:46:00 PM", dur: "1 min", event: "COKU starting defense", screen: "COKU Logo", audio: "Announcer" },
-          { time: "5:47:30 PM", dur: "90 sec", event: "RAMS starting offense", screen: "RAMS Offense Headshots", audio: "Announcer" },
-          { time: "5:49:30 PM", dur: "30 sec", event: "Officials", screen: "Live Action or RAM Logo", audio: "Announcer" },
-          { time: "5:50:00 PM", dur: "2 min", event: "COKU Bronchos come out onto field (or not)", screen: "Live Action or OUAZ Logo", audio: "Announcer" },
-          { time: "5:53:00 PM", dur: "1 min 30 sec", event: "Rams Run Out", screen: "Live Action", ribbon: "Play Hype video first", audio: "Announcer" },
-          { time: "5:54:30 PM", dur: "50 sec", event: "Pregame Moment of Silence / Prayer", screen: "Bobby Cornett photo · US Flag", audio: "Announcer" },
-          { time: "5:55:30 PM", dur: "1 min", event: "ROTC present colors", screen: "US Flag", audio: "Announcer" },
-          { time: "5:56:00 PM", dur: "1 min 30 sec", event: "National Anthem", screen: "US Flag or Live Action", notes: "May need on-field microphones" },
-          { time: "5:57:30 PM", dur: "40 sec", event: "ROTC takes flag off field", screen: "Live Action or US Flag" },
-          { time: "5:58:30 PM", dur: "1 min 30 sec", event: "Coin Toss", screen: "Live Action", audio: "Announcer" },
-          { time: "6:00:00 PM – 6:02 PM", event: "Kickoff", screen: "Live Action", audio: "House Music" },
+          { time: "4:00 PM", event: "Pregame music", audio: "House Music" },
+          { time: "5:35 PM", event: "LSC announcement video", screen: "LSC Video", audio: "Commercial" },
+          { time: "5:38 PM", event: "Ram FB 10 Year in the Making video", screen: "10 Year Video", audio: "Commercial" },
+          { time: "5:40 PM", event: "Welcome", read: "Good evening fans and welcome to the Crowley ISD Multi-Purpose Stadium, right here in Funkytown TEXAS! Home of the #24 Ranked NAIA team in the country, The Texas Wesleyan RAMS! Today’s contest is game number 1 of the 2026 college Football Season.", screen: "Rams Logo", audio: "Announcer" },
+          { time: "5:41:20 PM", event: "University of Central Oklahoma Bronchos welcome", read: "Let’s give a big Texas welcome to our visitors for today’s game, who is receiving votes in the AFCA Coaches’ Poll, the Bronchos of the University of Central Oklahoma from Edmond, Oklahoma and the Mid-America Intercollegiate Athletics Association.", screen: "UCO Logo", audio: "Announcer" },
+          { time: "5:41:30 PM", event: "CISD thank you", read: "Texas Wesleyan University thanks the Crowley Independent School District, its board of trustees, its superintendent Dr. Michael McFarland, and Executive Director of Athletics Greg Williams for the opportunity to make the spectacular Crowley ISD Multi-Purpose Stadium, home of Texas Wesleyan Rams Football. The Rams thank all of Crowley ISD for their tremendous support.", screen: "Shared TXWES / Crowley ISD Logo", audio: "Announcer" },
+          { time: "5:42 PM", event: "Champions of Character", read: "Texas Wesleyan University, the Sooner Athletic Conference, and the NAIA would like to welcome you to today’s contest and ask that you join us in supporting character-driven intercollegiate athletics. We ask that you help us by showing respect to every spectator, student-athlete, coach and official in today’s contest. Texas Wesleyan University is committed to the NAIA Champions of Character initiative and asks for your help to create a positive competitive environment. We hope you enjoy today’s game.", screen: "Rams Logo", audio: "Announcer" },
+          { time: "5:42:45 PM", event: "Starting lineups — UCO offense", read: "The starting lineups for today’s games —\n\nOn offense for the Bronchos of Central Oklahoma —", screen: "University of Central Oklahoma Logo", audio: "Announcer" },
+          { time: "5:44:15 PM", event: "Rams starting defense", read: "On defense for your Texas Wesleyan Rams —", screen: "Ram Head Shots", audio: "Announcer" },
+          { time: "5:46 PM", event: "UCO starting defense", read: "On defense for the Bronchos of Central Oklahoma —", screen: "University of Central Oklahoma Logo", audio: "Announcer" },
+          { time: "5:47:30 PM", event: "Rams starting offense", read: "On offense for your Texas Wesleyan Rams —", screen: "Ram Head Shots", audio: "Announcer" },
+          { time: "5:49:30 PM", event: "Officials", read: "Ladies and Gentlemen, the officials for today’s game are from the NAIA Sooner Athletic Conference chapter of Football officials. The officials are…", screen: "Live Action or Ram Logo", audio: "Announcer", notes: "(READ HIM LAST) Led by the head referee, the man in the WHITE CAP," },
+          { time: "5:50 PM", event: "Visiting team: Bronchos of Central Oklahoma come onto field", read: "Let’s welcome the Bronchos, under the direction of head coach Adam Dorrel, to the field.\n\nLadies and gentlemen please direct your attention to the jumbotron in the north end zone.", screen: "UCO Logo or Live Action", audio: "House Music", notes: "This is the time it will happen — regardless of whether the team comes out or not. Go to live shot of team running on field. House music as the team comes on field." },
+          { time: "5:52 PM", event: "Rams come on field", read: "LADIES AND GENTLEMEN — ON YOUR FEET FOR YOUR TEXAS WESLEYAN RAMS FOOTBALL TEAM. . . . The Rams are under the direction of head coach Fran Johnson.", screen: "Ram Hype Video", ribbon: "Play hype video first", audio: "Announcer" },
+          { time: "5:54:30 PM", event: "Pregame remembrance — Coach Bobby Cornett", read: "Ladies and gentlemen, Texas Wesleyan University Athletics mourns the passing of legendary Rams golf coach Bobby Cornett.\n\nCoach Cornett left an enduring legacy at Texas Wesleyan, impacting generations of student-athletes both on and off the course. His dedication, leadership and commitment to the Rams family will never be forgotten.\n\nPlease join us in remembering and honoring the life and legacy of Coach Bobby Cornett.", screen: "Bobby Cornett Photo", audio: "Announcer" },
+          { time: "5:54:30 PM", event: "Pregame prayer", read: "Please remain standing if you are able for tonight’s pregame prayer, presentation of colors, and national anthem.\n\nDear Heavenly Father,\n\nAs summer begins to turn to fall, we thank you for this beautiful world that you have created. We thank you for both Universities, their leaders, students, alumni, families and friends. Watch over both Universities tonight, keeping all safe from harm and injury. May the play in this contest be fair and sportsmanlike. And when tonight’s contest is over, please watch over all of us as we travel home. In the name of our Heavenly Father, Amen.", screen: "USA Flag Logo", audio: "Announcer" },
+          { time: "5:55:30 PM", event: "Presentation of colors", read: "Please remain standing for the presentation of our nation’s colors.\n\nThe Young Men’s Leadership Academy Army JROTC color guard team presents our nation’s colors. They are under the direction of Command Sergeant Major Oliver.", screen: "US Flag", audio: "Announcer" },
+          { time: "5:56 PM", event: "National Anthem", read: "Please remain standing as we honor America with the playing of our national anthem.\n\nToday’s National Anthem will be performed by a trumpet trio of Music Majors, including Justin Talamantez, Tim Smith and Sean Chavez of the world-renowned Ram Band!!", screen: "US Flag or Live Action", audio: "Ram Band trumpet trio", notes: "May need on-field microphones. If we are running ahead of schedule — just go forward without waiting." },
+          { time: "5:57:50 PM", event: "Color guard exits field", screen: "Live Action or US Flag" },
+          { time: "5:58 PM", event: "Coin toss", read: "Please direct your attention to midfield for tonight’s coin toss. Captains for tonight’s contest:\n\nfor the Bronchos —\n\nfor the Rams —\n\nAnd now, for the official coin toss, head referee…\n\n____ won the coin toss and they have elected to _____", screen: "Live Action", audio: "Announcer", notes: "Get captains from teams prior to kick." },
+          { time: "6:00–6:02 PM", event: "Kickoff", screen: "Live Action", audio: "House Music" },
         ],
       },
       {
-        name: "1st & 2nd Quarter",
+        name: "First Quarter",
         cues: [
-          { time: "1st qtr", event: "Announcement #1 — Ram Store", screen: "Rams Logo", audio: "Announcer" },
-          { time: "1st qtr", event: "Announcement #2 — Moritz", screen: "Moritz Ad", audio: "Moritz Ad" },
-          { time: "1st qtr", event: "Announcement #3 — Champions RM", screen: "Champions Club Logo", audio: "Announcer" },
-          { time: "1st qtr", event: "Announcement #4 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "English version" },
-          { time: "1st qtr", event: "Announcement #5 — MX Real", screen: "Mexico Real Logo", audio: "Announcer" },
-          { time: "End of 1st qtr", event: "Dance Cam or Mascot Race", screen: "Live Action", ribbon: "Start with Napoleon video", audio: "On-field microphone", notes: "Field camera goes to Camryn on field" },
-          { time: "2nd qtr", event: "Announcement #6 — Metro Golf", screen: "Metro AD", audio: "Metro AD" },
-          { time: "2nd qtr", event: "Announcement #7 — Band Recognition", screen: "Band Recognition · Live Action", audio: "Announcer" },
-          { time: "2nd qtr", event: "Announcement #8 — The Rams Hour", screen: "The Rams Hour Logo", audio: "Announcer" },
-          { time: "2nd qtr", event: "Announcement #9 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "Spanish version" },
+          { time: "1st qtr", event: "Announcement #1 — Rams Store", read: "Ram Fans — Be sure to visit the Spirit Shop located in the West Concourse — for all your Texas Wesleyan Gear.", screen: "Rams Logo", audio: "Announcer" },
+          { time: "1st qtr", event: "Announcement #2 — Moritz video", screen: "Moritz Video", audio: "Moritz Ad", notes: "Goes at first timeout — at beginning of timeout. Band fills in the rest of the time." },
+          { time: "1st qtr", event: "Announcement #3 — Champions Club", read: "We are excited to invite you to the Champions Room for the 2026 Texas Wesleyan Rams football season. For access to the Champions Room, you can purchase season tickets or single game tickets at ramsports.net or scanning the QR code on the concourse.\n\nYour Champions Room ticket includes a premium buffet, complimentary beer and wine, and entry to cheer on the defending SAC Champion Texas Wesleyan Rams. Scan the QR codes on concourse signs to secure your membership and tickets and join us for an unforgettable season of Texas Wesleyan Football!", screen: "Champions Club Logo", audio: "Announcer" },
+          { time: "1st qtr", event: "Announcement #4 — NBT video", screen: "NBT Video", audio: "NBT Ad", notes: "English version." },
+          { time: "1st qtr", event: "Announcement #5 — Mexico Real", read: "Texas Wesleyan Athletics would like to recognize our generous sponsor for tonight’s team meal. Mexico Real restaurant is located just south of I-20 in the South Hills neighborhood at 5613 McCart Ave. Fresh Tex-Mex and Mexican specialties served in a homey setting. Visit this hidden gem for a fantastic meal. Thank you to Mexico Real from the RAM Family.", screen: "Mexico Real Logo", audio: "Announcer" },
+          { time: "End of 1st qtr", event: "Dance Cam", screen: "Live Action", ribbon: "Start with Napoleon Dynamite video", audio: "On-field microphone", notes: "Start break with Napoleon Dynamite dancing video, then cut to game host. Go down to Kamryn on field for Dance Cam." },
         ],
       },
       {
-        name: "Half & 3rd Quarter",
+        name: "Second Quarter",
         cues: [
-          { time: "Into the half", event: "Band plays or house music", audio: "Band plays or house music" },
-          { time: "Halftime", event: "1. Kicks for Cash · 2. GL Dancers · 3. Junkin honor", screen: "1. KFC Logo · 3. Junkin Graphic", audio: "Announcer" },
-          { time: "3rd qtr", event: "Announcement #10 — Moritz", screen: "Moritz Ad", audio: "Moritz Ad", notes: "First timeout · English version" },
-          { time: "3rd qtr", event: "Announcement #11 — Ramsports.net", screen: "Ramsports.net logo", audio: "Announcer" },
-          { time: "3rd qtr", event: "Announcement #12 — Champions Club", screen: "Give to Champions Graphic", audio: "Announcer" },
-          { time: "3rd qtr", event: "Announcement #13 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "English version" },
-          { time: "End of 3rd qtr", event: "Flex or Karaoke Cam", screen: "Live Action", audio: "On-field microphone", notes: "Field camera goes to Camryn in stands" },
+          { time: "2nd qtr", event: "Announcement #6 — Metro Golf Carts ad", screen: "Metro Ad", audio: "Metro Ad" },
+          { time: "2nd qtr", event: "Announcement #7 — Band recognition", read: "Let’s give a big hand to the Texas Wesleyan Ram Band. The Ram Band is under the direction of Thomas Willmann.", screen: "Band Recognition / Live Action", audio: "Announcer" },
+          { time: "2nd qtr", event: "Announcement #8 — The Rams Hour Coaches Show", read: "Catch the Texas Wesleyan Rams Hour Coaches Show, featuring Head Coach Fran Johnson and other coaches with host Jimmy \"The Saint\" Christopher! The weekly show digs into the Rams football and other university programs, bringing insider insights, game analysis, and exclusive interviews. Tune in every week to Ramsport.net and the TXWES Athletics YouTube page to stay up to date with everything in TXWES Athletics.", screen: "The Rams Hour Logo", audio: "Announcer" },
+          { time: "2nd qtr", event: "Announcement #9 — NBT video", screen: "NBT Video", audio: "NBT Ad", notes: "Spanish version." },
+          { time: "End of 2nd qtr", event: "Into the half", audio: "Band plays, into house music, into halftime show." },
         ],
       },
       {
-        name: "4th Quarter & Postgame",
+        name: "Halftime",
         cues: [
-          { time: "4th qtr", event: "Announcement #14 — Metro AD", screen: "Metro AD", audio: "Metro AD", notes: "Metro Golf Carts AD" },
-          { time: "4th qtr", event: "Announcement #15 — Cheer Recognition", screen: "Cheer Graphic", audio: "Announcer" },
-          { time: "4th qtr", event: "Announcement #16 — Next Game", screen: "Next Game Graphic", audio: "Announcer" },
-          { time: "4th qtr", event: "Announcement #17 — NBT", screen: "NBT AD", audio: "NBT AD", notes: "English version" },
-          { time: "Postgame", event: "Band plays", screen: "Next game graphic", audio: "Announcer" },
+          { time: "Halftime", event: "Kicks for Cash by NBT", read: "Fans, please direct your attention to the south end of the field. It’s time for tonight’s KICKS FOR CASH sponsored by NBT Financial — NBT Financial Think Global Bank Local. __ contestants will attempt to kick a field goal and if they do, they get to take money out of the NBT Financial Bank.\n\nThank you to all of our contestants and a big thank you to NBT Financial — Think Global Bank Local.", screen: "KFC Logo", audio: "Announcer", notes: "Go down to Kam on the field." },
+          { time: "Halftime", event: "Gold Line Dancers", read: "Ladies and Gentlemen please direct your attention to the center field as our Texas Wesleyan University, award winning, Gold Line Dancers take the field…. the dancers are in their 10th season, and under the direction of Jazmine Hampton.", screen: "Live Action", audio: "[MUSIC TRACK — Halftime]" },
+          { time: "Halftime", event: "Makena Junkin honor", read: "Ladies and gentlemen, please direct your attention to the midfield.\n\nTonight, Texas Wesleyan Athletics proudly recognizes Makena Junkin, who made history last season by becoming the first woman in program history to win an individual national championship.\n\nJunkin’s historic accomplishment helped etch her name into the Texas Wesleyan record books and marked a milestone for Rams Athletics.\n\nPlease join us in celebrating Makena Junkin — national champion and historic trailblazer!", screen: "Junkin Graphic", audio: "Announcer" },
         ],
       },
-    ],
-    emergency: [
-      "In response to a fire, an evacuation of the affected area within the stadium would be required. The following language can be used to conduct mass notification at the stadium:",
-      "SAY: Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane. (Repeat once more)",
-      "Due to imminent severe weather, the following language can be used to urge athletes, band students, etc. to seek shelter immediately:",
-      "SAY: Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)",
-      "Due to lightning, the following language can be used to urge athletes, band students, etc. to seek shelter immediately:",
-      "SAY: Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)",
+      {
+        name: "Third Quarter",
+        cues: [
+          { time: "3rd qtr", event: "Announcement #10 — Moritz video", screen: "Moritz Video", audio: "Moritz Ad", notes: "Goes at first timeout — at beginning of timeout. Band fills in the rest of the time." },
+          { time: "3rd qtr", event: "Announcement #11 — Ramsports.net", read: "Fans be sure and visit Ram Sports dot net and stay up-to-date on Texas Wesleyan Athletics to find live coverage, news, schedules, read player and coaches spotlights, and more at Ram Sports dot net.", screen: "Ramsports.net Logo", audio: "Announcer" },
+          { time: "3rd qtr", event: "Announcement #12 — Champions Club", read: "Ready to take your game day experience to the next level? Join the Champions Club and be part of the action. Your support directly fuels our student-athletes by supporting scholarships, facilities updates, travel expenses and academic resources, helping them dominate the field and crush their academic goals. As a member, you’ll score exclusive perks like free access to games, limited-edition gear and special game-day experiences.\n\nGo to the Champions Club tab on ramsports.net and join today!", screen: "Give to Champions Graphic", audio: "Announcer" },
+          { time: "3rd qtr", event: "Announcement #13 — NBT video", screen: "NBT Video", audio: "NBT Ad", notes: "English version." },
+          { time: "End of 3rd qtr", event: "Flex Cam or Karaoke Cam", screen: "Live Action", audio: "On-field microphone", notes: "Go to Kameryn on field for Flex Cam or Karaoke Cam." },
+        ],
+      },
+      {
+        name: "Fourth Quarter",
+        cues: [
+          { time: "4th qtr", event: "Announcement #14 — Metro Golf Carts ad", screen: "Metro Ad", audio: "Metro Ad" },
+          { time: "4th qtr", event: "Announcement #15 — Cheerleader recognition", read: "“Let’s hear it for your Texas Wesleyan Cheerleaders!”\n\nThe reigning 2026 NCA National Champion Texas Wesleyan Cheerleaders are under the direction of Head Coach Terrance Davis and Assistant Coach Adriana Skipper. This talented team brings championship-level energy, pride, and the spirit of the RAMily to every game, event, and competition.\n\nGive it up for your Texas Wesleyan Cheerleaders!", screen: "Cheer Graphic", audio: "Announcer" },
+          { time: "4th qtr", event: "Announcement #16 — Next home game", read: "Ram fans, the next home game is on Saturday, Sept. 12th when your Texas Wesleyan return to Crowley ISD Multi-Purpose Stadium against Texas College, with kickoff scheduled for 6 p.m. CT. We hope to see you come out and cheer on the Rams in the season’s next home game.", screen: "Next Game Graphic", audio: "Announcer" },
+          { time: "4th qtr", event: "Announcement #17 — NBT video", screen: "NBT Ad", audio: "NBT Ad", notes: "English version." },
+        ],
+      },
+      {
+        name: "End of Game",
+        cues: [
+          { time: "End of game", event: "Final score", read: "And that’s the end of today’s contest, final score ----. With this victory, the Rams sit atop the Sooner Athletic Conference.", screen: "Rams Logo / Next Game Logo", audio: "Announcer" },
+          { time: "Postgame", event: "Alma mater", audio: "House music to alma mater played by band." },
+          { time: "Postgame", event: "Reread next home game", screen: "Next Game Graphic", audio: "Announcer", notes: "Reread Announcement #16." },
+          { time: "Postgame", event: "Farewell", read: "L&G, Thank you for attending tonight’s game. Texas Wesleyan University bids you safe travels and farewell from Crowley ISD Multi-Purpose Stadium.", audio: "Announcer" },
+        ],
+      },
+      {
+        name: "Emergency Evacuation Procedures",
+        cues: [
+          { time: "If needed", event: "Fire emergency", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane. (Repeat once more)", notes: "In response to a fire, an evacuation of the affected area within the stadium would be required." },
+          { time: "If needed", event: "Severe weather", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
+          { time: "If needed", event: "Lightning", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
+        ],
+      },
     ],
   },
 };
