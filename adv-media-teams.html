@@ -340,6 +340,22 @@
     padding: 12px 14px; margin-bottom: 12px;
   }
   .shift-game-header { font-weight: 800; font-size: 13.5px; margin-bottom: 8px; }
+  .call-time { font-size: 13px; font-weight: 800; color: var(--blue); margin-bottom: 3px; }
+  .call-time-early { color: var(--amber); font-size: 12.5px; }
+  .row-call {
+    flex: 0 0 74px; text-align: right; font-size: 12px; font-weight: 800;
+    color: var(--text-muted); font-variant-numeric: tabular-nums;
+  }
+  .row-call-early { color: var(--amber); }
+  .ct-row {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    border-top: 1px solid var(--border);
+  }
+  .ct-row:first-of-type { border-top: none; }
+  .ct-role { flex: 1; font-size: 13px; color: var(--text-muted); font-weight: 700; }
+  .ct-input { flex: 0 0 128px; padding: 8px 10px; font-size: 14px; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > * { flex: 1; min-width: 0; }
   .shift-row {
     display: flex; align-items: center; gap: 8px; padding: 6px 0;
     border-top: 1px solid var(--border);
@@ -355,6 +371,10 @@
   }
   .shift-btn-pickup { background: var(--green); }
   .shift-btn-drop { background: var(--red); }
+  .shift-btn-ghost {
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
@@ -741,6 +761,7 @@ const ADMIN_GROUPS = [
     { view: "qb", label: "QB Approval" },
   ]},
   { label: "Operations", items: [
+    { view: "callTimes", label: "Call Times" },
     { view: "confirmations", label: "Confirmations" },
     { view: "equipmentAdmin", label: "Equipment Reports" },
     { view: "checkout", label: "Equipment Checkout" },
@@ -877,6 +898,12 @@ function renderMainApp() {
   if (mainState.view === "approvals" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminApprovals();
+    return;
+  }
+
+  if (mainState.view === "callTimes" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderCallTimesAdmin();
     return;
   }
 
@@ -1445,9 +1472,17 @@ async function textTomorrowsCrew() {
   const w = await getVenueWeather();
   const weather = w ? `${w.temp}°${w.unit}, ${w.forecast.split(".")[0]}.` : "";
 
+  await loadGameSettings();
+  const calls = callsFor(game);
+  const earlyCalls = Object.entries(calls.roleCalls)
+    .filter(([, t]) => t && t !== calls.call)
+    .map(([role, t]) => `${role} call: ${fmtCall(t)}`);
+
   const body = [
     `${game.day} ${game.date} — ${game.opp}`,
-    game.call ? `Call time: ${game.call}` : "",
+    calls.gameTime ? `Game time: ${fmtCall(calls.gameTime)}` : "",
+    calls.call ? `Call time: ${fmtCall(calls.call)}` : "",
+    ...earlyCalls,
     weather ? `Weather: ${weather}` : "",
     `Traffic from Dallas: ${trafficLink("Dallas, TX")}`,
     `From Fort Worth: ${trafficLink("Fort Worth, TX")}`,
@@ -1476,7 +1511,7 @@ async function renderConfirmations() {
     // Someone who hasn't confirmed has no record yet, so reading the
     // records alone silently drops them — they'd show as neither
     // confirmed nor waiting.
-    const todayId = new Date().toISOString().slice(0, 10);
+    const todayId = localDateId();
     const upcoming = GAMES.filter((g) => g.id >= todayId);
 
     if (upcoming.length === 0) {
@@ -2464,12 +2499,202 @@ async function renderEquipmentReports() {
   }
 }
 
+// ============================================================================
+// Call times
+// ============================================================================
+// Editable from Admin → Call Times, stored at gameSettings/{gameId}. Whatever
+// is in Firebase wins over the `call` / `roleCalls` defaults hardcoded in
+// GAMES, so a game never needs a code change just to move its call.
+//
+// Cached in memory because Today and the crew text both need it and neither
+// should block on a second read. loadGameSettings() refreshes the cache.
+let gameSettings = {};
+
+async function loadGameSettings() {
+  try {
+    const snap = await db.ref("gameSettings").once("value");
+    gameSettings = snap.val() || {};
+  } catch (e) {
+    console.error("Couldn't load game settings:", e);
+    gameSettings = {};
+  }
+  return gameSettings;
+}
+
+// The call times actually in effect for a game: Firebase over hardcoded.
+function callsFor(game) {
+  if (!game) return { gameTime: "", call: "", roleCalls: {} };
+  const saved = gameSettings[game.id] || {};
+  return {
+    gameTime: saved.gameTime !== undefined ? saved.gameTime : (game.gameTime || ""),
+    call: saved.call !== undefined ? saved.call : (game.call || ""),
+    roleCalls: saved.roleCalls || game.roleCalls || {},
+  };
+}
+
+// The call a specific position reports at — its own override, or the general
+// call if it doesn't have one.
+function callForRole(calls, role) {
+  return calls.roleCalls[role] || calls.call || "";
+}
+
+// "16:00" from a time input becomes "4:00 PM" for display. Anything already
+// in display form (the hardcoded defaults) passes through untouched.
+function fmtCall(v) {
+  if (!v) return "";
+  const m = String(v).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return String(v);
+  const h = Number(m[1]);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m[2]} ${ampm}`;
+}
+
+// The reverse, so the editor can preload a value the hardcoded defaults wrote.
+function toTimeInput(v) {
+  if (!v) return "";
+  if (/^\d{1,2}:\d{2}$/.test(v)) return v;
+  const m = String(v).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return "";
+  let h = Number(m[1]) % 12;
+  if (m[3].toUpperCase() === "PM") h += 12;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+
+// Every position that can have its own call — the shift-board roles plus the
+// two that aren't tradeable.
+const CALL_TIME_ROLES = ["EIC", "PM"].concat(TRADEABLE_ROLES);
+
+async function renderCallTimesAdmin() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  await loadGameSettings();
+
+  const todayId = localDateId();
+  const upcoming = GAMES.filter((g) => g.id >= todayId);
+  if (upcoming.length === 0) {
+    inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
+    return;
+  }
+
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:12px;">
+      Set the general call, and an earlier or later one for any position that needs it.
+      Crew see this on the Today tab and in the crew text.
+    </div>
+    ${upcoming.map((g) => {
+      const c = callsFor(g);
+      const overrides = Object.entries(c.roleCalls).filter(([, t]) => t && t !== c.call);
+      return `
+      <div class="shift-game-card">
+        <div class="shift-game-header">${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}</div>
+        <div class="call-time">
+          ${c.gameTime ? "Kickoff " + escapeHtml(fmtCall(c.gameTime)) : ""}
+          ${c.gameTime && c.call ? " · " : ""}
+          ${c.call ? "Call " + escapeHtml(fmtCall(c.call)) : ""}
+          ${!c.gameTime && !c.call ? "Nothing set" : ""}
+        </div>
+        ${overrides.map(([role, t]) =>
+          `<div class="call-time call-time-early">${escapeHtml(role)} ${escapeHtml(fmtCall(t))}</div>`).join("")}
+        <button class="shift-btn shift-btn-ghost" style="margin-top:10px; margin-left:0;"
+          data-editcall="${escapeAttr(g.id)}">Edit</button>
+      </div>`;
+    }).join("")}
+  `;
+
+  inner.querySelectorAll("[data-editcall]").forEach((b) => {
+    b.onclick = () => openCallTimeEditor(b.dataset.editcall);
+  });
+}
+
+function openCallTimeEditor(gameId) {
+  const game = GAMES.find((g) => g.id === gameId);
+  if (!game) return;
+  const c = callsFor(game);
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:480px; margin:auto;">
+      <div class="modal-title">Call Times</div>
+      <div class="modal-subtitle">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
+
+      <div class="row2">
+        <div class="field-block">
+          <div class="label">Game Time</div>
+          <input id="ctGameTime" type="time" value="${escapeAttr(toTimeInput(c.gameTime))}" />
+        </div>
+        <div class="field-block">
+          <div class="label">General Call</div>
+          <input id="ctGeneral" type="time" value="${escapeAttr(toTimeInput(c.call))}" />
+        </div>
+      </div>
+
+      <div class="footnote" style="margin:16px 0 6px;">
+        Position overrides — leave blank to use the general call.
+      </div>
+      ${CALL_TIME_ROLES.map((role) => `
+        <div class="ct-row">
+          <div class="ct-role">${escapeHtml(role)}</div>
+          <input class="ct-input" type="time" data-role="${escapeAttr(role)}"
+            value="${escapeAttr(toTimeInput(c.roleCalls[role] || ""))}" />
+        </div>
+      `).join("")}
+
+      <div id="ctMsg"></div>
+      <button class="primary-btn" id="ctSaveBtn">Save Call Times</button>
+      <button class="shift-btn shift-btn-ghost" id="ctCancelBtn"
+        style="width:100%; margin:10px 0 0; padding:11px 0;">Cancel</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  function close() { overlay.remove(); document.body.style.overflow = ""; }
+  overlay.querySelector("#ctCancelBtn").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  overlay.querySelector("#ctSaveBtn").onclick = async () => {
+    const btn = overlay.querySelector("#ctSaveBtn");
+    const msg = overlay.querySelector("#ctMsg");
+    const call = overlay.querySelector("#ctGeneral").value;
+    const gameTime = overlay.querySelector("#ctGameTime").value;
+
+    // Only blank entries are dropped. An override equal to the general call is
+    // kept — that's a deliberate "yes, same as everyone" and it should survive
+    // the general call later moving.
+    const roleCalls = {};
+    overlay.querySelectorAll(".ct-input").forEach((i) => {
+      if (i.value) roleCalls[i.dataset.role] = i.value;
+    });
+
+    btn.disabled = true;
+    try {
+      await db.ref(`gameSettings/${gameId}`).set({
+        gameTime: gameTime || null,
+        call: call || null,
+        roleCalls: Object.keys(roleCalls).length ? roleCalls : null,
+        updatedBy: currentUser.email || "",
+        updatedAt: new Date().toISOString(),
+      });
+      close();
+      renderCallTimesAdmin();
+    } catch (e) {
+      btn.disabled = false;
+      msg.innerHTML = `<div class="error-msg">Couldn't save (${escapeHtml(e.message || "unknown error")}).
+        If this says permission denied, the database rules need a "gameSettings" section.</div>`;
+    }
+  };
+}
+
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
 
-  const todayId = new Date().toISOString().slice(0, 10);
-  const tomorrowId = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const todayId = localDateId();
+  const tomorrowId_ = tomorrowId();
 
   // Today's game if there is one. If not, look one day ahead — the run of
   // show goes up 24 hours out so Directors and Producers can read it before
@@ -2478,8 +2703,8 @@ async function renderTodayView() {
   let gameId = todayId;
   let isTomorrow = false;
   if (!game) {
-    game = GAMES.find((g) => g.id === tomorrowId);
-    gameId = tomorrowId;
+    game = GAMES.find((g) => g.id === tomorrowId_);
+    gameId = tomorrowId_;
     isTomorrow = true;
   }
 
@@ -2530,6 +2755,20 @@ async function renderTodayView() {
     }
   }
 
+  // Every position carries its own call time, not just the ones that differ —
+  // crew shouldn't have to work out whether "no time on my row" means the
+  // general call or that nobody set one. Times that differ from the general
+  // call render amber so an early call still stands out.
+  await loadGameSettings();
+  const calls = callsFor(game);
+  rows.forEach((r) => {
+    const t = callForRole(calls, r.role);
+    if (t) {
+      r.call = fmtCall(t);
+      r.callEarly = !!(calls.roleCalls[r.role] && calls.roleCalls[r.role] !== calls.call);
+    }
+  });
+
   const assignedCount = rows.filter((r) => !r.open).length;
   const openCount = rows.length - assignedCount;
 
@@ -2538,6 +2777,12 @@ async function renderTodayView() {
       <div class="shift-game-header">
         ${isTomorrow ? "Tomorrow — " : ""}${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}
       </div>
+      ${calls.gameTime || calls.call ? `
+        <div class="call-time">
+          ${calls.gameTime ? `Kickoff ${escapeHtml(fmtCall(calls.gameTime))}` : ""}
+          ${calls.gameTime && calls.call ? " · " : ""}
+          ${calls.call ? `Call ${escapeHtml(fmtCall(calls.call))}` : ""}
+        </div>` : ""}
       <div id="todayWeather" class="footnote">Loading weather…</div>
       ${ros ? `<button class="ros-btn" id="rosOpenBtn">📋 Run of Show</button>` : ""}
     </div>
@@ -2548,6 +2793,7 @@ async function renderTodayView() {
       <div class="shift-row">
         <div class="shift-role">${escapeHtml(r.role)}</div>
         <div class="shift-status ${r.open ? "shift-open" : ""}">${escapeHtml(r.name)}</div>
+        ${r.call ? `<div class="row-call ${r.callEarly ? "row-call-early" : ""}">${escapeHtml(r.call)}</div>` : ""}
       </div>
     `).join("")}
   `;
@@ -2842,8 +3088,13 @@ const RUN_OF_SHOW = {
   },
 };
 
+// `gameTime` is kickoff. `call` is the general crew call time. `roleCalls`
+// overrides the call for specific positions — the role name must match the
+// roster key exactly ("Audio A2/Utility", not "A2"). All three are editable
+// from Admin → Call Times; these are just the starting values.
 const GAMES = [
-  { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma" },
+  { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma",
+    gameTime: "6:00 PM", call: "4:00 PM", roleCalls: { "Audio A2/Utility": "3:00 PM" } },
   { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo" },
   { id: "2026-09-03", day: "Thu", date: "9/3", opp: "CHS vs Lamar (Arlington)" },
   { id: "2026-09-04", day: "Fri", date: "9/4", opp: "NCHS vs Southlake Carroll" },
@@ -3190,14 +3441,24 @@ function findScheduledEventOn(dateId, legalName, crewHandle) {
   return null;
 }
 
+// Date ids are local calendar dates, never UTC. toISOString() returns UTC,
+// which in Central time rolls over around 7pm — the app would start calling
+// tomorrow's game "today" for the last five hours of every day. Every date id
+// in this file goes through here.
+function localDateId(d) {
+  const dt = d || new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+}
+
 function tomorrowId() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return localDateId(d);
 }
 
 function findScheduledEvent(legalName, crewHandle) {
-  const todayId = new Date().toISOString().slice(0, 10);
+  const todayId = localDateId();
   const positions = ROSTER_DATA[todayId];
   if (!positions) return null;
   for (const [pos, name] of Object.entries(positions)) {
