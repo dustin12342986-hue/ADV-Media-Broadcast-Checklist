@@ -382,72 +382,83 @@
   }
 
   /* ---- Run of Show -------------------------------------------------------
-     Full-height sheet rather than the small centered modal-card: a run of
-     show is long and gets read while standing at a position, so it needs
-     room to scroll and big enough type to read at a glance. */
+     A cue caller, not a document. The live cue is the loudest thing on the
+     screen; everything already called is dimmed so the eye lands forward. */
   .ros-btn {
     width: 100%; margin-top: 10px; padding: 12px 0; border-radius: 10px;
     border: 1px solid var(--blue); background: #1B2A38; color: #8FC6F0;
     font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer;
   }
-  .ros-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 1000;
-    padding: 12px;
+  .ros-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .ros-gamesel { flex: 1; min-width: 0; padding: 9px 10px; font-size: 13.5px; }
+  .ghost-pill {
+    flex: 0 0 auto; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 9px; padding: 9px 15px;
+    font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;
   }
-  .ros-sheet {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-    max-width: 620px; margin: 0 auto; height: 100%;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  .ros-head {
-    display: flex; align-items: center; gap: 10px; padding: 13px 15px;
-    border-bottom: 1px solid var(--border); flex-shrink: 0;
-  }
-  .ros-head-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 800; }
-  .ros-head-title span {
-    display: block; font-size: 11px; font-weight: 700; color: var(--text-muted);
-    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .ros-close {
-    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-    border-radius: 9px; font-size: 12.5px; font-weight: 700; font-family: inherit;
-    padding: 8px 13px; cursor: pointer; flex-shrink: 0;
-  }
-  .ros-body { flex: 1; overflow-y: auto; padding: 14px 15px 30px; }
+
   .ros-section {
     font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase;
-    letter-spacing: 0.7px; margin: 22px 0 8px; padding-bottom: 5px;
+    letter-spacing: 0.7px; margin: 20px 0 8px; padding-bottom: 5px;
     border-bottom: 1px solid var(--border);
   }
-  .ros-section:first-child { margin-top: 0; }
   .ros-cue {
-    background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 10px 12px; margin-bottom: 8px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 13px; margin-bottom: 8px; cursor: pointer;
   }
-  .ros-cue-top {
-    display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px;
+  .ros-done { opacity: 0.4; }
+  .ros-now {
+    background: #14212C; border-color: var(--blue);
+    box-shadow: 0 0 0 1px var(--blue);
   }
+  .ros-nowtag {
+    background: var(--blue); color: #fff; font-size: 9.5px; font-weight: 900;
+    letter-spacing: 0.8px; padding: 2px 7px; border-radius: 4px;
+  }
+  .ros-cue-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
   .ros-time { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .ros-dur { font-size: 11px; color: var(--text-faint); font-weight: 700; }
-  .ros-event { font-size: 14px; font-weight: 700; line-height: 1.35; }
+  .ros-event { font-size: 14.5px; font-weight: 700; line-height: 1.35; }
+  .ros-now .ros-event { font-size: 17px; }
   .ros-field { display: flex; gap: 8px; font-size: 12.5px; margin-top: 5px; line-height: 1.4; }
   .ros-field-label {
-    flex: 0 0 62px; color: var(--text-faint); font-weight: 800;
+    flex: 0 0 58px; color: var(--text-faint); font-weight: 800;
     text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding-top: 2px;
   }
   .ros-field-val { flex: 1; color: var(--text-muted); }
   .ros-field.ros-note .ros-field-val { color: var(--amber); font-weight: 600; }
-  .ros-emerg {
-    background: #2A1512; border: 1px solid var(--red); border-radius: 10px;
-    padding: 12px 14px; margin-top: 18px;
+
+  /* Advance bar sits above the thumb, not under the browser chrome. */
+  .ros-controls {
+    position: sticky; bottom: 10px; z-index: 50;
+    display: flex; align-items: center; gap: 10px; margin-top: 16px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 9px 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
   }
-  .ros-emerg-title {
-    font-size: 11px; font-weight: 800; color: #F2B8B1; text-transform: uppercase;
-    letter-spacing: 0.6px; margin-bottom: 8px;
+  .ros-nav {
+    flex: 1; padding: 14px 0; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-size: 15px; font-weight: 800;
+    font-family: inherit; cursor: pointer;
   }
-  .ros-emerg p { font-size: 12.5px; line-height: 1.5; color: #E8C4BF; margin: 0 0 9px; }
-  .ros-emerg p:last-child { margin-bottom: 0; }
-  .ros-emerg .ros-say { font-weight: 800; color: #F7DAD5; }
+  .ros-nav-next { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .ros-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ros-count {
+    flex: 0 0 auto; font-size: 12px; font-weight: 800; color: var(--text-faint);
+    font-variant-numeric: tabular-nums; min-width: 52px; text-align: center;
+  }
+
+  .ros-editing { cursor: default; }
+  .ros-edit-head { display: flex; align-items: center; gap: 10px; }
+  .ros-edit-main { flex: 1; min-width: 0; cursor: pointer; }
+  .ros-edit-tools { flex: 0 0 auto; display: flex; gap: 5px; }
+  .ros-tool {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); font-size: 15px; font-weight: 800;
+    cursor: pointer; font-family: inherit; line-height: 1;
+  }
+  .ros-tool:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ros-tool-del { color: var(--red); border-color: var(--red); }
   .modal-card {
     background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
     padding: 20px; max-width: 400px; width: 100%;
@@ -785,6 +796,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "today" ? "active" : ""}" id="tabToday">Today</button>
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
+      <button class="tab-btn ${mainState.view === "runofshow" ? "active" : ""}" id="tabRunOfShow">Run of Show</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
       <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
@@ -819,6 +831,7 @@ function renderMainApp() {
   document.getElementById("tabToday").onclick = () => { mainState.view = "today"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabRunOfShow").onclick = () => { mainState.view = "runofshow"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabEquipment").onclick = () => { mainState.view = "equipment"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -827,6 +840,14 @@ function renderMainApp() {
     document.querySelectorAll(".admin-menu-item").forEach((btn) => {
       btn.onclick = () => { mainState.view = btn.dataset.view; mainState.adminMenuOpen = false; renderMainApp(); };
     });
+  }
+
+  if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
+
+  if (mainState.view === "runofshow") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderRunOfShowView();
+    return;
   }
 
   if (mainState.view === "today") {
@@ -2896,7 +2917,11 @@ async function renderTodayView() {
   `;
 
   if (ros) {
-    document.getElementById("rosOpenBtn").onclick = () => openRunOfShow(gameId);
+    document.getElementById("rosOpenBtn").onclick = () => {
+      rosState.gameId = gameId;
+      mainState.view = "runofshow";
+      renderMainApp();
+    };
   }
 
   const weather = await getVenueWeather();
@@ -2906,77 +2931,346 @@ async function renderTodayView() {
   }
 }
 
-// ============================================================================
-// Run of Show viewer — built fresh each open and torn down on close, same
-// pattern as the drop and assign modals.
-// ============================================================================
-function openRunOfShow(gameId) {
-  const ros = RUN_OF_SHOW[gameId];
-  if (!ros) return;
-  const game = GAMES.find((g) => g.id === gameId);
 
-  const field = (label, value, cls) => value
+// ============================================================================
+// Run of Show — a live cue caller.
+// ============================================================================
+// Stored at runOfShow/{gameId} as a flat, ordered cue list plus a `current`
+// pointer. Flat rather than nested-by-section because advancing, reordering
+// and jumping all become index arithmetic; a cue just carries the section
+// heading it sits under.
+//
+// The pointer lives in Firebase on purpose. Everyone on the show follows the
+// same cue — the Director advances and the whole crew's screen moves with it.
+// That only works if position is shared state, not local.
+//
+// RUN_OF_SHOW (the hardcoded constant) is a seed. The first time a game is
+// opened it's flattened and written; after that the stored copy is the truth
+// and the constant is never read again.
+// ============================================================================
+let unsubRos = null;
+const rosState = { gameId: null, editing: false, cues: [], current: 0, loaded: false };
+
+function rosFlattenSeed(gameId) {
+  const seed = RUN_OF_SHOW[gameId];
+  if (!seed) return [];
+  const out = [];
+  (seed.sections || []).forEach((sec) => {
+    (sec.cues || []).forEach((c) => {
+      out.push({
+        section: sec.name || "",
+        time: c.time || "", dur: c.dur || "", event: c.event || "",
+        screen: c.screen || "", ribbon: c.ribbon || "",
+        audio: c.audio || "", notes: c.notes || "",
+      });
+    });
+  });
+  return out;
+}
+
+// Games worth showing here: anything from today forward, plus anything that
+// already has a run of show written.
+function rosGameOptions() {
+  const todayId = localDateId();
+  return GAMES.filter((g) => g.id >= todayId || RUN_OF_SHOW[g.id]);
+}
+
+async function renderRunOfShowView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+
+  const options = rosGameOptions();
+  if (options.length === 0) {
+    inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
+    return;
+  }
+
+  // Default to today's game, else tomorrow's, else the next one up.
+  if (!rosState.gameId || !options.some((g) => g.id === rosState.gameId)) {
+    const todayId = localDateId(), tId = tomorrowId();
+    rosState.gameId =
+      (options.find((g) => g.id === todayId) ||
+       options.find((g) => g.id === tId) ||
+       options[0]).id;
+  }
+
+  rosSubscribe();
+}
+
+function rosSubscribe() {
+  if (unsubRos) { unsubRos(); unsubRos = null; }
+  rosState.loaded = false;
+  const gameId = rosState.gameId;
+  const ref = db.ref(`runOfShow/${gameId}`);
+
+  const cb = async (snap) => {
+    // Ignore a late callback from a game we've already navigated away from.
+    if (rosState.gameId !== gameId) return;
+    let val = snap.val();
+
+    if (!val && !rosState.loaded) {
+      // Nothing stored yet. Seed from the constant if we have one, so the
+      // first person to open it doesn't get a blank list.
+      const seeded = rosFlattenSeed(gameId);
+      if (seeded.length) {
+        try {
+          await db.ref(`runOfShow/${gameId}`).set({ cues: seeded, current: 0 });
+          return; // the write fires this listener again with real data
+        } catch (e) {
+          console.error("Couldn't seed run of show:", e);
+          val = { cues: seeded, current: 0 };
+        }
+      }
+    }
+
+    rosState.loaded = true;
+    rosState.cues = (val && val.cues) || [];
+    rosState.current = (val && typeof val.current === "number") ? val.current : 0;
+    rosRender();
+  };
+
+  ref.on("value", cb);
+  unsubRos = () => ref.off("value", cb);
+}
+
+async function rosWrite(patch) {
+  try {
+    await db.ref(`runOfShow/${rosState.gameId}`).update(patch);
+  } catch (e) {
+    alert("Couldn't save: " + (e.message || "unknown error"));
+  }
+}
+
+function rosSetCurrent(i) {
+  const n = rosState.cues.length;
+  if (!n) return;
+  const next = Math.max(0, Math.min(n - 1, i));
+  rosState.current = next;   // move locally first so the tap feels instant
+  rosRender();
+  rosWrite({ current: next });
+}
+
+function rosSaveCues(cues, current) {
+  rosState.cues = cues;
+  if (typeof current === "number") rosState.current = current;
+  rosRender();
+  rosWrite({ cues, current: rosState.current });
+}
+
+function rosRender() {
+  const inner = document.getElementById("innerRoot");
+  if (!inner || mainState.view !== "runofshow") return;
+  const admin = isAdmin();
+  const game = GAMES.find((g) => g.id === rosState.gameId);
+  const cues = rosState.cues;
+  const cur = rosState.current;
+
+  inner.innerHTML = `
+    <div class="ros-bar">
+      <select id="rosGameSel" class="ros-gamesel">
+        ${rosGameOptions().map((g) => `
+          <option value="${escapeAttr(g.id)}" ${g.id === rosState.gameId ? "selected" : ""}>
+            ${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}
+          </option>`).join("")}
+      </select>
+      ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
+    </div>
+
+    ${cues.length === 0 ? `
+      <div class="footnote" style="margin-top:14px;">
+        No run of show for ${escapeHtml(game ? game.opp : "this game")} yet.${admin ? " Tap Edit, then Add Cue." : ""}
+      </div>
+    ` : rosState.editing ? rosEditListHtml(cues) : rosShowListHtml(cues, cur)}
+
+    ${rosState.editing ? `
+      <button class="primary-btn" id="rosAddCue" style="margin-top:14px;">+ Add Cue</button>
+    ` : cues.length ? `
+      <div class="ros-controls">
+        <button class="ros-nav" id="rosPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
+        <div class="ros-count">${cur + 1} / ${cues.length}</div>
+        <button class="ros-nav ros-nav-next" id="rosNext" ${cur >= cues.length - 1 ? "disabled" : ""}>Next ▶</button>
+      </div>
+    ` : ""}
+  `;
+
+  document.getElementById("rosGameSel").onchange = (e) => {
+    rosState.gameId = e.target.value;
+    rosState.editing = false;
+    rosSubscribe();
+  };
+  const editBtn = document.getElementById("rosEditToggle");
+  if (editBtn) editBtn.onclick = () => { rosState.editing = !rosState.editing; rosRender(); };
+
+  const prev = document.getElementById("rosPrev");
+  const next = document.getElementById("rosNext");
+  if (prev) prev.onclick = () => rosSetCurrent(rosState.current - 1);
+  if (next) next.onclick = () => rosSetCurrent(rosState.current + 1);
+
+  const add = document.getElementById("rosAddCue");
+  if (add) add.onclick = () => rosOpenCueEditor(-1);
+
+  inner.querySelectorAll("[data-jump]").forEach((el) => {
+    el.onclick = () => rosSetCurrent(Number(el.dataset.jump));
+  });
+  inner.querySelectorAll("[data-editcue]").forEach((el) => {
+    el.onclick = () => rosOpenCueEditor(Number(el.dataset.editcue));
+  });
+  inner.querySelectorAll("[data-move]").forEach((el) => {
+    el.onclick = () => rosMove(Number(el.dataset.move), Number(el.dataset.dir));
+  });
+  inner.querySelectorAll("[data-delcue]").forEach((el) => {
+    el.onclick = () => rosDeleteCue(Number(el.dataset.delcue));
+  });
+
+  if (!rosState.editing) rosScrollToCurrent();
+}
+
+function rosFieldHtml(label, value, cls) {
+  return value
     ? `<div class="ros-field ${cls || ""}">
          <div class="ros-field-label">${label}</div>
          <div class="ros-field-val">${escapeHtml(value)}</div>
        </div>`
     : "";
+}
 
-  const overlay = document.createElement("div");
-  overlay.className = "ros-overlay";
-  overlay.innerHTML = `
-    <div class="ros-sheet" role="dialog" aria-modal="true" aria-label="Run of Show">
-      <div class="ros-head">
-        <div class="ros-head-title">
-          Run of Show
-          <span>${escapeHtml(game ? game.date : "")} · ${escapeHtml(ros.sub || "")}</span>
+function rosShowListHtml(cues, cur) {
+  let lastSection = null;
+  return cues.map((c, i) => {
+    const head = c.section && c.section !== lastSection
+      ? `<div class="ros-section">${escapeHtml(c.section)}</div>` : "";
+    lastSection = c.section || lastSection;
+    const state = i < cur ? "ros-done" : i === cur ? "ros-now" : "";
+    return `
+      ${head}
+      <div class="ros-cue ${state}" data-jump="${i}" id="rosCue${i}">
+        <div class="ros-cue-top">
+          ${i === cur ? `<span class="ros-nowtag">NOW</span>` : ""}
+          <div class="ros-time">${escapeHtml(c.time || "")}</div>
+          ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
         </div>
-        <button class="ros-close" id="rosCloseBtn">Close</button>
-      </div>
-      <div class="ros-body">
-        <div style="font-size:13.5px; font-weight:700; line-height:1.4; margin-bottom:16px;">
-          ${escapeHtml(ros.header || "")}
-        </div>
-        ${ros.sections.map((sec) => `
-          <div class="ros-section">${escapeHtml(sec.name)}</div>
-          ${sec.cues.map((c) => `
-            <div class="ros-cue">
-              <div class="ros-cue-top">
-                <div class="ros-time">${escapeHtml(c.time)}</div>
-                ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
-              </div>
-              <div class="ros-event">${escapeHtml(c.event)}</div>
-              ${field("Screen", c.screen)}
-              ${field("Ribbon", c.ribbon)}
-              ${field("Audio", c.audio)}
-              ${field("Note", c.notes, "ros-note")}
-            </div>
-          `).join("")}
-        `).join("")}
-        ${ros.emergency && ros.emergency.length ? `
-          <div class="ros-emerg">
-            <div class="ros-emerg-title">Emergency Response Information</div>
-            ${ros.emergency.map((p) => `
-              <p class="${p.startsWith("SAY:") ? "ros-say" : ""}">${escapeHtml(p)}</p>
-            `).join("")}
+        <div class="ros-event">${escapeHtml(c.event || "")}</div>
+        ${rosFieldHtml("Screen", c.screen)}
+        ${rosFieldHtml("Ribbon", c.ribbon)}
+        ${rosFieldHtml("Audio", c.audio)}
+        ${rosFieldHtml("Note", c.notes, "ros-note")}
+      </div>`;
+  }).join("");
+}
+
+function rosEditListHtml(cues) {
+  return cues.map((c, i) => `
+    <div class="ros-cue ros-editing">
+      <div class="ros-edit-head">
+        <div class="ros-edit-main" data-editcue="${i}">
+          <div class="ros-cue-top">
+            <div class="ros-time">${escapeHtml(c.time || "—")}</div>
+            ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
           </div>
-        ` : ""}
+          <div class="ros-event">${escapeHtml(c.event || "(untitled cue)")}</div>
+          ${c.section ? `<div class="ros-field-val" style="font-size:11px; margin-top:3px;">${escapeHtml(c.section)}</div>` : ""}
+        </div>
+        <div class="ros-edit-tools">
+          <button class="ros-tool" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button class="ros-tool" data-move="${i}" data-dir="1" ${i === cues.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="ros-tool ros-tool-del" data-delcue="${i}">✕</button>
+        </div>
       </div>
     </div>
-  `;
+  `).join("");
+}
+
+// Keep the live cue on screen without yanking the page around if it's
+// already visible.
+function rosScrollToCurrent() {
+  const el = document.getElementById("rosCue" + rosState.current);
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (r.top < 60 || r.bottom > window.innerHeight - 90) {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function rosMove(i, dir) {
+  const cues = rosState.cues.slice();
+  const j = i + dir;
+  if (j < 0 || j >= cues.length) return;
+  [cues[i], cues[j]] = [cues[j], cues[i]];
+  // Follow the live cue if it was one of the two that moved, so reordering
+  // during a show doesn't silently change what's being called.
+  let cur = rosState.current;
+  if (cur === i) cur = j; else if (cur === j) cur = i;
+  rosSaveCues(cues, cur);
+}
+
+function rosDeleteCue(i) {
+  const c = rosState.cues[i];
+  if (!confirm(`Delete this cue?\n\n${c.time ? c.time + " — " : ""}${c.event || "(untitled)"}`)) return;
+  const cues = rosState.cues.slice();
+  cues.splice(i, 1);
+  let cur = rosState.current;
+  if (cur > i) cur -= 1;
+  if (cur >= cues.length) cur = Math.max(0, cues.length - 1);
+  rosSaveCues(cues, cur);
+}
+
+// index -1 adds a new cue at the end.
+function rosOpenCueEditor(index) {
+  const adding = index < 0;
+  const c = adding
+    ? { section: (rosState.cues[rosState.cues.length - 1] || {}).section || "", time: "", dur: "", event: "", screen: "", ribbon: "", audio: "", notes: "" }
+    : Object.assign({}, rosState.cues[index]);
+
+  const field = (id, label, val, ph) => `
+    <div class="field-block">
+      <div class="label">${label}</div>
+      <input id="${id}" value="${escapeAttr(val || "")}" placeholder="${escapeAttr(ph || "")}" />
+    </div>`;
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:480px; margin:auto;">
+      <div class="modal-title">${adding ? "Add Cue" : "Edit Cue"}</div>
+      ${field("cuSection", "Section", c.section, "Pregame, 1st Quarter, …")}
+      <div class="row2">
+        ${field("cuTime", "Time / Marker", c.time, "5:35:00 PM or 1st qtr")}
+        ${field("cuDur", "Duration", c.dur, "30 sec")}
+      </div>
+      ${field("cuEvent", "Speaker / Event", c.event, "What happens")}
+      ${field("cuScreen", "Big Screen", c.screen, "")}
+      ${field("cuRibbon", "Ribbon", c.ribbon, "")}
+      ${field("cuAudio", "Audio", c.audio, "")}
+      ${field("cuNotes", "Notes", c.notes, "")}
+      <button class="primary-btn" id="cuSave">${adding ? "Add Cue" : "Save Cue"}</button>
+      <button class="shift-btn shift-btn-ghost" id="cuCancel"
+        style="width:100%; margin:10px 0 0; padding:11px 0;">Cancel</button>
+    </div>`;
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
 
-  function close() {
-    overlay.remove();
-    document.body.style.overflow = "";
-    document.removeEventListener("keydown", onKey);
-  }
-  function onKey(e) { if (e.key === "Escape") close(); }
-
-  overlay.querySelector("#rosCloseBtn").onclick = close;
+  function close() { overlay.remove(); document.body.style.overflow = ""; }
+  overlay.querySelector("#cuCancel").onclick = close;
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
-  document.addEventListener("keydown", onKey);
+
+  overlay.querySelector("#cuSave").onclick = () => {
+    const v = (id) => overlay.querySelector("#" + id).value.trim();
+    const updated = {
+      section: v("cuSection"), time: v("cuTime"), dur: v("cuDur"),
+      event: v("cuEvent"), screen: v("cuScreen"), ribbon: v("cuRibbon"),
+      audio: v("cuAudio"), notes: v("cuNotes"),
+    };
+    if (!updated.event && !updated.time) {
+      alert("Give the cue a time or an event — otherwise there's nothing to call.");
+      return;
+    }
+    const cues = rosState.cues.slice();
+    if (adding) cues.push(updated); else cues[index] = updated;
+    close();
+    rosSaveCues(cues);
+  };
 }
 
 function renderProfileEditor(profile) {
