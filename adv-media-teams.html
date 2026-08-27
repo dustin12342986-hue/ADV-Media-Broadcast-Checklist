@@ -360,6 +360,74 @@
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
+
+  /* ---- Run of Show -------------------------------------------------------
+     Full-height sheet rather than the small centered modal-card: a run of
+     show is long and gets read while standing at a position, so it needs
+     room to scroll and big enough type to read at a glance. */
+  .ros-btn {
+    width: 100%; margin-top: 10px; padding: 12px 0; border-radius: 10px;
+    border: 1px solid var(--blue); background: #1B2A38; color: #8FC6F0;
+    font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+  .ros-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 1000;
+    padding: 12px;
+  }
+  .ros-sheet {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    max-width: 620px; margin: 0 auto; height: 100%;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .ros-head {
+    display: flex; align-items: center; gap: 10px; padding: 13px 15px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .ros-head-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 800; }
+  .ros-head-title span {
+    display: block; font-size: 11px; font-weight: 700; color: var(--text-muted);
+    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ros-close {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; font-size: 12.5px; font-weight: 700; font-family: inherit;
+    padding: 8px 13px; cursor: pointer; flex-shrink: 0;
+  }
+  .ros-body { flex: 1; overflow-y: auto; padding: 14px 15px 30px; }
+  .ros-section {
+    font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase;
+    letter-spacing: 0.7px; margin: 22px 0 8px; padding-bottom: 5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ros-section:first-child { margin-top: 0; }
+  .ros-cue {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .ros-cue-top {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px;
+  }
+  .ros-time { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ros-dur { font-size: 11px; color: var(--text-faint); font-weight: 700; }
+  .ros-event { font-size: 14px; font-weight: 700; line-height: 1.35; }
+  .ros-field { display: flex; gap: 8px; font-size: 12.5px; margin-top: 5px; line-height: 1.4; }
+  .ros-field-label {
+    flex: 0 0 62px; color: var(--text-faint); font-weight: 800;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding-top: 2px;
+  }
+  .ros-field-val { flex: 1; color: var(--text-muted); }
+  .ros-field.ros-note .ros-field-val { color: var(--amber); font-weight: 600; }
+  .ros-emerg {
+    background: #2A1512; border: 1px solid var(--red); border-radius: 10px;
+    padding: 12px 14px; margin-top: 18px;
+  }
+  .ros-emerg-title {
+    font-size: 11px; font-weight: 800; color: #F2B8B1; text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 8px;
+  }
+  .ros-emerg p { font-size: 12.5px; line-height: 1.5; color: #E8C4BF; margin: 0 0 9px; }
+  .ros-emerg p:last-child { margin-bottom: 0; }
+  .ros-emerg .ros-say { font-weight: 800; color: #F7DAD5; }
   .modal-card {
     background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
     padding: 20px; max-width: 400px; width: 100%;
@@ -1268,14 +1336,7 @@ async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
   const dateId = tomorrowId();
-  const roster = await currentRosterFor(dateId);
-  let sched = null;
-  for (const [pos, name] of Object.entries(roster.assigned)) {
-    if (namesMatch(name, profile.legalName, profile.crewHandle)) {
-      sched = { position: pos, game: GAMES.find((g) => g.id === dateId) };
-      break;
-    }
-  }
+  const sched = findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
   if (!sched) { host.innerHTML = ""; return; }
 
   const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
@@ -1327,13 +1388,7 @@ async function renderConfirmCard(profile) {
         confirmedAt: new Date().toISOString(),
         confirmedBy: currentUser.uid,
       });
-      // Show success straight from the successful write. Re-reading to
-      // check would fail silently if read access is restricted, which
-      // makes a successful confirm look like nothing happened.
-      host.innerHTML = `
-        <div class="setup-warning" style="display:block; margin-bottom:16px; background:#10201A; border-color:var(--green); color:#A8E0C4;">
-          ✓ You're confirmed for ${escapeHtml(label)}. See you there.
-        </div>`;
+      renderConfirmCard(profile);
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "I'll be there — Confirm";
@@ -1362,14 +1417,10 @@ function normalizePhoneForSms(phone) {
 
 async function textTomorrowsCrew() {
   const dateId = tomorrowId();
+  const positions = ROSTER_DATA[dateId];
   const game = GAMES.find((g) => g.id === dateId);
-  if (!game) {
+  if (!positions || !game) {
     alert("Nothing on the schedule for tomorrow.");
-    return;
-  }
-  const positions = (await currentRosterFor(dateId)).assigned;
-  if (Object.keys(positions).length === 0) {
-    alert("Nobody's assigned to tomorrow's game yet.");
     return;
   }
 
@@ -1425,7 +1476,7 @@ async function renderConfirmations() {
     // Someone who hasn't confirmed has no record yet, so reading the
     // records alone silently drops them — they'd show as neither
     // confirmed nor waiting.
-    const todayId = localDateId(0);
+    const todayId = new Date().toISOString().slice(0, 10);
     const upcoming = GAMES.filter((g) => g.id >= todayId);
 
     if (upcoming.length === 0) {
@@ -1433,18 +1484,15 @@ async function renderConfirmations() {
       return;
     }
 
-    // Pull the live roster for each upcoming game so pickups and drops show.
-    const rosters = {};
-    for (const g of upcoming) rosters[g.id] = await currentRosterFor(g.id);
-
     inner.innerHTML = `
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
-      <div class="footnote" style="margin-bottom:12px;">Live roster · v2 — everyone currently assigned, and whether they've confirmed. Reflects pickups and drops.</div>
+      <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
       ${upcoming.map((game) => {
-        const positions = (rosters[game.id] || {}).assigned || {};
+        const positions = ROSTER_DATA[game.id] || {};
         const confirms = byGame[game.id] || {};
 
         const rows = Object.entries(positions)
+          .filter(([, name]) => name && name !== "TBD")
           .map(([pos, name]) => {
             const key = pos.replace(/[^A-Za-z0-9]/g, "_");
             const rec = confirms[key];
@@ -1453,7 +1501,7 @@ async function renderConfirmations() {
 
         if (rows.length === 0) return "";
 
-        const open = (rosters[game.id] || {}).open || 0;
+        const open = Object.entries(positions).filter(([, n]) => !n || n === "TBD").length;
         const yes = rows.filter((r) => r.confirmed).length;
         const no = rows.length - yes;
 
@@ -2416,46 +2464,45 @@ async function renderEquipmentReports() {
   }
 }
 
-// Who is ACTUALLY on a game, as { position: name }. liveRoster reflects
-// pickups and drops; ROSTER_DATA is just the original season plan, so
-// reading it alone shows a stale lineup once any shift changes hands.
-async function currentRosterFor(gameId) {
-  const out = { assigned: {}, open: 0 };
-  try {
-    const snap = await db.ref(`liveRoster/${gameId}`).once("value");
-    const live = snap.val() || {};
-    Object.values(live).forEach((slot) => {
-      if (!slot) return;
-      if (slot.status === "assigned" && slot.name) out.assigned[slot.role] = slot.name;
-      else out.open++;
-    });
-  } catch (e) {
-    console.error("liveRoster read failed:", e);
-  }
-  return out;
-}
-
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
 
-  const todayId = localDateId(0);
-  const game = GAMES.find((g) => g.id === todayId);
+  const todayId = new Date().toISOString().slice(0, 10);
+  const tomorrowId = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  // Today's game if there is one. If not, look one day ahead — the run of
+  // show goes up 24 hours out so Directors and Producers can read it before
+  // call time, and there's no point hiding the rest of the card behind that.
+  let game = GAMES.find((g) => g.id === todayId);
+  let gameId = todayId;
+  let isTomorrow = false;
+  if (!game) {
+    game = GAMES.find((g) => g.id === tomorrowId);
+    gameId = tomorrowId;
+    isTomorrow = true;
+  }
 
   if (!game) {
-    inner.innerHTML = `<div class="footnote">No game scheduled today.</div>`;
+    inner.innerHTML = `<div class="footnote">No game scheduled today or tomorrow.</div>`;
     return;
   }
 
-  const roster = await currentRosterFor(todayId);
-  const filled = Object.entries(roster.assigned);
+  const positions = ROSTER_DATA[gameId] || {};
+  const filled = Object.entries(positions).filter(([, name]) => name && name !== "TBD");
+  const ros = RUN_OF_SHOW[gameId];
 
   inner.innerHTML = `
     <div class="shift-game-card">
-      <div class="shift-game-header">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
+      <div class="shift-game-header">
+        ${isTomorrow ? "Tomorrow — " : ""}${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}
+      </div>
       <div id="todayWeather" class="footnote">Loading weather…</div>
+      ${ros ? `<button class="ros-btn" id="rosOpenBtn">📋 Run of Show</button>` : ""}
     </div>
-    <div class="footnote" style="margin:14px 0 8px;">Working today (${filled.length})</div>
+    <div class="footnote" style="margin:14px 0 8px;">
+      ${isTomorrow ? "Working tomorrow" : "Working today"} (${filled.length})
+    </div>
     ${filled.map(([role, name]) => `
       <div class="shift-row">
         <div class="shift-role">${escapeHtml(role)}</div>
@@ -2464,11 +2511,88 @@ async function renderTodayView() {
     `).join("")}
   `;
 
+  if (ros) {
+    document.getElementById("rosOpenBtn").onclick = () => openRunOfShow(gameId);
+  }
+
   const weather = await getVenueWeather();
   const weatherEl = document.getElementById("todayWeather");
   if (weatherEl) {
     weatherEl.textContent = weather ? `${weather.name}: ${weather.temp}°${weather.unit} — ${weather.forecast}` : "Weather unavailable right now.";
   }
+}
+
+// ============================================================================
+// Run of Show viewer — built fresh each open and torn down on close, same
+// pattern as the drop and assign modals.
+// ============================================================================
+function openRunOfShow(gameId) {
+  const ros = RUN_OF_SHOW[gameId];
+  if (!ros) return;
+  const game = GAMES.find((g) => g.id === gameId);
+
+  const field = (label, value, cls) => value
+    ? `<div class="ros-field ${cls || ""}">
+         <div class="ros-field-label">${label}</div>
+         <div class="ros-field-val">${escapeHtml(value)}</div>
+       </div>`
+    : "";
+
+  const overlay = document.createElement("div");
+  overlay.className = "ros-overlay";
+  overlay.innerHTML = `
+    <div class="ros-sheet" role="dialog" aria-modal="true" aria-label="Run of Show">
+      <div class="ros-head">
+        <div class="ros-head-title">
+          Run of Show
+          <span>${escapeHtml(game ? game.date : "")} · ${escapeHtml(ros.sub || "")}</span>
+        </div>
+        <button class="ros-close" id="rosCloseBtn">Close</button>
+      </div>
+      <div class="ros-body">
+        <div style="font-size:13.5px; font-weight:700; line-height:1.4; margin-bottom:16px;">
+          ${escapeHtml(ros.header || "")}
+        </div>
+        ${ros.sections.map((sec) => `
+          <div class="ros-section">${escapeHtml(sec.name)}</div>
+          ${sec.cues.map((c) => `
+            <div class="ros-cue">
+              <div class="ros-cue-top">
+                <div class="ros-time">${escapeHtml(c.time)}</div>
+                ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
+              </div>
+              <div class="ros-event">${escapeHtml(c.event)}</div>
+              ${field("Screen", c.screen)}
+              ${field("Ribbon", c.ribbon)}
+              ${field("Audio", c.audio)}
+              ${field("Note", c.notes, "ros-note")}
+            </div>
+          `).join("")}
+        `).join("")}
+        ${ros.emergency && ros.emergency.length ? `
+          <div class="ros-emerg">
+            <div class="ros-emerg-title">Emergency Response Information</div>
+            ${ros.emergency.map((p) => `
+              <p class="${p.startsWith("SAY:") ? "ros-say" : ""}">${escapeHtml(p)}</p>
+            `).join("")}
+          </div>
+        ` : ""}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+
+  function close() {
+    overlay.remove();
+    document.body.style.overflow = "";
+    document.removeEventListener("keydown", onKey);
+  }
+  function onKey(e) { if (e.key === "Escape") close(); }
+
+  overlay.querySelector("#rosCloseBtn").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  document.addEventListener("keydown", onKey);
 }
 
 function renderProfileEditor(profile) {
@@ -2589,6 +2713,94 @@ function renderProfileEditor(profile) {
 // ============================================================================
 // ID Card
 // ============================================================================
+// ============================================================================
+// Run of Show — the client's show rundown, keyed by game id. Appears on the
+// Today tab from 24 hours out so Directors and Producers can read it ahead of
+// call time.
+//
+// ADDING ONE: copy the block below, change the key to the game's id from
+// GAMES, and replace the cues. Every field except `time` and `event` is
+// optional — leave a field off and its row just doesn't render.
+// ============================================================================
+const RUN_OF_SHOW = {
+  "2026-08-27": {
+    header: "Texas Wesleyan Rams vs University of Central Oklahoma",
+    sub: "Kickoff 6:00 PM",
+    sections: [
+      {
+        name: "Pregame",
+        cues: [
+          { time: "4:00:00 PM", dur: "1 hr 35 min", event: "House Music", screen: "Rams Welcome", audio: "House Music", notes: "Team to provide" },
+          { time: "5:35:00 PM", dur: "2 min 30 sec", event: "LCS Announcement AD", screen: "LCS Video AD", audio: "Commercial" },
+          { time: "5:38:00 PM", dur: "1 min", event: "10 Years FB AD", screen: "10 Year Ad", audio: "Commercial" },
+          { time: "5:40:00 PM", dur: "30 sec", event: "Welcome", screen: "Rams Logo", audio: "Announcer" },
+          { time: "5:41:20 PM", dur: "15 sec", event: "Welcome to Central OK Univ", screen: "COKU Logo", audio: "Announcer" },
+          { time: "5:41:30 PM", dur: "30 sec", event: "CISD Thank You", screen: "TXWES CISD Logo", audio: "Announcer" },
+          { time: "5:42:00 PM", dur: "45 sec", event: "NAIA CofC", screen: "Rams Logo", audio: "Announcer" },
+          { time: "5:42:45 PM", dur: "1 min", event: "COKU starting offense", screen: "COKU Logo", audio: "Announcer" },
+          { time: "5:44:15 PM", dur: "1 min 30 sec", event: "RAMS starting defense", screen: "RAMS Defense Videos", audio: "Announcer" },
+          { time: "5:46:00 PM", dur: "1 min", event: "COKU starting defense", screen: "COKU Logo", audio: "Announcer" },
+          { time: "5:47:30 PM", dur: "90 sec", event: "RAMS starting offense", screen: "RAMS Offense Headshots", audio: "Announcer" },
+          { time: "5:49:30 PM", dur: "30 sec", event: "Officials", screen: "Live Action or RAM Logo", audio: "Announcer" },
+          { time: "5:50:00 PM", dur: "2 min", event: "COKU Bronchos come out onto field (or not)", screen: "Live Action or OUAZ Logo", audio: "Announcer" },
+          { time: "5:53:00 PM", dur: "1 min 30 sec", event: "Rams Run Out", screen: "Live Action", ribbon: "Play Hype video first", audio: "Announcer" },
+          { time: "5:54:30 PM", dur: "50 sec", event: "Pregame Moment of Silence / Prayer", screen: "Bobby Cornett photo · US Flag", audio: "Announcer" },
+          { time: "5:55:30 PM", dur: "1 min", event: "ROTC present colors", screen: "US Flag", audio: "Announcer" },
+          { time: "5:56:00 PM", dur: "1 min 30 sec", event: "National Anthem", screen: "US Flag or Live Action", notes: "May need on-field microphones" },
+          { time: "5:57:30 PM", dur: "40 sec", event: "ROTC takes flag off field", screen: "Live Action or US Flag" },
+          { time: "5:58:30 PM", dur: "1 min 30 sec", event: "Coin Toss", screen: "Live Action", audio: "Announcer" },
+          { time: "6:00:00 PM – 6:02 PM", event: "Kickoff", screen: "Live Action", audio: "House Music" },
+        ],
+      },
+      {
+        name: "1st & 2nd Quarter",
+        cues: [
+          { time: "1st qtr", event: "Announcement #1 — Ram Store", screen: "Rams Logo", audio: "Announcer" },
+          { time: "1st qtr", event: "Announcement #2 — Moritz", screen: "Moritz Ad", audio: "Moritz Ad" },
+          { time: "1st qtr", event: "Announcement #3 — Champions RM", screen: "Champions Club Logo", audio: "Announcer" },
+          { time: "1st qtr", event: "Announcement #4 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "English version" },
+          { time: "1st qtr", event: "Announcement #5 — MX Real", screen: "Mexico Real Logo", audio: "Announcer" },
+          { time: "End of 1st qtr", event: "Dance Cam or Mascot Race", screen: "Live Action", ribbon: "Start with Napoleon video", audio: "On-field microphone", notes: "Field camera goes to Camryn on field" },
+          { time: "2nd qtr", event: "Announcement #6 — Metro Golf", screen: "Metro AD", audio: "Metro AD" },
+          { time: "2nd qtr", event: "Announcement #7 — Band Recognition", screen: "Band Recognition · Live Action", audio: "Announcer" },
+          { time: "2nd qtr", event: "Announcement #8 — The Rams Hour", screen: "The Rams Hour Logo", audio: "Announcer" },
+          { time: "2nd qtr", event: "Announcement #9 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "Spanish version" },
+        ],
+      },
+      {
+        name: "Half & 3rd Quarter",
+        cues: [
+          { time: "Into the half", event: "Band plays or house music", audio: "Band plays or house music" },
+          { time: "Halftime", event: "1. Kicks for Cash · 2. GL Dancers · 3. Junkin honor", screen: "1. KFC Logo · 3. Junkin Graphic", audio: "Announcer" },
+          { time: "3rd qtr", event: "Announcement #10 — Moritz", screen: "Moritz Ad", audio: "Moritz Ad", notes: "First timeout · English version" },
+          { time: "3rd qtr", event: "Announcement #11 — Ramsports.net", screen: "Ramsports.net logo", audio: "Announcer" },
+          { time: "3rd qtr", event: "Announcement #12 — Champions Club", screen: "Give to Champions Graphic", audio: "Announcer" },
+          { time: "3rd qtr", event: "Announcement #13 — NBT", screen: "NBT Video", audio: "NBT AD", notes: "English version" },
+          { time: "End of 3rd qtr", event: "Flex or Karaoke Cam", screen: "Live Action", audio: "On-field microphone", notes: "Field camera goes to Camryn in stands" },
+        ],
+      },
+      {
+        name: "4th Quarter & Postgame",
+        cues: [
+          { time: "4th qtr", event: "Announcement #14 — Metro AD", screen: "Metro AD", audio: "Metro AD", notes: "Metro Golf Carts AD" },
+          { time: "4th qtr", event: "Announcement #15 — Cheer Recognition", screen: "Cheer Graphic", audio: "Announcer" },
+          { time: "4th qtr", event: "Announcement #16 — Next Game", screen: "Next Game Graphic", audio: "Announcer" },
+          { time: "4th qtr", event: "Announcement #17 — NBT", screen: "NBT AD", audio: "NBT AD", notes: "English version" },
+          { time: "Postgame", event: "Band plays", screen: "Next game graphic", audio: "Announcer" },
+        ],
+      },
+    ],
+    emergency: [
+      "In response to a fire, an evacuation of the affected area within the stadium would be required. The following language can be used to conduct mass notification at the stadium:",
+      "SAY: Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane. (Repeat once more)",
+      "Due to imminent severe weather, the following language can be used to urge athletes, band students, etc. to seek shelter immediately:",
+      "SAY: Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)",
+      "Due to lightning, the following language can be used to urge athletes, band students, etc. to seek shelter immediately:",
+      "SAY: Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)",
+    ],
+  },
+};
+
 const GAMES = [
   { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma" },
   { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo" },
@@ -2923,36 +3135,46 @@ function namesMatch(rosterName, legalName, crewHandle) {
   });
 }
 
-
-// Local calendar date, not UTC. toISOString() rolls over at 7pm Central,
-// which made the app think tomorrow had already started.
-function localDateId(offsetDays) {
-  const d = new Date();
-  if (offsetDays) d.setDate(d.getDate() + offsetDays);
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
+// Same lookup as findScheduledEvent but for any date — used by the
+// confirmation card, which asks about tomorrow's game.
+function findScheduledEventOn(dateId, legalName, crewHandle) {
+  const positions = ROSTER_DATA[dateId];
+  if (!positions) return null;
+  for (const [pos, name] of Object.entries(positions)) {
+    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
+      const game = GAMES.find((g) => g.id === dateId);
+      return { position: pos, game };
+    }
+  }
+  return null;
 }
 
 function tomorrowId() {
-  return localDateId(1);
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
+function findScheduledEvent(legalName, crewHandle) {
+  const todayId = new Date().toISOString().slice(0, 10);
+  const positions = ROSTER_DATA[todayId];
+  if (!positions) return null;
+  for (const [pos, name] of Object.entries(positions)) {
+    if (name && name !== "TBD" && namesMatch(name, legalName, crewHandle)) {
+      const game = GAMES.find((g) => g.id === todayId);
+      return { position: pos, game };
+    }
+  }
+  return null;
+}
 
-async function renderIdCard(profile) {
+function renderIdCard(profile) {
   const inner = document.getElementById("innerRoot");
   if (!profile.legalName) {
     inner.innerHTML = `<div class="footnote">Fill out your Profile tab first — your ID card builds from that.</div>`;
     return;
   }
-  const todayRoster = await currentRosterFor(localDateId(0));
-  let scheduled = null;
-  for (const [pos, name] of Object.entries(todayRoster.assigned)) {
-    if (namesMatch(name, profile.legalName, profile.crewHandle)) {
-      scheduled = { position: pos, game: GAMES.find((g) => g.id === localDateId(0)) };
-      break;
-    }
-  }
+  const scheduled = findScheduledEvent(profile.legalName, profile.crewHandle);
 
   inner.innerHTML = `
     <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
