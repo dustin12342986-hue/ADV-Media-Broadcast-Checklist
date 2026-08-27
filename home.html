@@ -119,60 +119,15 @@
     border-radius:10px; padding:12px 14px; font-size:13px; margin-top:12px;
   }
 
-  /* --- Code of Conduct button + modal --- */
+  /* Code of Conduct — opens the real PDF, exactly as Aracely built it. */
   .coc-btn {
-    display:block; width:100%; text-align:center; cursor:pointer;
+    display:block; text-decoration:none; color:inherit; text-align:center;
     background:var(--panel); border:1px solid var(--border); border-radius:12px;
-    color:var(--text); font-size:13.5px; font-weight:700; font-family:inherit;
     padding:13px 12px; margin-bottom:22px;
   }
   .coc-btn:active { border-color:var(--blue); }
-  .coc-btn span { display:block; font-size:11.5px; font-weight:500;
-    color:var(--text-faint); margin-top:3px; }
-
-  .coc-overlay {
-    position:fixed; inset:0; background:rgba(5,8,12,0.82);
-    display:none; z-index:900; padding:14px;
-    -webkit-overflow-scrolling:touch;
-  }
-  .coc-overlay.open { display:block; }
-  .coc-sheet {
-    background:var(--panel); border:1px solid var(--border); border-radius:16px;
-    max-width:680px; margin:0 auto; height:100%;
-    display:flex; flex-direction:column; overflow:hidden;
-  }
-  .coc-head {
-    display:flex; align-items:center; gap:12px; padding:16px 18px;
-    border-bottom:1px solid var(--border); flex-shrink:0;
-  }
-  .coc-head-title { flex:1; font-size:16px; font-weight:800; }
-  .coc-head-title span { display:block; font-size:11px; font-weight:600;
-    color:var(--text-faint); letter-spacing:0.4px; text-transform:uppercase;
-    margin-top:2px; }
-  .coc-close {
-    background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    border-radius:9px; font-size:13px; font-weight:700; font-family:inherit;
-    padding:8px 14px; cursor:pointer;
-  }
-  .coc-body { overflow-y:auto; padding:20px 18px 34px; }
-  .coc-body h2 {
-    font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:700;
-    margin:30px 0 4px; letter-spacing:-0.3px;
-  }
-  .coc-body h2:first-child { margin-top:0; }
-  .coc-body h3 {
-    font-size:13px; font-weight:800; color:var(--blue);
-    text-transform:uppercase; letter-spacing:0.6px; margin:24px 0 8px;
-  }
-  .coc-body p { font-size:14.5px; line-height:1.65; margin:0 0 13px; }
-  .coc-body ul { margin:0 0 13px; padding-left:20px; }
-  .coc-body li { font-size:14.5px; line-height:1.6; margin-bottom:9px; }
-  .coc-sig { font-style:italic; font-weight:700; color:var(--text-muted); }
-  .coc-rule { border:none; border-top:1px solid var(--border); margin:26px 0; }
-  .coc-foot {
-    text-align:center; color:var(--text-faint); font-size:11.5px;
-    font-style:italic; letter-spacing:0.3px; margin-top:26px;
-  }
+  .coc-btn-name { font-size:13.5px; font-weight:700; }
+  .coc-btn-sub  { font-size:11.5px; color:var(--text-faint); margin-top:3px; }
 </style>
 </head>
 <body>
@@ -181,137 +136,13 @@
     <h1 class="banner-name">ADV Media Teams</h1>
     <p class="banner-sub">Live Broadcast &amp; Event Production</p>
   </div>
-  <button class="coc-btn" id="cocOpen">
-    Code of Conduct
-    <span>2026–2027 · How we show up on site</span>
-  </button>
+  <a class="coc-btn" href="./ADV_Media_Code_of_Conduct_2026_2027.pdf"
+     target="_blank" rel="noopener">
+    <div class="coc-btn-name">Code of Conduct</div>
+    <div class="coc-btn-sub">2026–2027 · Internal use</div>
+  </a>
 
   <div id="root"><div class="footnote">Loading…</div></div>
-</div>
-
-<!-- ==========================================================================
-     CODE OF CONDUCT — full text inlined, no external file to keep in sync.
-     Source: ADV_Media_Code_of_Conduct_2026_2027. Internal use only.
-     ========================================================================== -->
-<div class="coc-overlay" id="cocOverlay">
-  <div class="coc-sheet" role="dialog" aria-modal="true" aria-label="Code of Conduct">
-    <div class="coc-head">
-      <div class="coc-head-title">
-        Code of Conduct
-        <span>2026–2027 · Internal Use · Confidential</span>
-      </div>
-      <button class="coc-close" id="cocClose">Close</button>
-    </div>
-    <div class="coc-body" id="cocBody">
-
-      <h2>A Note from Aracely, Founder &amp; CEO</h2>
-      <p>Everything we do at ADV Media comes back to one thing: how we make our clients
-        feel. They need to feel heard. They need to feel like they can trust us — through
-        the way we dress, the way we carry ourselves, and the way we show up in their
-        spaces. That kind of professionalism isn't something you can fake and it isn't
-        something we can manufacture for you. It has to come from within.</p>
-      <p>What we can do is outline it. Not as a rulebook, but as a guide for your own
-        personal success and for the success of this team. When you win, ADV wins. When
-        ADV wins, we all eat. This is what that looks like in practice.</p>
-      <p>Welcome to the crew. We are so glad you are here.</p>
-      <p class="coc-sig">— Aracely</p>
-
-      <hr class="coc-rule" />
-
-      <h2>How We Show Up On Site</h2>
-
-      <h3>Arrival</h3>
-      <p>We ask that you arrive at your call time, not show time, but call time. That
-        buffer exists for a reason and it gives everyone, including you, a chance to settle
-        in and feel prepared before the work begins. Before you head to your position,
-        check in through the ADV Media Teams app and confirm your digital ID card is
-        active. It also helps to review the advance beforehand so you already have a feel
-        for the space and what the day looks like.</p>
-
-      <h3>Appearance</h3>
-      <p>Dress code is communicated per event through the ADV Media Teams platform so you
-        always know what is expected ahead of time. A few things stay consistent across
-        every event:</p>
-      <ul>
-        <li>Your ADV Media shirt is part of your gear, just like your lanyard and media
-          pass. One shirt is provided to every contractor at no cost when you join the
-          team. It should be clean and wrinkle free every time you wear it: treat it like
-          the credential it is.</li>
-        <li>Your media pass and lanyard are required on every site, every time. No
-          exceptions. They identify you as part of the team and make it easier for venue
-          staff, clients, and campus personnel to recognize that you belong there.</li>
-        <li>Closed-toe shoes are required on every set and every stage. This is a safety
-          standard as much as a dress standard.</li>
-        <li>Shorts and skirts must fall no shorter than knuckle length when your arms are
-          relaxed at your sides.</li>
-        <li>Everything you wear should fit well and stay in place, whether you are
-          squatting to run cable, reaching overhead, or working outside in the wind — your
-          clothing should move with you without becoming a distraction or a hazard.</li>
-        <li>Flowy or very loose clothing tends to catch on equipment and get in the way of
-          the work; fitted and functional is always the right call.</li>
-      </ul>
-      <p>We want you to feel like yourself on site. These guidelines exist to protect you
-        and to make sure the client sees a team they can trust.</p>
-
-      <h3>On Site</h3>
-      <p>Production environments can get busy and a little chaotic, and that is completely
-        normal. A few things that help everything run smoothly:</p>
-      <ul>
-        <li>Stay present and on your post during the show. Your position matters and the
-          team counts on you being where you are supposed to be.</li>
-        <li>If something unexpected comes up, handle it calmly and quietly; clients and
-          audiences take their cues from the crew, and a calm crew makes everyone feel
-          safe.</li>
-        <li>If a client or venue staff member approaches you with a question outside your
-          area, a warm "let me connect you with the right person" goes a long way.</li>
-        <li>Phone usage during a live show should be limited to the ADV Media Teams app for
-          show purposes; everything else can wait. If you need to use your phone for
-          reasons outside of ADV Media, please let your Production Manager or Director
-          know.</li>
-      </ul>
-
-      <h3>With the Crew</h3>
-      <p>This team works because of the people on it. We genuinely want everyone here to
-        feel respected and supported, and that starts with how we treat each other.</p>
-      <ul>
-        <li>Extend the same warmth and professionalism to your crew members that you would
-          to a client.</li>
-        <li>If someone needs a hand and you have one free, offer it.</li>
-        <li>If something is bothering you about how a show went or how something was
-          handled, bring it to leadership privately: the floor during a show is not the
-          place for those conversations.</li>
-        <li>We are better together than we are separately, and that shows in the work.</li>
-      </ul>
-
-      <h3>With Venue Staff and Campus Personnel</h3>
-      <p>Every campus and venue we work in has its own staff, its own rules, and its own
-        culture. Part of showing up well means respecting that.</p>
-      <ul>
-        <li>Introduce yourself warmly and let them know you are with ADV Media.</li>
-        <li>Follow all venue protocols and access procedures without pushback — they are
-          doing their job just like we are doing ours.</li>
-        <li>Your digital ID card in the ADV Media Teams app is your on-site credential if
-          anyone needs to verify your authorization.</li>
-      </ul>
-
-      <h3>Wrapping Up</h3>
-      <p>The end of a show is just as important as the beginning. Strike is a team effort
-        and everyone pitches in regardless of position. Before you head out, submit your
-        equipment report and invoice through the ADV Media Teams app within 4 hours of a
-        show or game ending to ensure prompt payment.</p>
-
-      <hr class="coc-rule" />
-
-      <h2>A Final Note</h2>
-      <p>We are in the business of making moments matter. The couple whose day runs
-        perfectly, the school that pulls off something they are proud of, the client who
-        calls us back every single time; that is what we are here for and you are a big
-        part of why it happens.</p>
-      <p>Thank you for being part of this team.</p>
-
-      <div class="coc-foot">ADV Media — 2026–2027 — Internal Use — Do Not Distribute</div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -359,29 +190,6 @@ const TOOLS = [
 ];
 
 let auth = null, db = null, currentUser = null, gsiInitialized = false;
-
-// ---- Code of Conduct modal -------------------------------------------------
-// Lives outside #root so it works signed in or signed out. Body scroll is
-// locked while open so the page behind doesn't drift on iOS.
-(function () {
-  const overlay = document.getElementById("cocOverlay");
-  const body    = document.getElementById("cocBody");
-  function open()  {
-    overlay.classList.add("open");
-    body.scrollTop = 0;
-    document.body.style.overflow = "hidden";
-  }
-  function close() {
-    overlay.classList.remove("open");
-    document.body.style.overflow = "";
-  }
-  document.getElementById("cocOpen").onclick  = open;
-  document.getElementById("cocClose").onclick = close;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && overlay.classList.contains("open")) close();
-  });
-})();
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
