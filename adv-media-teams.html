@@ -448,8 +448,9 @@
   }
   .ros-cue {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 11px 13px; margin-bottom: 8px; cursor: pointer;
+    padding: 11px 13px; margin-bottom: 8px; cursor: default;
   }
+  body.ros-driving .ros-cue { cursor: pointer; }
   .ros-done { opacity: 0.4; }
   .ros-now {
     background: #14212C; border-color: var(--blue);
@@ -933,7 +934,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v11 · camera colors · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v12 (producer isolation) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3723,6 +3724,8 @@ function rosRender() {
     ` : ""}
   `;
 
+  document.body.classList.toggle("ros-driving", rosIsPrimary());
+
   document.getElementById("rosGameSel").onchange = (e) => {
     rosState.gameId = e.target.value;
     rosState.editing = false;
@@ -3805,9 +3808,14 @@ function rosRender() {
     rosSaveCues(seeded, 0);
   };
 
-  inner.querySelectorAll("[data-jump]").forEach((el) => {
-    el.onclick = () => rosSetCurrent(Number(el.dataset.jump));
-  });
+  // Tap-to-jump moves the whole crew's called cue, so it belongs to the
+  // producer alone. For everyone else the handler isn't attached at all —
+  // an inert-but-tappable cue would just look broken.
+  if (rosIsPrimary()) {
+    inner.querySelectorAll("[data-jump]").forEach((el) => {
+      el.onclick = () => rosSetCurrent(Number(el.dataset.jump));
+    });
+  }
   inner.querySelectorAll("[data-editcue]").forEach((el) => {
     el.onclick = () => rosOpenCueEditor(Number(el.dataset.editcue));
   });
