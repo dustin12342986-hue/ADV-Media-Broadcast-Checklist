@@ -770,6 +770,11 @@ function renderPendingApproval() {
   document.getElementById("pendingLogoutBtn").onclick = () => auth.signOut();
 }
 
+// Bumped by hand whenever this file changes. Rendered at the bottom of every
+// screen so there's never any doubt about which upload is actually live —
+// stale copies in Downloads have cost hours before.
+const APP_BUILD = "build 2026-08-27 · run of show v1 · call times v1";
+
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
     { view: "admin", label: "Crew Directory" },
@@ -825,6 +830,9 @@ function renderMainApp() {
     ` : ""}
     <div id="confirmCard"></div>
     <div id="innerRoot"><div class="footnote">Loading…</div></div>
+    <div class="footnote" style="text-align:center; margin-top:26px; opacity:0.6;">
+      ${escapeHtml(APP_BUILD)}
+    </div>
   `;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
   db.ref(`profiles/${currentUser.uid}`).once("value")
