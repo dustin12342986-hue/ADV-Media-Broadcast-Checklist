@@ -415,6 +415,39 @@
     background: var(--blue); color: #fff; font-size: 9.5px; font-weight: 900;
     letter-spacing: 0.8px; padding: 2px 7px; border-radius: 4px;
   }
+  /* Tally light. Red and pulsing while you're on the live position, grey and
+     still once you've scrolled away — the same read as a camera off air. */
+  .ros-cue { position: relative; }
+  .ros-tally {
+    position: absolute; top: -9px; right: 10px; z-index: 2;
+    display: flex; align-items: center; gap: 5px;
+    background: var(--red); border: 1px solid var(--red); color: #fff;
+    font-size: 9.5px; font-weight: 900; letter-spacing: 1px;
+    padding: 3px 9px; border-radius: 5px; cursor: pointer; font-family: inherit;
+    box-shadow: 0 0 14px rgba(214,90,78,0.55);
+  }
+  .ros-tally-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #fff;
+    animation: rosTallyPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes rosTallyPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .ros-tally.off {
+    background: var(--panel2); border-color: var(--border); color: var(--text-faint);
+    box-shadow: none;
+  }
+  .ros-tally.off .ros-tally-dot { background: var(--text-faint); animation: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .ros-tally-dot { animation: none; }
+  }
+
+  .ros-primary {
+    position: sticky; bottom: 124px; z-index: 51;
+    display: block; width: 100%; margin-top: 8px; padding: 9px 0;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text-muted);
+    font-size: 12px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+  .ros-primary.on { background: var(--red); border-color: var(--red); color: #fff; }
   .ros-cue-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
   .ros-time { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .ros-dur { font-size: 11px; color: var(--text-faint); font-weight: 700; }
@@ -457,8 +490,38 @@
     font-variant-numeric: tabular-nums; min-width: 52px; text-align: center;
   }
 
-  .ros-editing { cursor: default; }
-  .ros-edit-head { display: flex; align-items: center; gap: 10px; }
+  /* Prompter bar sits directly above the advance bar, both sticky. */
+  .ros-prompt {
+    position: sticky; bottom: 78px; z-index: 51;
+    display: flex; align-items: center; gap: 8px; margin-top: 16px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 8px 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  }
+  .ros-play {
+    flex: 0 0 auto; width: 46px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); font-size: 15px; font-weight: 800; cursor: pointer;
+    font-family: inherit; line-height: 1;
+  }
+  .ros-play.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .ros-speed {
+    flex: 1; text-align: center; font-size: 15px; font-weight: 800;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .ros-speed span {
+    display: block; font-size: 9.5px; font-weight: 700; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+  }
+  .ros-follow-pill {
+    position: sticky; bottom: 168px; z-index: 52;
+    display: block; width: 100%; margin-top: 10px; padding: 10px 0;
+    border-radius: 10px; border: 1px solid var(--amber);
+    background: #2A2418; color: var(--amber);
+    font-size: 12.5px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+
+  .ros-editing { cursor: default; }  .ros-edit-head { display: flex; align-items: center; gap: 10px; }
   .ros-edit-main { flex: 1; min-width: 0; cursor: pointer; }
   .ros-edit-tools { flex: 0 0 auto; display: flex; gap: 5px; }
   .ros-tool {
@@ -773,7 +836,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v1 · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v3 (tally+primary) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2974,7 +3037,195 @@ async function renderTodayView() {
 // and the constant is never read again.
 // ============================================================================
 let unsubRos = null;
-const rosState = { gameId: null, editing: false, cues: [], current: 0, loaded: false };
+const rosState = { gameId: null, editing: false, cues: [], current: 0, loaded: false,
+                   prompter: null, primary: null, following: true, lastTouch: 0 };
+
+// ---- Shared prompter -------------------------------------------------------
+// Rather than one device streaming its scroll position to everyone, the shared
+// record is an anchor: where the scroll was, when it was there, and how fast
+// it's moving. Every device computes its own position from that. No drift, no
+// write per frame, and a phone that sleeps and wakes lands in the right place.
+//
+//   prompter = { running, speed (cues/min), anchor (float cue pos), at (ms) }
+//   position(now) = running ? anchor + speed/60000 * (now - at) : anchor
+//
+// `at` is on the Firebase server clock. Phone clocks disagree by enough to
+// matter at these speeds, so we correct with .info/serverTimeOffset.
+let rosClockOffset = 0;
+let rosRaf = null;
+let rosIdleTimer = null;
+const ROS_RESUME_AFTER_MS = 10000;  // idle this long and following resumes
+const ROS_TOP_GAP = 96;             // leave room for the tab bar
+
+function rosNow() { return Date.now() + rosClockOffset; }
+function rosIsPrimary() {
+  return !!(rosState.primary && currentUser && rosState.primary.uid === currentUser.uid);
+}
+
+// Claim the show. One person drives; everyone else is pulled back to their
+// position after they stop touching their own screen. Touching any transport
+// control claims it implicitly — nobody should have to think about this
+// mid-show.
+function rosClaimPrimary() {
+  if (rosIsPrimary()) return;
+  const p = { uid: currentUser.uid, name: (myProfile && myProfile.legalName) || currentUser.email || "", at: rosNow() };
+  rosState.primary = p;
+  rosWrite({ primary: p });
+}
+function rosReleasePrimary() {
+  rosState.primary = null;
+  rosRender();
+  rosWrite({ primary: null });
+}
+
+// Inverse of rosApplyScroll: what cue position is the page sitting at right
+// now? Used when the primary drags the page by hand — that becomes the new
+// shared position.
+function rosVisualPos() {
+  const target = window.scrollY + ROS_TOP_GAP;
+  for (let i = rosState.cues.length - 1; i >= 0; i--) {
+    const el = document.getElementById("rosCue" + i);
+    if (!el || el.offsetTop > target) continue;
+    const next = document.getElementById("rosCue" + (i + 1));
+    const span = next ? (next.offsetTop - el.offsetTop) : el.offsetHeight;
+    return i + Math.max(0, Math.min(0.999, (target - el.offsetTop) / (span || 1)));
+  }
+  return 0;
+}
+
+function rosDefaultPrompter() {
+  return { running: false, speed: 2, anchor: 0, at: rosNow() };
+}
+
+function rosPos(p, cues) {
+  if (!p) return 0;
+  const max = Math.max(0, cues.length - 1);
+  const raw = p.running
+    ? p.anchor + (p.speed / 60000) * (rosNow() - p.at)
+    : p.anchor;
+  return Math.max(0, Math.min(max, raw));
+}
+
+// Freeze wherever it is right now, then apply a change. Without this, changing
+// speed mid-run would re-interpret the old elapsed time at the new rate and
+// jump the page.
+function rosPromptWrite(patch) {
+  const p = rosState.prompter || rosDefaultPrompter();
+  const next = Object.assign({}, p, { anchor: rosPos(p, rosState.cues), at: rosNow() }, patch);
+  rosState.prompter = next;
+  rosRender();
+  rosWrite({ prompter: next });
+}
+
+function rosStopLoop() {
+  if (rosRaf) { cancelAnimationFrame(rosRaf); rosRaf = null; }
+  if (rosIdleTimer) { clearTimeout(rosIdleTimer); rosIdleTimer = null; }
+}
+
+function rosStartLoop() {
+  if (rosRaf) return;
+  const step = () => {
+    rosRaf = null;
+    const p = rosState.prompter;
+    if (mainState.view !== "runofshow" || rosState.editing || !p || !p.running) return;
+    if (rosState.following) rosApplyScroll(rosPos(p, rosState.cues));
+    rosRaf = requestAnimationFrame(step);
+  };
+  rosRaf = requestAnimationFrame(step);
+}
+
+// Cue heights differ per device because text wraps differently, so the shared
+// position is "cue 12, 40% of the way through" rather than a pixel offset.
+function rosApplyScroll(pos) {
+  const i = Math.floor(pos);
+  const el = document.getElementById("rosCue" + i);
+  if (!el) return;
+  const next = document.getElementById("rosCue" + (i + 1));
+  const span = next ? (next.offsetTop - el.offsetTop) : el.offsetHeight;
+  const y = el.offsetTop + (pos - i) * span - ROS_TOP_GAP;
+  window.scrollTo(0, Math.max(0, y));
+}
+
+// A finger on the screen means they're looking at something else. Stop
+// following, and start the clock on going back.
+function rosUserTookOver() {
+  rosState.lastTouch = Date.now();
+  if (rosState.following) {
+    rosState.following = false;
+    rosUpdateFollowPill();
+  }
+  if (rosIdleTimer) clearTimeout(rosIdleTimer);
+  rosIdleTimer = setTimeout(() => {
+    if (Date.now() - rosState.lastTouch < ROS_RESUME_AFTER_MS - 50) return;
+    rosResumeFollowing();
+  }, ROS_RESUME_AFTER_MS);
+}
+
+function rosResumeFollowing() {
+  rosState.following = true;
+  rosUpdateFollowPill();
+  const p = rosState.prompter;
+  if (!p) return;
+  if (rosIsPrimary()) {
+    // The primary dragged the page. Wherever they let go is the new shared
+    // position — don't yank them back to their own old timeline.
+    rosPromptWrite({ anchor: rosVisualPos() });
+    return;
+  }
+  if (p.running) {
+    // Ease back rather than snapping, so it's obvious what just happened.
+    const i = Math.floor(rosPos(p, rosState.cues));
+    const el = document.getElementById("rosCue" + i);
+    if (el) window.scrollTo({ top: Math.max(0, el.offsetTop - ROS_TOP_GAP), behavior: "smooth" });
+  }
+}
+
+// While the primary is hand-scrolling, push their position out so everyone
+// else tracks the drag. Throttled — this is the only thing that writes
+// repeatedly, and only for one person.
+let rosDragTimer = null;
+function rosBroadcastDrag() {
+  if (!rosIsPrimary() || rosState.editing) return;
+  if (rosDragTimer) return;
+  rosDragTimer = setTimeout(() => {
+    rosDragTimer = null;
+    if (!rosIsPrimary() || rosState.following) return;
+    const p = rosState.prompter || rosDefaultPrompter();
+    const next = Object.assign({}, p, { anchor: rosVisualPos(), at: rosNow() });
+    rosState.prompter = next;
+    rosWrite({ prompter: next });
+  }, 400);
+}
+
+function rosUpdateFollowPill() {
+  const pill = document.getElementById("rosFollowPill");
+  const p = rosState.prompter;
+  if (pill) {
+    const show = p && p.running && !rosState.following && !rosIsPrimary();
+    pill.style.display = show ? "" : "none";
+  }
+  // The tally goes dark the moment you stop following — same read as a
+  // camera that's no longer on air.
+  document.querySelectorAll(".ros-tally").forEach((t) => {
+    t.classList.toggle("off", !rosState.following);
+  });
+}
+
+// Only real input counts. Our own scrollTo fires scroll events, so listening
+// for those would make the prompter stop itself.
+["touchstart", "wheel", "keydown"].forEach((ev) => {
+  window.addEventListener(ev, () => {
+    if (mainState.view === "runofshow" && !rosState.editing) rosUserTookOver();
+  }, { passive: true });
+});
+
+// Scroll events fire for our own scrollTo as well, so this only acts once the
+// user has already been recognised as driving.
+window.addEventListener("scroll", () => {
+  if (mainState.view !== "runofshow" || rosState.following) return;
+  rosBroadcastDrag();
+}, { passive: true });
+
 
 function rosFlattenSeed(gameId) {
   const seed = RUN_OF_SHOW[gameId];
@@ -3026,6 +3277,14 @@ async function renderRunOfShowView() {
 function rosSubscribe() {
   if (unsubRos) { unsubRos(); unsubRos = null; }
   rosState.loaded = false;
+  rosState.following = true;
+
+  // Phone clocks drift. At 2 cues/min a 10-second skew puts one crew member
+  // a third of a cue away from everyone else, so correct against the server.
+  db.ref(".info/serverTimeOffset").once("value")
+    .then((s) => { rosClockOffset = s.val() || 0; })
+    .catch(() => { rosClockOffset = 0; });
+
   const gameId = rosState.gameId;
   const ref = db.ref(`runOfShow/${gameId}`);
 
@@ -3052,11 +3311,14 @@ function rosSubscribe() {
     rosState.loaded = true;
     rosState.cues = (val && val.cues) || [];
     rosState.current = (val && typeof val.current === "number") ? val.current : 0;
+    rosState.prompter = (val && val.prompter) || rosDefaultPrompter();
+    rosState.primary = (val && val.primary) || null;
     rosRender();
+    if (rosState.prompter.running) rosStartLoop(); else rosStopLoop();
   };
 
   ref.on("value", cb);
-  unsubRos = () => ref.off("value", cb);
+  unsubRos = () => { ref.off("value", cb); rosStopLoop(); };
 }
 
 async function rosWrite(patch) {
@@ -3072,8 +3334,18 @@ function rosSetCurrent(i) {
   if (!n) return;
   const next = Math.max(0, Math.min(n - 1, i));
   rosState.current = next;   // move locally first so the tap feels instant
+  rosState.following = true;
   rosRender();
-  rosWrite({ current: next });
+  const patch = { current: next };
+  // Advancing re-cues the prompter — otherwise the called cue and the
+  // scrolling page would drift apart the moment anyone hit Next.
+  const p = rosState.prompter;
+  if (p && p.running) {
+    const prompter = Object.assign({}, p, { anchor: next, at: rosNow() });
+    rosState.prompter = prompter;
+    patch.prompter = prompter;
+  }
+  rosWrite(patch);
 }
 
 function rosSaveCues(cues, current) {
@@ -3090,6 +3362,9 @@ function rosRender() {
   const game = GAMES.find((g) => g.id === rosState.gameId);
   const cues = rosState.cues;
   const cur = rosState.current;
+  const prompter = rosState.prompter || rosDefaultPrompter();
+  const prompterRunning = !!prompter.running;
+  const speed = Number(prompter.speed) || 2;
 
   inner.innerHTML = `
     <div class="ros-bar">
@@ -3117,11 +3392,28 @@ function rosRender() {
           Replaces every cue with the version built into the app. Any edits made here are lost.
         </div>` : ""}
     ` : cues.length ? `
+      <div class="ros-prompt">
+        <button class="ros-play ${prompterRunning ? "on" : ""}" id="rosPlay">${prompterRunning ? "❚❚" : "▶"}</button>
+        <button class="ros-tool" id="rosSlower" ${speed <= 0.5 ? "disabled" : ""}>−</button>
+        <div class="ros-speed">${speed.toFixed(1)}<span>cues/min</span></div>
+        <button class="ros-tool" id="rosFaster" ${speed >= 12 ? "disabled" : ""}>+</button>
+        <button class="ros-tool" id="rosToTop" title="Back to the called cue">⤒</button>
+      </div>
+      <button class="ros-primary ${rosIsPrimary() ? "on" : ""}" id="rosPrimaryBtn">
+        ${rosIsPrimary()
+          ? "You're driving — tap to release"
+          : (rosState.primary
+              ? `Following ${escapeHtml(rosState.primary.name || "primary")} — tap to take over`
+              : "Make me primary")}
+      </button>
       <div class="ros-controls">
         <button class="ros-nav" id="rosPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
         <div class="ros-count">${cur + 1} / ${cues.length}</div>
         <button class="ros-nav ros-nav-next" id="rosNext" ${cur >= cues.length - 1 ? "disabled" : ""}>Next ▶</button>
       </div>
+      <button class="ros-follow-pill" id="rosFollowPill" style="display:none;">
+        Following paused — tap to catch up
+      </button>
     ` : ""}
   `;
 
@@ -3137,6 +3429,42 @@ function rosRender() {
   const next = document.getElementById("rosNext");
   if (prev) prev.onclick = () => rosSetCurrent(rosState.current - 1);
   if (next) next.onclick = () => rosSetCurrent(rosState.current + 1);
+
+  const play = document.getElementById("rosPlay");
+  if (play) play.onclick = () => {
+    rosClaimPrimary();
+    const running = !prompterRunning;
+    // Starting from a stop picks up at the called cue, not wherever the page
+    // happens to be sitting.
+    rosPromptWrite(running ? { running: true, anchor: rosState.current } : { running: false });
+    rosState.following = true;
+    if (running) rosStartLoop(); else rosStopLoop();
+  };
+  const slower = document.getElementById("rosSlower");
+  const faster = document.getElementById("rosFaster");
+  if (slower) slower.onclick = () => { rosClaimPrimary(); rosPromptWrite({ speed: Math.max(0.5, +(speed - 0.5).toFixed(1)) }); };
+  if (faster) faster.onclick = () => { rosClaimPrimary(); rosPromptWrite({ speed: Math.min(12, +(speed + 0.5).toFixed(1)) }); };
+
+  const primaryBtn = document.getElementById("rosPrimaryBtn");
+  if (primaryBtn) primaryBtn.onclick = () => {
+    if (rosIsPrimary()) rosReleasePrimary(); else { rosClaimPrimary(); rosRender(); }
+  };
+
+  inner.querySelectorAll("[data-golive]").forEach((el) => {
+    el.onclick = (e) => { e.stopPropagation(); rosResumeFollowing(); };
+  });
+
+  const toTop = document.getElementById("rosToTop");
+  if (toTop) toTop.onclick = () => {
+    rosPromptWrite({ anchor: rosState.current });
+    rosState.following = true;
+    rosUpdateFollowPill();
+    rosScrollToCurrent(true);
+  };
+
+  const pill = document.getElementById("rosFollowPill");
+  if (pill) pill.onclick = () => rosResumeFollowing();
+  rosUpdateFollowPill();
 
   const add = document.getElementById("rosAddCue");
   if (add) add.onclick = () => rosOpenCueEditor(-1);
@@ -3175,6 +3503,7 @@ function rosFieldHtml(label, value, cls) {
 }
 
 function rosShowListHtml(cues, cur) {
+  const offLive = !rosState.following;
   let lastSection = null;
   return cues.map((c, i) => {
     const head = c.section && c.section !== lastSection
@@ -3184,8 +3513,10 @@ function rosShowListHtml(cues, cur) {
     return `
       ${head}
       <div class="ros-cue ${state}" data-jump="${i}" id="rosCue${i}">
+        ${i === cur ? `<button class="ros-tally ${offLive ? "off" : ""}" data-golive="1">
+          <span class="ros-tally-dot"></span>LIVE
+        </button>` : ""}
         <div class="ros-cue-top">
-          ${i === cur ? `<span class="ros-nowtag">NOW</span>` : ""}
           <div class="ros-time">${escapeHtml(c.time || "")}</div>
           ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
         </div>
@@ -3222,12 +3553,15 @@ function rosEditListHtml(cues) {
 }
 
 // Keep the live cue on screen without yanking the page around if it's
-// already visible.
-function rosScrollToCurrent() {
+// already visible. Skipped while the prompter is driving, which owns the
+// scroll position outright.
+function rosScrollToCurrent(force) {
+  const p = rosState.prompter;
+  if (!force && p && p.running) return;
   const el = document.getElementById("rosCue" + rosState.current);
   if (!el) return;
   const r = el.getBoundingClientRect();
-  if (r.top < 60 || r.bottom > window.innerHeight - 90) {
+  if (force || r.top < 60 || r.bottom > window.innerHeight - 90) {
     el.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 }
