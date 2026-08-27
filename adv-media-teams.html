@@ -1359,6 +1359,49 @@ function trafficLink(origin) {
     + "&travelmode=driving";
 }
 
+// A dropped pin on the venue, for anyone who just wants to see where it is
+// rather than start navigation from a city they aren't in.
+function venueMapLink() {
+  return "https://www.google.com/maps/search/?api=1&query="
+    + VENUE_LAT_FRONTEND + "," + VENUE_LNG_FRONTEND;
+}
+
+// Wherever this app is actually deployed — so the confirm link in the text
+// keeps working if the file ever moves.
+function appLink() {
+  return location.origin + location.pathname;
+}
+
+// The forecast for the evening of a specific date, not just "right now".
+// A text going out the night before should describe the shift, not tonight.
+async function getForecastForDate(dateId) {
+  try {
+    const pointRes = await fetch(`https://api.weather.gov/points/${VENUE_LAT_FRONTEND},${VENUE_LNG_FRONTEND}`);
+    const pointData = await pointRes.json();
+    const url = pointData.properties && pointData.properties.forecast;
+    if (!url) return null;
+    const res = await fetch(url);
+    const data = await res.json();
+    const periods = (data.properties && data.properties.periods) || [];
+    if (!periods.length) return null;
+
+    const onDate = periods.filter((p) => localDateId(new Date(p.startTime)) === dateId);
+    // Games are evening shifts, so prefer the night period for that date.
+    const pick = onDate.find((p) => !p.isDaytime) || onDate[0] || periods[0];
+    return {
+      name: pick.name,
+      temp: pick.temperature,
+      unit: pick.temperatureUnit,
+      short: pick.shortForecast,
+      wind: pick.windSpeed,
+      precip: pick.probabilityOfPrecipitation && pick.probabilityOfPrecipitation.value,
+    };
+  } catch (e) {
+    console.error("Forecast fetch failed:", e);
+    return null;
+  }
+}
+
 async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
@@ -1518,26 +1561,48 @@ async function textTomorrowsCrew() {
     return;
   }
 
-  const w = await getVenueWeather();
-  const weather = w ? `${w.temp}°${w.unit}, ${w.forecast.split(".")[0]}.` : "";
-
   await loadGameSettings();
   const calls = callsFor(game);
   const earlyCalls = Object.entries(calls.roleCalls)
     .filter(([, t]) => t && t !== calls.call)
-    .map(([role, t]) => `${role} call: ${fmtCall(t)}`);
+    .map(([role, t]) => `  • ${role} — ${fmtCall(t)}`);
 
+  const w = await getForecastForDate(dateId);
+  let weather = "";
+  if (w) {
+    const bits = [`${w.temp}°${w.unit}`, w.short];
+    if (w.precip != null && w.precip > 0) bits.push(`${w.precip}% rain`);
+    if (w.wind) bits.push(`wind ${w.wind}`);
+    weather = bits.filter(Boolean).join(", ");
+  }
+
+  // Plain text — no markdown, since this lands in Messages. Blank lines and
+  // a leading bullet are the only formatting that survives everywhere.
+  // `null` marks a line that may not apply; "" is a deliberate spacer.
   const body = [
-    `${game.day} ${game.date} — ${game.opp}`,
-    calls.gameTime ? `Game time: ${fmtCall(calls.gameTime)}` : "",
-    calls.call ? `Call time: ${fmtCall(calls.call)}` : "",
-    ...earlyCalls,
-    weather ? `Weather: ${weather}` : "",
-    `Traffic from Dallas: ${trafficLink("Dallas, TX")}`,
-    `From Fort Worth: ${trafficLink("Fort Worth, TX")}`,
+    "ADV MEDIA — CREW CALL",
+    `${game.day} ${game.date} · ${game.opp}`,
     "",
-    "Please confirm in ADV Media Teams so we know you're locked in.",
-  ].filter(Boolean).join("\n");
+    calls.call ? `CALL TIME: ${fmtCall(calls.call)}` : null,
+    calls.gameTime ? `Game time: ${fmtCall(calls.gameTime)}` : null,
+    earlyCalls.length ? (calls.call ? "Earlier calls:" : "Position calls:") : null,
+    ...earlyCalls,
+    weather ? "" : null,
+    weather ? `WEATHER${w.name ? " — " + w.name : ""}` : null,
+    weather ? `  ${weather}` : null,
+    "",
+    "GETTING THERE",
+    `  Stadium: ${venueMapLink()}`,
+    `  From Dallas: ${trafficLink("Dallas, TX")}`,
+    `  From Fort Worth: ${trafficLink("Fort Worth, TX")}`,
+    "  Check traffic before you leave — give yourself a buffer.",
+    "",
+    "BRING",
+    "  Media pass + lanyard, ADV shirt, closed-toe shoes.",
+    "",
+    `Please confirm in the ADV Media Teams app so we know you're locked in:`,
+    `  ${appLink()}`,
+  ].filter((l) => l !== null).join("\n").replace(/\n{3,}/g, "\n\n");
 
   if (missing.length) {
     if (!confirm(`No phone number on file for:\n\n${missing.join("\n")}\n\nText the other ${numbers.length}?`)) return;
@@ -2569,14 +2634,26 @@ async function loadGameSettings() {
   return gameSettings;
 }
 
-// The call times actually in effect for a game: Firebase over hardcoded.
+// The call times actually in effect for a game.
+//
+// Once a game has been saved from the editor, that record is authoritative —
+// the hardcoded GAMES values are only a starting point. Merging field by
+// field would mean clearing an override never sticks, because Firebase strips
+// nulls on write and the old hardcoded value would come straight back.
 function callsFor(game) {
   if (!game) return { gameTime: "", call: "", roleCalls: {} };
-  const saved = gameSettings[game.id] || {};
+  const saved = gameSettings[game.id];
+  if (saved) {
+    return {
+      gameTime: saved.gameTime || "",
+      call: saved.call || "",
+      roleCalls: saved.roleCalls || {},
+    };
+  }
   return {
-    gameTime: saved.gameTime !== undefined ? saved.gameTime : (game.gameTime || ""),
-    call: saved.call !== undefined ? saved.call : (game.call || ""),
-    roleCalls: saved.roleCalls || game.roleCalls || {},
+    gameTime: game.gameTime || "",
+    call: game.call || "",
+    roleCalls: game.roleCalls || {},
   };
 }
 
