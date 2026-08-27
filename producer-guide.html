@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media — Producer Guide: Run of Show</title>
+<meta name="theme-color" content="#4A8FC0" />
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.6;
+  }
+  .wrap { max-width:720px; margin:0 auto; padding:0 18px 80px; }
+
+  .banner { text-align:center; padding:36px 0 26px; border-bottom:1px solid var(--border); margin-bottom:26px; }
+  .banner h1 { font-family:Georgia,serif; font-size:30px; margin:0; letter-spacing:-0.4px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:8px 0 0; }
+
+  .toc { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:30px; }
+  .toc-title { font-size:11.5px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px; }
+  .toc a { display:block; color:var(--blue); text-decoration:none; font-size:14px; padding:5px 0; font-weight:600; }
+
+  h2 {
+    font-size:21px; margin:38px 0 4px; scroll-margin-top:16px;
+    padding-top:22px; border-top:1px solid var(--border);
+  }
+  h2:first-of-type { border-top:none; padding-top:0; }
+  h3 { font-size:15.5px; margin:22px 0 6px; color:var(--text); }
+  p { font-size:14.5px; color:var(--text-muted); margin:8px 0; }
+  ol, ul { font-size:14.5px; color:var(--text-muted); padding-left:22px; margin:10px 0; }
+  li { margin:7px 0; }
+  strong { color:var(--text); }
+
+  .callout {
+    border-radius:12px; padding:14px 16px; margin:16px 0; font-size:14px;
+    background:var(--panel); border:1px solid var(--border);
+  }
+  .callout.important { background:#1F1810; border-color:var(--amber); color:#FFD699; }
+  .callout.warn { background:#2A1512; border-color:var(--red); color:#F2B8B1; }
+  .callout.good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+  .callout strong { color:inherit; }
+
+  .step-num {
+    display:inline-block; background:var(--blue); color:#fff; width:22px; height:22px;
+    border-radius:50%; text-align:center; line-height:22px; font-size:12px;
+    font-weight:800; margin-right:8px;
+  }
+  code {
+    background:var(--panel2); padding:2px 6px; border-radius:5px;
+    font-size:13px; color:var(--text);
+  }
+
+  /* A button as it appears in the app, so the guide names things the way the
+     screen does rather than describing them. */
+  .ui {
+    display:inline-block; background:var(--panel2); border:1px solid var(--border);
+    border-radius:7px; padding:2px 9px; font-size:13px; font-weight:800;
+    color:var(--text); white-space:nowrap;
+  }
+  .ui.go { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .ui.hot { background:var(--red); border-color:var(--red); color:#fff; }
+
+  .tally {
+    display:inline-flex; align-items:center; gap:5px; background:var(--red);
+    color:#fff; font-size:10px; font-weight:900; letter-spacing:1px;
+    padding:3px 9px; border-radius:5px;
+  }
+  .tally i { width:6px; height:6px; border-radius:50%; background:#fff; }
+  .tally.off { background:var(--panel2); color:var(--text-faint); }
+  .tally.off i { background:var(--text-faint); }
+
+  /* The department colours, shown as the crew sees them on a cue card. */
+  .keys { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+  .key {
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;
+    color:var(--c); padding:4px 9px 4px 8px; border-radius:5px;
+    background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--c);
+  }
+
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); }
+  td:first-child { white-space:nowrap; width:1%; }
+  td { color:var(--text-muted); }
+
+  .footer {
+    margin-top:50px; padding-top:20px; border-top:1px solid var(--border);
+    text-align:center; color:var(--text-faint); font-size:12px; font-style:italic;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <h1>Run of Show</h1>
+    <p>Producer guide · ADV Media Teams</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#what">What it does</a>
+    <a href="#before">Before the show</a>
+    <a href="#take">Taking the show</a>
+    <a href="#call">Calling cues</a>
+    <a href="#scroll">Auto-scroll</a>
+    <a href="#crew">What the crew sees</a>
+    <a href="#colors">Reading a cue card</a>
+    <a href="#edit">Editing cues</a>
+    <a href="#wrong">If something goes wrong</a>
+  </div>
+
+  <h2 id="what">What it does</h2>
+  <p>
+    The Run of Show tab holds the full script for a game. One person — the producer —
+    drives it, and <strong>everyone else's screen follows theirs</strong>. When you move to
+    the next cue, the whole crew moves with you.
+  </p>
+  <p>
+    That's the part worth understanding before you touch anything. This isn't a document
+    each person scrolls on their own. It's one shared position, and you're holding it.
+  </p>
+
+  <h2 id="before">Before the show</h2>
+  <p>Open <strong>ADV Media Teams</strong> and tap the <span class="ui">Run of Show</span> tab.</p>
+  <ol>
+    <li>
+      <strong>Pick the game</strong> from the dropdown at the top. It opens on today's game,
+      or tomorrow's if there's nothing today.
+    </li>
+    <li>
+      <strong>Read through the cues.</strong> Scroll the whole thing once. This is when you
+      catch a blank announcement or a name nobody filled in — not at 6:40 with a hot mic.
+    </li>
+    <li>
+      <strong>Fix anything wrong</strong> now. See <a href="#edit" style="color:var(--blue);">Editing cues</a>.
+    </li>
+  </ol>
+
+  <h2 id="take">Taking the show</h2>
+  <p>
+    Tap <span class="ui">Make me producer</span> at the bottom of the screen. If a passcode
+    is set you'll see a lock and a four-digit keypad.
+  </p>
+  <p>Once you have it, a red bar sits at the top of the tab:</p>
+  <div class="callout warn" style="text-align:center; font-weight:900; letter-spacing:1.4px;">
+    ● YOU ARE PRODUCER
+  </div>
+  <p>
+    Everyone else sees <em>"[your name] is the producer"</em> instead. If someone else is
+    already holding it, your button reads <span class="ui">Producer: Jasper Kane — tap to take over</span>,
+    and taking it needs the passcode.
+  </p>
+  <div class="callout important">
+    <strong>Only the producer can drive.</strong> Next, Prev, play, speed and the re-cue
+    button all require it. If a camera op taps Next, they get asked for the passcode —
+    they can't move the crew's script by accident.
+  </div>
+  <p>
+    Tap the red bar again to release it when you're done, so the next show starts clean.
+  </p>
+
+  <h2 id="call">Calling cues</h2>
+  <p>The bar at the bottom is how you run it.</p>
+  <table>
+    <tr><th>Control</th><th>What it does</th></tr>
+    <tr><td><span class="ui go">Next ▶</span></td><td>Advances one cue, for everyone.</td></tr>
+    <tr><td><span class="ui">◀ Prev</span></td><td>Back one cue, for everyone.</td></tr>
+    <tr><td><span class="ui">2 / 56</span></td><td>Which cue you're on, out of how many.</td></tr>
+    <tr><td>Tap a cue</td><td>Jumps straight to it. Use this when the show skips something.</td></tr>
+    <tr><td><span class="ui">⤒</span></td><td>Snaps the page back to the cue you're calling.</td></tr>
+  </table>
+  <p>
+    The live cue is outlined in blue with a red tally in the corner. Cues you've already
+    called go dim, so your eye lands forward instead of hunting.
+  </p>
+  <p style="margin-top:14px;">
+    <span class="tally"><i></i>LIVE</span>
+    &nbsp;on the cue being called right now.
+  </p>
+
+  <h2 id="scroll">Auto-scroll</h2>
+  <p>
+    The row above the transport is a teleprompter. Press <span class="ui">▶</span> and the
+    page creeps down on its own, on every crew member's phone at once.
+  </p>
+  <ul>
+    <li><strong>Cues/min</strong> is the speed. At <code>2.0</code> a new cue reaches the top every 30 seconds. At <code>4.0</code>, every 15.</li>
+    <li><strong>− and +</strong> change it in half steps, 0.5 to 12.</li>
+    <li>Changing speed mid-run won't jump the page. It picks up from where it is.</li>
+    <li>Pressing <span class="ui">▶</span> from a stop starts at the cue you're calling, not wherever the page is sitting.</li>
+  </ul>
+  <div class="callout">
+    <strong>It's a pace, not a schedule.</strong> Auto-scroll ignores the clock times in
+    the script and just moves at a steady rate. It's most useful through the quarters,
+    where cues are "1st qtr" with no fixed time. In pregame, where everything has a real
+    time, hitting <span class="ui go">Next ▶</span> as each cue happens is more accurate.
+  </div>
+  <p>
+    You can also just <strong>drag the page with your thumb</strong>. While you're the
+    producer, the crew follows your drag. Let go and wherever you stopped becomes the
+    shared position.
+  </p>
+
+  <h2 id="crew">What the crew sees</h2>
+  <p>
+    Their screen follows yours. But they can look away without breaking anything:
+  </p>
+  <ol>
+    <li>They touch their screen — the tally goes <span class="tally off"><i></i>LIVE</span> and following stops.</li>
+    <li>They scroll wherever they want. Their screen stays put.</li>
+    <li><strong>Ten seconds</strong> after they stop touching it, it eases back to your position on its own.</li>
+  </ol>
+  <p>
+    They can also tap the grey tally, or the amber <em>"Following paused — tap to catch up"</em>
+    bar, to come back immediately.
+  </p>
+  <div class="callout good">
+    <strong>You're exempt.</strong> As producer you never get pulled anywhere. Your screen
+    is the one everyone else is being pulled to.
+  </div>
+
+  <h2 id="colors">Reading a cue card</h2>
+  <p>Each line on a cue is colour-coded by department, so people can find their own without reading the whole card.</p>
+  <div class="keys">
+    <span class="key" style="--c:#4A8FC0;">Announcer</span>
+    <span class="key" style="--c:#A87BD4;">Screen</span>
+    <span class="key" style="--c:#3FBFB0;">Ribbon</span>
+    <span class="key" style="--c:#46B36B;">Audio</span>
+    <span class="key" style="--c:#E0A63C;">Note</span>
+  </div>
+  <ul>
+    <li><strong>Announcer</strong> is word-for-word read copy, in a blue-ruled block. Bigger type on the live cue.</li>
+    <li><strong>Note</strong> is amber because it's a warning — "English version", "may need on-field microphones", "read him last".</li>
+  </ul>
+
+  <h2 id="edit">Editing cues</h2>
+  <p>Admin only. Tap <span class="ui">Edit</span> at the top right.</p>
+  <ul>
+    <li><strong>Tap any cue</strong> to open it — section, time, duration, event, read copy, screen, ribbon, audio, notes.</li>
+    <li><strong>↑ ↓</strong> reorder. <strong>✕</strong> deletes, with a confirm.</li>
+    <li><strong>+ Add Cue</strong> puts a new one at the end.</li>
+    <li><strong>Reload from script</strong> throws away every edit and restores the version built into the app. Use it when a revised script comes in.</li>
+    <li><strong>Set a producer passcode</strong> — four digits. The button shows the current code so you can look it up. Blank removes it.</li>
+  </ul>
+  <div class="callout important">
+    <strong>Everyone needs the passcode, including admins.</strong> There's no bypass. Keep
+    it somewhere you can find it, or read it off this screen before the show.
+  </div>
+  <p>Edits save to everyone instantly. Reordering mid-show follows the live cue, so the cue you're calling stays the cue you're calling.</p>
+
+  <h2 id="wrong">If something goes wrong</h2>
+  <table>
+    <tr><th>What you see</th><th>What to do</th></tr>
+    <tr>
+      <td>Buttons ask for a passcode</td>
+      <td>Someone else holds the show, or you released it. Tap the producer button and enter the code.</td>
+    </tr>
+    <tr>
+      <td>Crew are on the wrong cue</td>
+      <td>Check the red bar says YOU ARE PRODUCER. If it names someone else, they're driving.</td>
+    </tr>
+    <tr>
+      <td>Page scrolled away from you</td>
+      <td>Tap <span class="ui">⤒</span> to snap back to the cue you're calling.</td>
+    </tr>
+    <tr>
+      <td>Auto-scroll is drifting off pace</td>
+      <td>Hit <span class="ui go">Next ▶</span> on the current cue. That re-anchors it and keeps running.</td>
+    </tr>
+    <tr>
+      <td>Wrong script for the game</td>
+      <td>Check the dropdown at the top — it may be on the wrong date.</td>
+    </tr>
+    <tr>
+      <td>Cues look out of date</td>
+      <td>Edit → Reload from script.</td>
+    </tr>
+  </table>
+  <div class="callout warn">
+    <strong>If the app stops responding mid-show, call it off the paper script.</strong>
+    The run of show is a tool, not the show. Don't spend a live quarter troubleshooting a phone.
+  </div>
+
+  <div class="footer">ADV Media — Internal Use — Do Not Distribute</div>
+</div>
+</body>
+</html>
