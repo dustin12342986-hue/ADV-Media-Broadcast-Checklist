@@ -440,6 +440,25 @@
     .ros-tally-dot { animation: none; }
   }
 
+  /* Lit like an on-air light. Whoever is driving should never have to wonder
+     whether they are. */
+  .ros-onair {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--red); color: #fff; border-radius: 10px;
+    padding: 9px 0; margin: 0 0 14px;
+    font-size: 12px; font-weight: 900; letter-spacing: 1.4px;
+    box-shadow: 0 0 18px rgba(214,90,78,0.55);
+  }
+  .ros-onair-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #fff;
+    animation: rosTallyPulse 1.4s ease-in-out infinite;
+  }
+  .ros-onair.following {
+    background: var(--panel2); color: var(--text-muted);
+    border: 1px solid var(--border); box-shadow: none;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px;
+  }
+
   .ros-primary {
     position: sticky; bottom: 124px; z-index: 51;
     display: block; width: 100%; margin-top: 8px; padding: 9px 0;
@@ -857,7 +876,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v4 (dept colors) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v5 (primary light) · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3397,6 +3416,11 @@ function rosRender() {
       </select>
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
     </div>
+    ${rosIsPrimary() ? `
+      <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE PRIMARY</div>
+    ` : rosState.primary ? `
+      <div class="ros-onair following">${escapeHtml(rosState.primary.name || "Someone")} is primary</div>
+    ` : ""}
 
     ${cues.length === 0 ? `
       <div class="footnote" style="margin-top:14px;">
