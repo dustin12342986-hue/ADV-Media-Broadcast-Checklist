@@ -132,7 +132,9 @@
 Home teams: North Crowley HS (NCHS), Crowley HS (CHS), Texas Wesleyan University
 17 home games total this season.
 
-CALL TIME: Always 2 hours before kickoff.
+CALL TIME: Set per game, and sometimes per position — a position can be called earlier than the rest of the crew.
+Never quote a call time from memory or work it out from kickoff. The Today tab in the ADV Media Teams app is the
+only correct source: it shows the general call and each position's own call. If asked, tell them to check Today.
 CHECK-IN: All crew check in with Aracely (Producer/PM) at the south elevated entrance corner, alongside Grant.
 BAGS: Clear bags recommended for faster facility entry.
 
@@ -158,7 +160,7 @@ BROADCAST CHECKLIST APP: Clock in first, then continue to Pre-Shift checklist un
   // Written as operational guidance, not copied from manuals. Where a fact
   // needed checking it was checked; where it depends on OUR units, it is
   // marked [VERIFY] and the assistant is told to say so instead of guessing.
-  const GEAR_KB = `EQUIPMENT REFERENCE — written for a tech on a phone, mid-shift.
+  const CORE_GEAR_KB = `EQUIPMENT REFERENCE — written for a tech on a phone, mid-shift.
 Anything marked [VERIFY] has not been checked against our actual units or firmware. Say so rather than guessing.
 
 === CAMERAS: BLACKMAGIC URSA BROADCAST ===
@@ -215,9 +217,24 @@ Verify the source before you blame the destination.
 If it's within an hour of kickoff and it isn't fixed in two attempts, escalate to the lead rather than keep digging. Say what you tried.
 `;
 
+  // The deeper references live in their own files so they can be edited
+  // without touching this one: blue-bonnet-gear-kb.js (SQ-5, ULX-D) and
+  // blue-bonnet-fiber-kb.js (SMPTE cleaning, URSA, converters, CCU).
+  //
+  // They declare GEAR_KB and FIBER_KB at top level. The block above used to
+  // be called GEAR_KB too, and a const inside this IIFE shadows the global —
+  // so those files were being loaded and silently ignored. Renaming the
+  // built-in one fixes that. If the files aren't on the page this falls back
+  // to the built-in block alone, exactly as before.
+  const EXTRA_KB = [
+    (typeof GEAR_KB !== "undefined" && GEAR_KB) ? String(GEAR_KB) : "",
+    (typeof FIBER_KB !== "undefined" && FIBER_KB) ? String(FIBER_KB) : "",
+  ].filter(Boolean).join("\n\n");
+
   const CREW_SYSTEM = CREW_SYSTEM_INTRO
     + "\n\nCREW KNOWLEDGE BASE:\n" + CREW_KB
-    + "\n\nEQUIPMENT REFERENCE:\n" + GEAR_KB
+    + "\n\nEQUIPMENT REFERENCE:\n" + CORE_GEAR_KB
+    + (EXTRA_KB ? "\n\n" + EXTRA_KB : "")
     + "\n\nON EQUIPMENT QUESTIONS: give the practical answer first \u2014 what to check, in what order. "
     + "Do not quote manuals. If something is marked [VERIFY] or isn't covered, say plainly that you'd be "
     + "guessing and point them to the Camera Lead, A1, or Dustin. A wrong answer during a game costs more "
@@ -288,8 +305,9 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
       padding: 6px 12px; font-size: 12px; color: #B8C0CC; cursor: pointer; }
     #bb-inputrow { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
       border-top: 1px solid #2A3038; background: #161A21; flex-shrink: 0; }
+    /* 16px, not 14: iOS zooms the whole page when you focus a field below 16. */
     #bb-input { flex: 1; background: #12151A; border: 1px solid #2A3038; border-radius: 8px;
-      padding: 10px 12px; font-size: 14px; color: #E8EAED; outline: none; }
+      padding: 10px 12px; font-size: 16px; color: #E8EAED; outline: none; }
     #bb-send { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #2A3038;
       background: #1B2027; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     #bb-send.bb-active { background: #E4002B; }
@@ -348,6 +366,7 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
   const statusEl = panel.querySelector("#bb-status");
   const chipsEl = panel.querySelector("#bb-chips");
 
+  const MAX_TURNS_SENT = 12;   // ~6 exchanges of context
   let messages = [];
   let loading = false;
   let open = false;
@@ -408,17 +427,14 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
         .map((m) => m.role + ": " + (typeof m.content === "string" ? m.content : ""))
         .join("\n");
       if (transcript.length < 40) return;
-      const res = await fetch(PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 400,
-          system: "You extract facts. Reply with JSON only, no other text.",
-          messages: [{ role: "user", content: BlueBonnet.extractionPrompt(transcript) }],
-        }),
-      });
-      const data = await res.json();
-      const raw = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      // Same routing as a normal question: gateway first, Anthropic in
+      // reserve. This used to call PROXY_URL directly, which meant memory
+      // stopped working the moment the Anthropic balance hit zero — the one
+      // failure the gateway was added to survive.
+      const raw = await askAnywhere(
+        "You extract facts. Reply with JSON only, no other text.",
+        [{ role: "user", content: BlueBonnet.extractionPrompt(transcript) }]
+      );
       BlueBonnet.ingestExtraction(raw);
     } catch (e) { /* memory is a bonus, never a blocker */ }
   }
@@ -449,7 +465,12 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
       // alongside it and changes every message. Flattening these into one
       // string would invalidate the cache on the whole knowledge base.
       const system = memoryReady() ? BlueBonnet.systemPrompt(content) : CREW_SYSTEM;
-      const text = (await askAnywhere(system, messages))
+      // Send a window, not the whole session. messages grew without limit, so
+      // a long game-night conversation kept re-sending every earlier turn —
+      // rising cost per message and eventually an over-length request.
+      // Memory is what carries anything older than this.
+      const sent = messages.slice(-MAX_TURNS_SENT);
+      const text = (await askAnywhere(system, sent))
         || "The assistant replied with nothing. Try asking again.";
       loadingRow.remove();
       renderMessage("assistant", text);

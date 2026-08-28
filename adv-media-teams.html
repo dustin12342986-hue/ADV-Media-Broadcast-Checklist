@@ -952,7 +952,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v14 · pm removed from rosters · call times v1";
+const APP_BUILD = "build 2026-08-27 · v15 · blue bonnet wired · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4823,6 +4823,17 @@ if ("serviceWorker" in navigator) {
 
 initFirebaseAndBoot();
 </script>
+<!-- Blue Bonnet. Order matters: the widget runs on parse and checks for each
+     of these immediately, so anything loaded after it is invisible to it.
+       kit       — the gateway path. Without it the widget skips the gateway
+                   entirely and goes straight to Anthropic, which is what left
+                   it dead when that balance hit zero.
+       assistant — memory. Optional; the widget works without it.
+       gear/fiber KB — equipment references, appended to the system prompt. -->
+<script src="blue-bonnet-kit.js"></script>
+<script src="blue-bonnet-assistant.js"></script>
+<script src="blue-bonnet-gear-kb.js"></script>
+<script src="blue-bonnet-fiber-kb.js"></script>
 <script src="blue-bonnet-widget.js"></script>
 </body>
 </html>
