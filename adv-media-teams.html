@@ -388,6 +388,24 @@
     letter-spacing: 0.6px; margin-bottom: 5px;
   }
   .camera-notice strong { color: #FFE9C2; }
+
+  /* Direct deposit — an action, so it gets the blue call-to-action treatment
+     rather than the amber used for warnings. */
+  .dd-card {
+    background: var(--panel); border: 1px solid var(--blue); border-radius: 12px;
+    padding: 14px 16px; margin: 0 0 16px;
+  }
+  .dd-title {
+    font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 7px;
+  }
+  .dd-body { font-size: 13px; line-height: 1.55; color: var(--text-muted); margin: 0 0 12px; }
+  .dd-btn {
+    display: block; text-align: center; text-decoration: none;
+    background: var(--blue); color: #fff; border-radius: 10px;
+    padding: 12px 10px; font-size: 13.5px; font-weight: 800;
+    word-break: break-word;
+  }
   .shift-status { flex: 1; font-size: 13px; font-weight: 600; }
   .shift-status.shift-open { color: var(--amber); }
   .shift-action { flex: 0 0 auto; }
@@ -934,7 +952,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v13 · call key fix · call times v1";
+const APP_BUILD = "build 2026-08-27 · v13 · call key fix · direct deposit · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1219,11 +1237,13 @@ async function renderMyInvoices() {
     entries.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
     if (entries.length === 0) {
-      inner.innerHTML = `<div class="footnote">No invoices found under "${escapeHtml(myProfile.legalName)}" yet.</div>`;
+      inner.innerHTML = directDepositCardHtml(myProfile)
+        + `<div class="footnote">No invoices found under "${escapeHtml(myProfile.legalName)}" yet.</div>`;
       return;
     }
 
     inner.innerHTML = `
+      ${directDepositCardHtml(myProfile)}
       <div class="footnote" style="margin-bottom:12px;">Showing invoices matching "${escapeHtml(myProfile.legalName)}". Deleting one removes it from your view only — the office keeps a permanent copy regardless.</div>
       ${entries.map((inv) => {
         const game = GAMES.find((g) => g.id === inv.gameId);
@@ -4026,10 +4046,37 @@ function rosOpenCueEditor(index) {
   };
 }
 
+// Payroll is moving from contractor payments to QuickBooks Payroll, which
+// needs direct deposit details on file. The mailto prefills the subject with
+// their name so Aracely isn't guessing who sent what.
+const PAYROLL_EMAIL = "invoices.advmedia@gmail.com";
+
+function directDepositCardHtml(profile) {
+  const who = (profile && profile.legalName) || "";
+  const subject = encodeURIComponent(`Direct Deposit Setup${who ? " — " + who : ""}`);
+  const body = encodeURIComponent(
+    `Name: ${who}\nPhone:\n\nBank name:\nAccount type (checking / savings):\nRouting number:\nAccount number:\n\n` +
+    `(A voided check or a screenshot of your bank's direct deposit form works too.)`
+  );
+  return `
+    <div class="dd-card">
+      <div class="dd-title">Direct Deposit — action needed</div>
+      <p class="dd-body">
+        Please submit your direct deposit info so we can get you set up on the new
+        QuickBooks Payroll. This is different from the contractor payments we've
+        been doing and is more streamlined.
+      </p>
+      <a class="dd-btn" href="mailto:${PAYROLL_EMAIL}?subject=${subject}&body=${body}">
+        Email ${escapeHtml(PAYROLL_EMAIL)}
+      </a>
+    </div>`;
+}
+
 function renderProfileEditor(profile) {
   const inner = document.getElementById("innerRoot");
   const skills = profile.skills || [];
   inner.innerHTML = `
+    ${directDepositCardHtml(profile)}
     <div class="photo-upload-box" id="photoBox">
       ${profile.photoData ? `<img src="${profile.photoData}" />` : `<div class="photo-upload-hint">Tap to add a photo</div>`}
     </div>
