@@ -934,7 +934,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · run of show v12 (producer isolation) · call times v1";
+const APP_BUILD = "build 2026-08-27 · run of show v13 · call key fix · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1763,8 +1763,8 @@ async function textTomorrowsCrew() {
 
   await loadGameSettings();
   const calls = callsFor(game);
-  const earlyCalls = Object.entries(calls.roleCalls)
-    .filter(([, t]) => t && t !== calls.call)
+  const earlyCalls = roleCallEntries(calls)
+    .filter(([, t]) => t !== calls.call)
     .map(([role, t]) => `  • ${role} — ${fmtCall(t)}`);
 
   const w = await getForecastForDate(dateId);
@@ -2843,12 +2843,26 @@ async function loadGameSettings() {
   return gameSettings;
 }
 
+// Firebase rejects keys containing "." "#" "$" "/" "[" or "]", and
+// "Audio A2/Utility" has a slash — saving role calls blew up on it. Stored
+// keys are sanitised the same way liveRoster sanitises its role keys.
+function callKey(role) { return String(role).replace(/[^A-Za-z0-9]/g, "_"); }
+
 // The call times actually in effect for a game.
 //
 // Once a game has been saved from the editor, that record is authoritative —
 // the hardcoded GAMES values are only a starting point. Merging field by
 // field would mean clearing an override never sticks, because Firebase strips
 // nulls on write and the old hardcoded value would come straight back.
+//
+// roleCalls always comes back keyed by the sanitised key, whichever form it
+// was stored in — the hardcoded defaults still use plain role names.
+function normaliseRoleCalls(raw) {
+  const out = {};
+  Object.entries(raw || {}).forEach(([k, v]) => { if (v) out[callKey(k)] = v; });
+  return out;
+}
+
 function callsFor(game) {
   if (!game) return { gameTime: "", call: "", roleCalls: {} };
   const saved = gameSettings[game.id];
@@ -2856,20 +2870,28 @@ function callsFor(game) {
     return {
       gameTime: saved.gameTime || "",
       call: saved.call || "",
-      roleCalls: saved.roleCalls || {},
+      roleCalls: normaliseRoleCalls(saved.roleCalls),
     };
   }
   return {
     gameTime: game.gameTime || "",
     call: game.call || "",
-    roleCalls: game.roleCalls || {},
+    roleCalls: normaliseRoleCalls(game.roleCalls),
   };
+}
+
+// Role calls as [displayName, time] pairs. Needed because the stored keys are
+// sanitised and can't be shown to anyone.
+function roleCallEntries(calls) {
+  return CALL_TIME_ROLES
+    .map((role) => [role, calls.roleCalls[callKey(role)]])
+    .filter(([, t]) => t);
 }
 
 // The call a specific position reports at — its own override, or the general
 // call if it doesn't have one.
 function callForRole(calls, role) {
-  return calls.roleCalls[role] || calls.call || "";
+  return calls.roleCalls[callKey(role)] || calls.call || "";
 }
 
 // "16:00" from a time input becomes "4:00 PM" for display. Anything already
@@ -2918,7 +2940,7 @@ async function renderCallTimesAdmin() {
     </div>
     ${upcoming.map((g) => {
       const c = callsFor(g);
-      const overrides = Object.entries(c.roleCalls).filter(([, t]) => t && t !== c.call);
+      const overrides = roleCallEntries(c).filter(([, t]) => t !== c.call);
       return `
       <div class="shift-game-card">
         <div class="shift-game-header">${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}</div>
@@ -2973,7 +2995,7 @@ function openCallTimeEditor(gameId) {
         <div class="ct-row">
           <div class="ct-role">${escapeHtml(role)}</div>
           <input class="ct-input" type="time" data-role="${escapeAttr(role)}"
-            value="${escapeAttr(toTimeInput(c.roleCalls[role] || ""))}" />
+            value="${escapeAttr(toTimeInput(c.roleCalls[callKey(role)] || ""))}" />
         </div>
       `).join("")}
 
@@ -3001,7 +3023,7 @@ function openCallTimeEditor(gameId) {
     // the general call later moving.
     const roleCalls = {};
     overlay.querySelectorAll(".ct-input").forEach((i) => {
-      if (i.value) roleCalls[i.dataset.role] = i.value;
+      if (i.value) roleCalls[callKey(i.dataset.role)] = i.value;
     });
 
     btn.disabled = true;
@@ -3109,7 +3131,7 @@ async function renderTodayView() {
     const t = callForRole(calls, r.role);
     if (t) {
       r.call = fmtCall(t);
-      r.callEarly = !!(calls.roleCalls[r.role] && calls.roleCalls[r.role] !== calls.call);
+      r.callEarly = !!(calls.roleCalls[callKey(r.role)] && calls.roleCalls[callKey(r.role)] !== calls.call);
     }
   });
 
@@ -4133,30 +4155,30 @@ function renderProfileEditor(profile) {
 // ============================================================================
 const RUN_OF_SHOW = {
   "2026-08-28": {
-    header: "North Crowley Panthers vs Aledo Bearcats",
-    sub: "7:00 PM kickoff",
+    header: "North Crowley HS vs Aledo",
+    sub: "August 28, 2026 · 7:00 PM kickoff · CISD Multi-Purpose Stadium",
     sections: [
       {
-        name: "Game Notes — Standing Calls",
+        name: "In Game Notes",
         cues: [
-          { time: "Standing", event: "Every North Crowley first down", notes: "Sound off the Panther Roar." },
+          { time: "Standing", event: "Every North Crowley first down", read: "Sound off the Panther Roar." },
         ],
       },
       {
         name: "Pregame",
         cues: [
-          { time: "6:11 PM", event: "Welcome announcements", read: "On behalf of the Crowley ISD Board of Trustees, Superintendent of Schools Dr. Michael McFarland, and Executive Director of Athletics Greg Williams, we would like to welcome you to tonight’s game.", audio: "Announcer" },
-          { time: "6:12 PM", event: "UIL pregame statement", audio: "Announcer", notes: "Read the UIL Pregame Statement — inside of the folder." },
-          { time: "6:14 PM", event: "Introduce both schools’ administrations", read: "Crowley Independent School District Administration\nSuperintendent of Schools — Dr. Michael McFarland\nNorth Crowley HS Principal — Dr. Mario Layne\nExecutive Director of Athletics — Greg Williams\nHead Football Coach — Demarcus Harris\n\nAledo Independent School District Administration\nSuperintendent of Schools —\nExecutive Director of Athletics —\nAledo Principal —\nHead Football Coach —", audio: "Announcer", notes: "Aledo names still blank on the script." },
+          { time: "6:11 PM", event: "Welcome announcements", read: "On behalf of the Crowley ISD Board of Trustees, Superintendent of Schools Dr. Michael McFarland, and Executive Director of Athletics Greg Williams, we would like to welcome you to CISD Multi-Purpose Stadium.", audio: "Announcer" },
+          { time: "6:12 PM", event: "UIL Pregame Statement", audio: "Announcer", notes: "Read the UIL Pregame Statement — inside of the folder." },
+          { time: "6:14 PM", event: "Introduce both schools’ administrations", read: "Crowley Independent School District Administration\n• Superintendent of Schools — Dr. Michael McFarland\n• North Crowley HS Principal — Dr. Mario Layne\n• Executive Director of Athletics — Greg Williams\n• Head Football Coach — Demarcus Harris\n\nAledo Independent School District Administration\n• Superintendent of Schools —\n• Executive Director of Athletics —\n• Aledo Principal —\n• Head Football Coach —", audio: "Announcer", notes: "Aledo names are blank on the script." },
           { time: "6:15 PM", dur: "4:45", event: "Texas Way video", screen: "Texas Way Video", audio: "Video" },
-          { time: "6:40 PM", event: "Cheerleader recognition", read: "The fabulous 2026-27 North Crowley Panther Varsity Cheerleaders are under the direction of Coach _________.", audio: "Announcer", notes: "Listed at 6:40 on the script, out of sequence with the 6:22 items that follow." },
+          { time: "6:40 PM", event: "Cheerleader recognition", read: "The fabulous 2026-27 North Crowley Panther Varsity Cheerleaders are under the direction of Coach _________.", audio: "Announcer", notes: "Listed at 6:40 on the script, ahead of the 6:22 and 6:23 items that follow. Coach name blank." },
           { time: "6:22 PM", event: "Aledo HS alma mater", read: "We will now have Aledo High School’s alma mater performed by the Bearcats band. (band plays)", audio: "Bearcats band" },
           { time: "6:23 PM", event: "NCHS alma mater", read: "We will now have North Crowley’s alma mater performed by The Mighty Panther band! (band plays)", audio: "Mighty Panther band" },
           { time: "6:46 PM", event: "Introduce NCHS offensive starters", audio: "Announcer" },
           { time: "6:48 PM", event: "Introduce NCHS defensive starters", audio: "Announcer" },
           { time: "6:50 PM", event: "Introduce NCHS coaching staff", audio: "Announcer" },
           { time: "6:51 PM", event: "Introduce referees", audio: "Announcer", notes: "See referee card." },
-          { time: "6:51 PM", event: "Coin toss", screen: "Live Action", audio: "Announcer" },
+          { time: "After referees", event: "Coin toss", screen: "Live Action", audio: "Announcer", notes: "No time listed on the script." },
           { time: "6:54 PM", event: "Aledo HS takes the field", read: "Ladies and gentlemen, let’s welcome the Bearcats of Aledo High School", screen: "Live Action", audio: "Announcer" },
           { time: "6:55 PM", dur: "1:35", event: "Introduce the North Crowley football team", screen: "NCHS Hype Video", audio: "Band fight song", notes: "NCHS hype video plays while players are in the tunnel. When the video ends, the band begins the fight song and players run out." },
           { time: "6:57 PM", event: "Introduction of JROTC color guard", read: "Ladies and gentlemen, we ask that you please stand and remove your hats as the Crowley ISD Corp of Cadets presents the colors for tonight’s game.\n\nAmerican Guard —\nAmerican Flag —\nTexas Flag —\nTexas Guard —\n\nLieutenant Colonel Mickel Sawyer: Senior Army Instructor\nSergeant First Class Gregory Peavy: Army Instructor\nSergeant First Class Jonpierre Meyer: Army Instructor", screen: "US Flag", audio: "Announcer" },
@@ -4165,7 +4187,7 @@ const RUN_OF_SHOW = {
         ],
       },
       {
-        name: "First Quarter",
+        name: "1st Quarter",
         cues: [
           { time: "1st qtr", dur: "1:01", event: "Video #1 — Welcome from CISD School Board", screen: "CISD School Board Video", audio: "Video" },
           { time: "1st qtr", event: "Announcement #1 — Greg Williams welcome", read: "Mr. Greg Williams, Executive Director of Athletics brings you greetings from the Crowley ISD Department of Athletics. It is his charge to inspire champions of today and help prepare the leaders of tomorrow. He would like to personally extend an invitation to each of you to every Crowley ISD Athletic sporting event this year.", audio: "Announcer" },
@@ -4175,23 +4197,17 @@ const RUN_OF_SHOW = {
         ],
       },
       {
-        name: "Second Quarter",
+        name: "2nd Quarter",
         cues: [
           { time: "2nd qtr", event: "Announcement #4 — NCHS Principal", read: "Dr. Mario Layne, principal of North Crowley High School would like to welcome all fans, parents, students, and visitors to tonight’s game. Dr. Layne hopes that you enjoy your experience, while displaying great sportsmanship to all players, coaches and other fans.", screen: "NCHS Principal picture", audio: "Announcer" },
           { time: "2nd qtr", event: "Announcement #5 — Remain in seats", read: "Attention: CISD is asking that there be no loitering or congregating in the concourse of the stadium. Let’s use our time here to cheer on the team and enjoy the entertainment. Thanks and enjoy the game!", screen: "Remain in Seats graphic", audio: "Announcer" },
           { time: "2nd qtr", event: "Announcement #6", notes: "Blank on the script." },
           { time: "2nd qtr", event: "Announcement #7", notes: "Blank on the script." },
-          { time: "End of 2nd qtr", event: "Into the half", audio: "Band" },
+          { time: "End of 2nd qtr", event: "Halftime show", audio: "Band", notes: "After the band, play video." },
         ],
       },
       {
-        name: "Halftime",
-        cues: [
-          { time: "Halftime", event: "Halftime show", audio: "Band", notes: "After the band, play video." },
-        ],
-      },
-      {
-        name: "Third Quarter",
+        name: "3rd Quarter",
         cues: [
           { time: "3rd qtr", event: "Announcement #8", notes: "Blank on the script." },
           { time: "3rd qtr", event: "Announcement #9", notes: "Blank on the script." },
@@ -4200,7 +4216,7 @@ const RUN_OF_SHOW = {
         ],
       },
       {
-        name: "Fourth Quarter",
+        name: "4th Quarter",
         cues: [
           { time: "4th qtr", event: "Announcement #11", notes: "Blank on the script." },
           { time: "4th qtr", event: "Announcement #12 — Kids call your ride", read: "Attention students: Please take a moment to call your rides.", audio: "Announcer", notes: "At first stoppage after the 6 minute mark." },
@@ -4216,9 +4232,9 @@ const RUN_OF_SHOW = {
       {
         name: "Emergency Evacuation Procedures",
         cues: [
-          { time: "If needed", event: "Fire emergency", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane. (Repeat once more)", notes: "In response to a fire, an evacuation of the affected area within the stadium would be required." },
-          { time: "If needed", event: "Severe weather", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
-          { time: "If needed", event: "Lightning", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
+          { time: "If needed", event: "Fire emergency", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane. (Repeat once more)", audio: "Announcer", notes: "In response to a fire, an evacuation of the affected area within the stadium would be required." },
+          { time: "If needed", event: "Severe weather", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", audio: "Announcer", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
+          { time: "If needed", event: "Lightning", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately. (Repeat once more)", audio: "Announcer", notes: "Used to urge athletes, band students, etc. to seek shelter immediately." },
         ],
       },
     ],
