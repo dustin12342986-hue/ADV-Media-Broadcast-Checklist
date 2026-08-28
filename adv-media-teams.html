@@ -464,9 +464,24 @@
     letter-spacing: 0.7px; margin: 20px 0 8px; padding-bottom: 5px;
     border-bottom: 1px solid var(--border);
   }
+  /* A beat between cues, so the end of one is visible at a glance and two
+     cues don't read as one block. Lights up under the live cue — that's the
+     one where "what's next" actually matters. */
+  .ros-standby {
+    display: flex; align-items: center; gap: 8px;
+    margin: 2px 0 10px; padding: 0 4px;
+    font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--text-faint);
+  }
+  .ros-standby::before, .ros-standby::after {
+    content: ""; flex: 1; height: 1px; background: var(--border);
+  }
+  .ros-standby.on { color: var(--blue); }
+  .ros-standby.on::before, .ros-standby.on::after { background: var(--blue); opacity: 0.5; }
+
   .ros-cue {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 11px 13px; margin-bottom: 8px; cursor: default;
+    padding: 11px 13px; margin-bottom: 6px; cursor: default;
   }
   body.ros-driving .ros-cue { cursor: pointer; }
   .ros-done { opacity: 0.4; }
@@ -952,7 +967,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v17 · bb video library · call times v1";
+const APP_BUILD = "build 2026-08-27 · v18 · standby markers · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3929,7 +3944,8 @@ function rosShowListHtml(cues, cur) {
         ${rosFieldHtml("Ribbon", c.ribbon, "d-ribbon")}
         ${rosFieldHtml("Audio", c.audio, "d-audio")}
         ${rosFieldHtml("Note", c.notes, "d-note")}
-      </div>`;
+      </div>
+      ${i < cues.length - 1 ? `<div class="ros-standby ${i === cur ? "on" : ""}">standby for next cue</div>` : ""}`;
   }).join("");
 }
 
