@@ -36,7 +36,24 @@
   // widget has no tools, so it calls the two providers directly in the
   // order that suits it.
   const GATEWAY_URL = "https://blue-bonnet-gateway.dustin12342986.workers.dev";
-  const GATEWAY_KEY = "e368f85d1ce08cb81e252c1f9e31294b7d8dc88cf295be38";
+
+  // No shared key here any more. This file is public JavaScript on GitHub
+  // Pages, so anything constant in it is readable by anyone with View Source
+  // — the old key could be lifted and used to spend the model budget from
+  // anywhere. The gateway now verifies the crew member's Firebase login
+  // instead: a token tied to one person that expires every hour.
+  //
+  // Nothing changes for the crew. They already sign in to use the app.
+  async function gatewayToken() {
+    try {
+      if (typeof firebase === "undefined" || !firebase.auth) return null;
+      const user = firebase.auth().currentUser;
+      if (!user) return null;
+      return await user.getIdToken();   // cached by the SDK, refreshed as needed
+    } catch (e) {
+      return null;
+    }
+  }
 
   function kitReady() {
     return typeof BBKit !== "undefined" && !!BBKit && typeof BBKit.gatewayAsk === "function";
@@ -44,7 +61,7 @@
   if (kitReady()) {
     BBKit.configure({
       gatewayUrl: GATEWAY_URL,
-      gatewayKey: GATEWAY_KEY,
+      gatewayAuth: gatewayToken,
       anthropicProxyUrl: PROXY_URL,
       app: "adv-crew",
     });
@@ -226,6 +243,9 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
   // so those files were being loaded and silently ignored. Renaming the
   // built-in one fixes that. If the files aren't on the page this falls back
   // to the built-in block alone, exactly as before.
+  const VIDEO_TEXT = (typeof videoKbText === "function") ? videoKbText() : "";
+  const ALLOWED_VIDEO_URLS = (typeof videoKbUrls === "function") ? videoKbUrls() : [];
+
   const EXTRA_KB = [
     (typeof GEAR_KB !== "undefined" && GEAR_KB) ? String(GEAR_KB) : "",
     (typeof FIBER_KB !== "undefined" && FIBER_KB) ? String(FIBER_KB) : "",
@@ -235,6 +255,7 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
     + "\n\nCREW KNOWLEDGE BASE:\n" + CREW_KB
     + "\n\nEQUIPMENT REFERENCE:\n" + CORE_GEAR_KB
     + (EXTRA_KB ? "\n\n" + EXTRA_KB : "")
+    + (VIDEO_TEXT ? "\n\n" + VIDEO_TEXT : "")
     + "\n\nON EQUIPMENT QUESTIONS: give the practical answer first \u2014 what to check, in what order. "
     + "Do not quote manuals. If something is marked [VERIFY] or isn't covered, say plainly that you'd be "
     + "guessing and point them to the Camera Lead, A1, or Dustin. A wrong answer during a game costs more "
@@ -396,6 +417,52 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
     statusEl.textContent = v ? "● ON AIR" : "○ CISD BROADCAST CREW — STANDBY";
   }
 
+  // A model asked for a video will invent a plausible URL without hesitating,
+  // and a crew member mid-failure will tap it and get a 404. Telling it not to
+  // in the prompt helps but doesn't guarantee anything, so every link is
+  // checked against the library before it reaches the screen. Anything not on
+  // the list is removed and replaced with a visible note, so a wrong answer
+  // shows up as a wrong answer instead of a dead tap.
+  const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
+
+  function isAllowedUrl(u) {
+    const clean = u.replace(/[.,;:!?]+$/, "");
+    return ALLOWED_VIDEO_URLS.some((ok) => ok === clean);
+  }
+
+  function scrubLinks(text) {
+    let removed = 0;
+    const out = String(text).replace(URL_RE, (u) => {
+      if (isAllowedUrl(u)) return u;
+      removed++;
+      return "[link removed — not in the video library]";
+    });
+    return { text: out, removed };
+  }
+
+  // Built as DOM nodes, never innerHTML. The message is model output; putting
+  // it through innerHTML would make any stray markup executable.
+  function appendLinkedText(container, text) {
+    let last = 0;
+    String(text).replace(URL_RE, (u, idx) => {
+      if (idx > last) container.appendChild(document.createTextNode(text.slice(last, idx)));
+      const trailing = (u.match(/[.,;:!?]+$/) || [""])[0];
+      const href = trailing ? u.slice(0, -trailing.length) : u;
+      const a = document.createElement("a");
+      a.href = href;
+      a.textContent = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.style.color = "#4A9EFF";
+      a.style.wordBreak = "break-all";
+      container.appendChild(a);
+      if (trailing) container.appendChild(document.createTextNode(trailing));
+      last = idx + u.length;
+      return u;
+    });
+    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+  }
+
   function renderMessage(role, text) {
     const empty = document.getElementById("bb-empty-state");
     if (empty) empty.remove();
@@ -403,7 +470,15 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
     row.className = "bb-row " + (role === "user" ? "bb-user" : "bb-assistant");
     const bubbleMsg = document.createElement("div");
     bubbleMsg.className = "bb-bubble-msg";
-    bubbleMsg.textContent = text;
+    if (role === "user") {
+      bubbleMsg.textContent = text;
+    } else {
+      const scrubbed = scrubLinks(text);
+      appendLinkedText(bubbleMsg, scrubbed.text);
+      if (scrubbed.removed) {
+        console.warn("Blue Bonnet: removed", scrubbed.removed, "link(s) not in the video library");
+      }
+    }
     row.appendChild(bubbleMsg);
     bodyEl.appendChild(row);
     bodyEl.scrollTop = bodyEl.scrollHeight;
@@ -497,6 +572,10 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
         why = "Too many requests at once. Give it a few seconds.";
       } else if (/system|invalid_request|max_tokens|model/i.test(raw)) {
         why = "The assistant sent a request the server didn't accept. Show Dustin this: " + raw.slice(0, 160);
+      } else if (/not signed in|session isn't valid|Sign in to use/i.test(raw)) {
+        why = "You need to be signed in to use the assistant. Sign out and back in if you already are.";
+      } else if (/Too many requests/i.test(raw)) {
+        why = "Too many questions at once. Give it a minute.";
       } else if (/NetworkError|Failed to fetch|network/i.test(raw)) {
         why = "No connection right now \u2014 stadium signal, most likely. Try again when you have bars.";
       }

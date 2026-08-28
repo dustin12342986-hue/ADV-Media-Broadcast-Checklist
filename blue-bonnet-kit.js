@@ -44,7 +44,11 @@ const BBKit = (function () {
 
   const cfg = {
     gatewayUrl: "https://blue-bonnet-gateway.dustin12342986.workers.dev",
-    gatewayKey: "",            // your gateway key
+    gatewayKey: "",            // legacy shared key — see gatewayAuth below
+    // Preferred. A function returning a fresh bearer token per request,
+    // so nothing long-lived has to sit in public client code. Blue Bonnet
+    // apps pass the signed-in user's Firebase ID token here.
+    gatewayAuth: null,
     anthropicProxyUrl: "",     // your Cloudflare Worker in front of Anthropic
     app: "app",                // shows up in gateway logs
     session: "default",
@@ -58,7 +62,18 @@ const BBKit = (function () {
   }
 
   function gatewayReady() {
+    if (typeof cfg.gatewayAuth === "function") return true;
     return !!cfg.gatewayKey && cfg.gatewayKey !== "PUT_YOUR_GATEWAY_KEY_HERE";
+  }
+
+  // Resolved per request: ID tokens expire hourly, so this can't be cached.
+  async function gatewayCredential() {
+    if (typeof cfg.gatewayAuth === "function") {
+      const t = await cfg.gatewayAuth();
+      if (!t) throw new Error("not signed in, so the gateway can't be used");
+      return t;
+    }
+    return cfg.gatewayKey;
   }
   function anthropicReady() {
     return /^https?:\/\//.test(String(cfg.anthropicProxyUrl || ""));
@@ -84,11 +99,12 @@ const BBKit = (function () {
   async function gatewayAsk(messages, opts) {
     opts = opts || {};
     if (!gatewayReady()) throw new Error("gateway key not set");
+    const credential = await gatewayCredential();
     const res = await fetch(cfg.gatewayUrl + "/v1/chat/completions", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: "Bearer " + cfg.gatewayKey,
+        authorization: "Bearer " + credential,
         "x-app": cfg.app,
         "x-session": opts.session || cfg.session,
       },
@@ -117,7 +133,7 @@ const BBKit = (function () {
     try {
       await fetch(cfg.gatewayUrl + "/v1/feedback", {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: "Bearer " + cfg.gatewayKey },
+        headers: { "content-type": "application/json", authorization: "Bearer " + (await gatewayCredential()) },
         body: JSON.stringify({ interaction_id: id, rating, note: note || null }),
       });
       return true;
