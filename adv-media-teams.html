@@ -952,7 +952,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v13 · call key fix · direct deposit · call times v1";
+const APP_BUILD = "build 2026-08-27 · v14 · pm removed from rosters · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1724,6 +1724,15 @@ async function loadLiveRoster() {
   }
 }
 
+// Roles that are staffed full time rather than shift by shift. They stay in
+// the roster data — Aracely still needs her ID card and confirm card to
+// resolve — but they don't belong on a list of who's working a given game.
+const FULL_TIME_ROLES = ["PM"];
+
+function visibleRosterRows(rows) {
+  return rows.filter((r) => !FULL_TIME_ROLES.includes(r.role));
+}
+
 function rosterRowsFor(gameId, gameRoster) {
   const seed = ROSTER_DATA[gameId] || {};
   const rows = [];
@@ -1858,7 +1867,7 @@ async function renderConfirmations() {
       <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
       <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
       ${upcoming.map((game) => {
-        const all = rosterRowsFor(game.id, liveRoster[game.id]);
+        const all = visibleRosterRows(rosterRowsFor(game.id, liveRoster[game.id]));
         const confirms = byGame[game.id] || {};
 
         const rows = all.filter((r) => !r.open).map((r) => {
@@ -3139,7 +3148,7 @@ async function renderTodayView() {
     console.error("Couldn't read liveRoster for Today:", e);
   }
 
-  const rows = rosterRowsFor(gameId, gameRoster);
+  const rows = visibleRosterRows(rosterRowsFor(gameId, gameRoster));
 
   // Every position carries its own call time, not just the ones that differ —
   // crew shouldn't have to work out whether "no time on my row" means the

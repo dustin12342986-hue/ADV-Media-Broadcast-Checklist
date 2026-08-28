@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Install ADV Media Teams</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="theme-color" content="#4A8FC0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="ADV Media" />
+
+<!--
+  ============================================================================
+  INSTALL PAGE
+  ============================================================================
+  One link to text the crew. It works out what phone they're on and shows the
+  one path that actually works there.
+
+  The honest constraint: a link cannot install anything by itself.
+    - Android / Chrome fires `beforeinstallprompt`, so a button can do it in
+      one tap.
+    - iOS Safari has no equivalent. Apple only allows Add to Home Screen from
+      the Share sheet, by hand. So iOS gets steps, not a button.
+    - Chrome/Firefox on iOS can't add to the home screen at all. Those users
+      have to open the link in Safari first, so they get a copy-link button.
+
+  Pretending otherwise would just produce a button that silently does nothing
+  for most of the crew.
+  ============================================================================
+-->
+
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text); line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  .wrap { max-width:480px; margin:0 auto; padding:0 20px 60px; }
+
+  .banner { text-align:center; padding:40px 0 24px; }
+  .app-icon {
+    width:88px; height:88px; border-radius:20px; display:block; margin:0 auto 16px;
+    border:1px solid var(--border);
+  }
+  .banner h1 { font-family:Georgia,serif; font-size:26px; margin:0; letter-spacing:-0.3px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:6px 0 0; }
+
+  .card {
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:14px; padding:20px; margin-bottom:16px;
+  }
+  .card-title { font-size:15px; font-weight:800; margin:0 0 10px; }
+  p.lead { font-size:14px; color:var(--text-muted); margin:0 0 16px; }
+
+  .btn {
+    display:block; width:100%; text-align:center; text-decoration:none;
+    background:var(--blue); color:#fff; border:none; border-radius:12px;
+    padding:15px 12px; font-size:16px; font-weight:800; font-family:inherit;
+    cursor:pointer;
+  }
+  .btn.secondary { background:var(--panel2); border:1px solid var(--border); color:var(--text); margin-top:10px; }
+  .btn:disabled { opacity:0.5; }
+
+  ol.steps { margin:0; padding:0; list-style:none; counter-reset:s; }
+  ol.steps li {
+    counter-increment:s; position:relative; padding:0 0 18px 42px; font-size:14.5px;
+  }
+  ol.steps li:last-child { padding-bottom:0; }
+  ol.steps li::before {
+    content:counter(s); position:absolute; left:0; top:0;
+    width:28px; height:28px; border-radius:50%; background:var(--blue); color:#fff;
+    font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center;
+  }
+  ol.steps strong { color:var(--text); }
+  .share-glyph {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:6px; background:var(--panel2);
+    border:1px solid var(--border); vertical-align:-7px; margin:0 2px;
+  }
+
+  .note {
+    background:#1F1810; border:1px solid var(--amber); color:#FFD699;
+    border-radius:10px; padding:12px 14px; font-size:13px; margin-top:14px;
+  }
+  .good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+  .footer { text-align:center; color:var(--text-faint); font-size:12px; margin-top:28px; }
+  .footer a { color:var(--blue); }
+  .link-box {
+    background:var(--panel2); border:1px solid var(--border); border-radius:10px;
+    padding:11px 13px; font-size:12.5px; color:var(--text-muted);
+    word-break:break-all; margin-top:12px; font-family:monospace;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <img class="app-icon" src="icon-192.png" alt="ADV Media Teams" />
+    <h1>ADV Media Teams</h1>
+    <p>Add the crew app to your phone</p>
+  </div>
+
+  <div id="root"></div>
+
+  <div class="footer">
+    ADV Media Limited Company ·
+    <a href="crew-guide.html">Crew Guide</a>
+  </div>
+</div>
+
+<script>
+  const APP_URL = new URL("adv-media-teams.html", location.href).href;
+  const root = document.getElementById("root");
+
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua)
+    // iPadOS 13+ reports as a Mac, so sniff for the touch screen too.
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // On iOS every browser is Safari underneath, but only real Safari gets the
+  // Add to Home Screen action. CriOS/FxiOS/EdgiOS do not.
+  const isIOSOtherBrowser = isIOS && /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  const isAndroid = /Android/.test(ua);
+  const installed = window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true;
+
+  let deferredPrompt = null;
+
+  // Chrome fires this when the app qualifies for install. It has to be caught
+  // before the user taps anything, hence listening at the top.
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    render();
+  });
+  window.addEventListener("appinstalled", () => { deferredPrompt = null; render(); });
+
+  function openBtn(label) {
+    return `<a class="btn" href="${APP_URL}">${label}</a>`;
+  }
+
+  function render() {
+    if (installed) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-title">You're all set</div>
+          <p class="lead">The app is already installed on this device.</p>
+          ${openBtn("Open ADV Media Teams")}
+        </div>`;
+      return;
+    }
+
+    if (isIOSOtherBrowser) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-title">Open this in Safari first</div>
+          <p class="lead">
+            On iPhone and iPad, only Safari can add an app to the home screen.
+            Copy this link, paste it into Safari, and you'll get the steps.
+          </p>
+          <button class="btn" id="copyBtn">Copy link</button>
+          <div class="link-box" id="linkBox">${location.href}</div>
+        </div>`;
+      document.getElementById("copyBtn").onclick = copyLink;
+      return;
+    }
+
+    if (isIOS) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-title">Add to your home screen</div>
+          <ol class="steps">
+            <li>Tap the <span class="share-glyph">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="#EDEFF3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V3"/><path d="M8 7l4-4 4 4"/>
+                <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>
+              </svg></span> <strong>Share</strong> button
+              at the bottom of Safari.</li>
+            <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+            <li>Tap <strong>Add</strong> in the top right.</li>
+          </ol>
+          <div class="note">
+            Don't see Add to Home Screen? Scroll to the bottom of the share
+            sheet, tap <strong>Edit Actions</strong>, and switch it on.
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Just want to use it in the browser?</div>
+          <p class="lead">That works too — you'll just have to find the link each time.</p>
+          ${openBtn("Open in browser")}
+        </div>`;
+      return;
+    }
+
+    if (deferredPrompt) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-title">Install the app</div>
+          <p class="lead">One tap. It'll appear on your home screen like any other app.</p>
+          <button class="btn" id="installBtn">Install</button>
+          <a class="btn secondary" href="${APP_URL}">Open in browser instead</a>
+        </div>`;
+      document.getElementById("installBtn").onclick = async () => {
+        const btn = document.getElementById("installBtn");
+        btn.disabled = true;
+        deferredPrompt.prompt();
+        try { await deferredPrompt.userChoice; } catch (e) { /* dismissed */ }
+        deferredPrompt = null;
+        render();
+      };
+      return;
+    }
+
+    if (isAndroid) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-title">Add to your home screen</div>
+          <ol class="steps">
+            <li>Tap the <strong>⋮</strong> menu in the top right of Chrome.</li>
+            <li>Tap <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
+            <li>Confirm.</li>
+          </ol>
+          <div class="note">
+            If you don't see it, you may be in a private tab or a browser other
+            than Chrome. Open this link in Chrome and try again.
+          </div>
+        </div>
+        <div class="card">
+          ${openBtn("Open in browser")}
+        </div>`;
+      return;
+    }
+
+    // Desktop, or anything that didn't announce itself.
+    root.innerHTML = `
+      <div class="card">
+        <div class="card-title">Open on your phone</div>
+        <p class="lead">
+          This installs as a phone app. Send yourself this link and open it on
+          your phone, or just use it in the browser here.
+        </p>
+        <button class="btn" id="copyBtn">Copy link</button>
+        <a class="btn secondary" href="${APP_URL}">Open in browser</a>
+        <div class="link-box">${location.href}</div>
+      </div>`;
+    document.getElementById("copyBtn").onclick = copyLink;
+  }
+
+  async function copyLink() {
+    const btn = document.getElementById("copyBtn");
+    try {
+      await navigator.clipboard.writeText(location.href);
+      btn.textContent = "Copied";
+    } catch (e) {
+      // Clipboard API needs https and a user gesture; if it's unavailable the
+      // link is printed below anyway, so say so rather than failing silently.
+      btn.textContent = "Copy the link below";
+    }
+    setTimeout(() => { btn.textContent = "Copy link"; }, 2200);
+  }
+
+  // Chrome will not offer installation without a registered service worker.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
+  render();
+</script>
+</body>
+</html>
