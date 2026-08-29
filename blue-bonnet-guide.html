@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media — What is Blue Bonnet?</title>
+<meta name="theme-color" content="#4A8FC0" />
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text); line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  .wrap { max-width:720px; margin:0 auto; padding:0 18px 80px; }
+
+  .banner { text-align:center; padding:36px 0 26px; border-bottom:1px solid var(--border); margin-bottom:26px; }
+  .banner h1 { font-family:Georgia,serif; font-size:30px; margin:0; letter-spacing:-0.4px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:8px 0 0; }
+
+  .toc { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:30px; }
+  .toc-title { font-size:11.5px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px; }
+  .toc a { display:block; color:var(--blue); text-decoration:none; font-size:14px; padding:5px 0; font-weight:600; }
+
+  h2 { font-size:21px; margin:38px 0 4px; scroll-margin-top:16px; padding-top:22px; border-top:1px solid var(--border); }
+  h2:first-of-type { border-top:none; padding-top:0; }
+  h3 { font-size:15.5px; margin:22px 0 6px; }
+  p { font-size:14.5px; color:var(--text-muted); margin:8px 0; }
+  ul, ol { font-size:14.5px; color:var(--text-muted); padding-left:22px; margin:10px 0; }
+  li { margin:7px 0; }
+  strong { color:var(--text); }
+
+  .callout { border-radius:12px; padding:14px 16px; margin:16px 0; font-size:14px;
+    background:var(--panel); border:1px solid var(--border); }
+  .callout.important { background:#1F1810; border-color:var(--amber); color:#FFD699; }
+  .callout.warn { background:#2A1512; border-color:var(--red); color:#F2B8B1; }
+  .callout strong { color:inherit; }
+
+  /* A stand-in for the button as it appears in the corner of the app. */
+  .bubble-demo {
+    display:flex; align-items:center; gap:14px; background:var(--panel);
+    border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin:18px 0;
+  }
+  .bubble {
+    flex:0 0 auto; width:56px; height:56px; border-radius:50%;
+    background:linear-gradient(160deg,#7FB8DC,#2F6E9E); border:2px solid #fff;
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  }
+  .bubble-demo div p { margin:0; font-size:13.5px; }
+
+  .asks { list-style:none; padding:0; margin:12px 0; }
+  .asks li {
+    background:var(--panel2); border:1px solid var(--border); border-radius:10px;
+    padding:10px 13px; margin-bottom:8px; font-size:14px; color:var(--text);
+  }
+
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); }
+  td { color:var(--text-muted); }
+  td:first-child { color:var(--text); font-weight:600; white-space:nowrap; width:1%; }
+
+  .footer { margin-top:50px; padding-top:20px; border-top:1px solid var(--border);
+    text-align:center; color:var(--text-faint); font-size:12px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <h1>Blue Bonnet</h1>
+    <p>The assistant built into the crew app · ADV Media</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#what">What it is</a>
+    <a href="#where">Where to find it</a>
+    <a href="#ask">What to ask it</a>
+    <a href="#knows">What it knows</a>
+    <a href="#cant">What it can't do</a>
+    <a href="#trust">How much to trust it</a>
+  </div>
+
+  <h2 id="what">What it is</h2>
+  <p>
+    Blue Bonnet is an assistant built into the ADV Media apps. You type a question
+    the way you'd ask a person, and it answers using what it's been told about how
+    we run our shows.
+  </p>
+  <p>
+    Think of it as the thing you'd normally text Dustin or Aracely about at 4pm on
+    a Friday — call times, where to check in, how the checklist works, what a piece
+    of gear does. It's there so you don't have to wait on a reply.
+  </p>
+
+  <h2 id="where">Where to find it</h2>
+  <div class="bubble-demo">
+    <div class="bubble">🌼</div>
+    <div>
+      <p><strong>Bottom right corner of the app.</strong></p>
+      <p style="color:var(--text-muted); margin-top:4px;">
+        A round bluebonnet button. Tap it, type your question, hit send.
+      </p>
+    </div>
+  </div>
+  <p>
+    It sits on top of whatever screen you're on and closes again when you're done.
+    Nothing you do in it changes anything in the app.
+  </p>
+
+  <h2 id="ask">What to ask it</h2>
+  <p>Plain questions work best. It's not a search box — write it the way you'd say it.</p>
+  <ul class="asks">
+    <li>What time is call time for the next game?</li>
+    <li>Where do I check in?</li>
+    <li>How do I use the broadcast checklist?</li>
+    <li>What positions still need filling?</li>
+    <li>What's the difference between Assist and Show Assist?</li>
+    <li>How do I clean a SMPTE fiber connector?</li>
+    <li>I have no camera control but the picture is fine — what do I check?</li>
+  </ul>
+  <p>
+    If the first answer isn't quite it, say so and add detail. "No, I meant the
+    Thursday game" works fine — it follows the conversation.
+  </p>
+
+  <h2 id="knows">What it knows</h2>
+  <table>
+    <tr><th>Area</th><th>What's covered</th></tr>
+    <tr>
+      <td>The season</td>
+      <td>Home teams, call times, where and with whom to check in, bag policy.</td>
+    </tr>
+    <tr>
+      <td>Positions</td>
+      <td>What each crew position does and how the control room fits together.</td>
+    </tr>
+    <tr>
+      <td>The apps</td>
+      <td>Clocking in, the pre and post shift checklists, Signal Up, Request Help, submitting your invoice.</td>
+    </tr>
+    <tr>
+      <td>Audio gear</td>
+      <td>The SQ-5 console and ULX-D wireless — I/O, gain, setup order, IR sync, and the faults that look broken but aren't.</td>
+    </tr>
+    <tr>
+      <td>Camera &amp; fiber</td>
+      <td>SMPTE cleaning and troubleshooting, URSA Broadcast, the fiber converters, and camera control.</td>
+    </tr>
+  </table>
+  <p>
+    Each app has its own version. The one in the crew app knows about broadcast;
+    it doesn't know about the other contracts, and they don't know about ours.
+  </p>
+
+  <h2 id="cant">What it can't do</h2>
+  <p>
+    It answers questions. It doesn't press buttons. Blue Bonnet <strong>cannot</strong>:
+  </p>
+  <ul>
+    <li>Clock you in or out</li>
+    <li>Pick up, drop, or assign a shift</li>
+    <li>Submit or change an invoice</li>
+    <li>See your profile, your pay, or anyone's personal details</li>
+    <li>Change anything on the schedule or the run of show</li>
+  </ul>
+  <p>
+    If it tells you how to do one of those, it's telling you where the button is —
+    you still have to go tap it.
+  </p>
+  <div class="callout important">
+    <strong>Don't paste personal information into it.</strong> No bank details, no
+    Social Security number, no medical information, no anyone else's phone number.
+    Your messages go out to an AI service to be answered. Direct deposit info goes
+    by email to the office, never here.
+  </div>
+
+  <h2 id="trust">How much to trust it</h2>
+  <p>
+    It's useful and it's usually right. It is not the source of truth, and it can be
+    confidently wrong.
+  </p>
+  <table>
+    <tr><th>For this</th><th>Trust</th></tr>
+    <tr><td>Your call time</td><td>The <strong>Today tab</strong> in the app. That's live.</td></tr>
+    <tr><td>Who's working / open shifts</td><td>The <strong>Shifts tab</strong>. That's live.</td></tr>
+    <tr><td>Tonight's cues</td><td>The <strong>Run of Show tab</strong>.</td></tr>
+    <tr><td>How gear works</td><td>Blue Bonnet is a good start. The manual settles it.</td></tr>
+    <tr><td>Anything about your pay</td><td>Ask the office. Not the assistant.</td></tr>
+  </table>
+  <div class="callout warn">
+    <strong>Don't troubleshoot a live show through it.</strong> If something breaks
+    on air, get on comms and tell your lead. Ask Blue Bonnet afterwards, or before
+    doors, when being wrong costs nothing.
+  </div>
+  <p>
+    And if an answer contradicts what Dustin, Aracely, or your lead told you — they're
+    right. Tell us, so we can fix what it's been taught.
+  </p>
+
+  <div class="footer">ADV Media — Internal Use — Do Not Distribute</div>
+</div>
+</body>
+</html>

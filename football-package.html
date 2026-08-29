@@ -67,6 +67,13 @@
   .flag { background:#1F1810; border:1px solid var(--amber); color:#FFD699;
     border-radius:6px; padding:1px 7px; font-size:11px; font-weight:800; letter-spacing:0.4px; }
 
+  .map {
+    display:block; width:100%; height:auto; border-radius:12px;
+    border:1px solid var(--border); margin:14px 0 6px; background:#000;
+  }
+
+  .cap { font-size:12.5px; color:var(--text-faint); margin:2px 0 18px; font-style:italic; }
+
   .footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--border);
     text-align:center; color:var(--text-faint); font-size:12px; font-style:italic; }
 </style>
@@ -82,6 +89,7 @@
   <div class="toc">
     <div class="toc-title">Contents</div>
     <a href="#every">In every camera case</a>
+    <a href="#map">Where the positions are</a>
     <a href="#cams">Camera positions</a>
     <a href="#audio">Audio</a>
     <a href="#comms">Comms</a>
@@ -108,11 +116,34 @@
     need it is the night you won't have time to go get it.
   </div>
 
+  <h2 id="map">Where the positions are</h2>
+  <p>Two angles, because one never shows every position. Marker colours match the
+  tally light, the roster and the position cards below.</p>
+
+  <img class="map" src="stadium-overhead.jpg"
+       alt="Overhead of the field with camera positions marked" />
+  <p class="cap">Overhead. Camera 1 sits in the press box, out of frame here.</p>
+
+  <img class="map" src="stadium-angle-a.jpg"
+       alt="Stadium from the south west with all four camera positions marked" />
+  <p class="cap">Press box and the LED wall end.</p>
+
+  <img class="map" src="stadium-angle-b.jpg"
+       alt="Stadium from the north west with all four camera positions marked" />
+  <p class="cap">Opposite view — the VIP balcony end is clearest here.</p>
+
+  <div class="callout">
+    <strong>The two ends are easy to mix up.</strong> The <strong>LED wall</strong> end is
+    Camera 2. The <strong>VIP balcony</strong>, at the far end under the awning, is Camera 3.
+    They are opposite ends of the stadium — showing up at the wrong one with a 100ft run is
+    a lost pregame.
+  </div>
+
   <h2 id="cams">Camera positions</h2>
 
   <div class="pos" style="--c:#4A8FC0;">
     <div class="pos-head"><span class="pos-name">Camera 1</span><span class="pos-color">Blue</span></div>
-    <div class="pos-where">High 50</div>
+    <div class="pos-where">High 50 — in the press box opening</div>
     <ul>
       <li><span class="run">10 ft SMPTE</span></li>
       <li>Tripod + sandbag</li>
@@ -122,7 +153,7 @@
 
   <div class="pos" style="--c:#D65A4E;">
     <div class="pos-head"><span class="pos-name">Camera 2</span><span class="pos-color">Red</span></div>
-    <div class="pos-where">Low north end zone platform, on the field</div>
+    <div class="pos-where">Field level, just above the Crowley mark in the end zone, under the LED wall</div>
     <ul>
       <li><span class="run">200 ft SMPTE</span> to the <strong>visitor side JBT</strong></li>
       <li>Tripod + sandbag</li>
@@ -132,9 +163,10 @@
 
   <div class="pos" style="--c:#33A870;">
     <div class="pos-head"><span class="pos-name">Camera 3</span><span class="pos-color">Green</span></div>
-    <div class="pos-where">VIP — high north end zone</div>
+    <div class="pos-where">VIP balcony — far end, opposite the LED wall</div>
     <ul>
       <li><span class="run">100 ft SMPTE</span> run up from the JBT into VIP</li>
+      <li>Balcony under the awning, at the end <strong>away from the LED wall</strong></li>
       <li><strong>Power cable</strong> — only position that needs one</li>
       <li>Tripod + sandbag</li>
       <li>Attaching viewfinder</li>
