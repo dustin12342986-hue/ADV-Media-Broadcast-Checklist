@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media — Football Package</title>
+<meta name="theme-color" content="#4A8FC0" />
+<style>
+  :root {
+    --bg:#0A0D12; --panel:#12181F; --panel2:#1A222B; --border:#26313D;
+    --text:#EDEFF3; --text-muted:#8A96A3; --text-faint:#5C6774;
+    --green:#33A870; --amber:#E0A63C; --red:#D65A4E; --blue:#4A8FC0;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 18px 80px; }
+
+  .banner { text-align:center; padding:36px 0 24px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+  .banner h1 { font-family:Georgia,serif; font-size:29px; margin:0; letter-spacing:-0.4px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:8px 0 0; }
+
+  .toc { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:26px; }
+  .toc-title { font-size:11.5px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px; }
+  .toc a { display:block; color:var(--blue); text-decoration:none; font-size:14px; padding:4px 0; font-weight:600; }
+
+  h2 { font-size:20px; margin:34px 0 6px; scroll-margin-top:16px; padding-top:20px; border-top:1px solid var(--border); }
+  h2:first-of-type { border-top:none; padding-top:0; }
+  p { font-size:14.5px; color:var(--text-muted); margin:8px 0; }
+  strong { color:var(--text); }
+
+  /* One card per camera position, banded in that camera's colour so the
+     card matches the tally and the roster. */
+  .pos { background:var(--panel); border:1px solid var(--border); border-left:5px solid var(--c);
+    border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .pos-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:2px; }
+  .pos-name { font-size:17px; font-weight:800; }
+  .pos-color { font-size:10px; font-weight:900; letter-spacing:1px; text-transform:uppercase;
+    color:var(--c); border:1px solid var(--c); border-radius:4px; padding:2px 7px; }
+  .pos-where { font-size:13px; color:var(--text-muted); margin-bottom:12px; }
+  .pos ul { margin:0; padding-left:20px; }
+  .pos li { font-size:14px; color:var(--text-muted); margin:5px 0; }
+  .pos li strong { color:var(--text); }
+  .run { display:inline-block; background:var(--panel2); border:1px solid var(--border);
+    border-radius:5px; padding:1px 7px; font-size:12.5px; font-weight:800;
+    font-family:ui-monospace,Menlo,monospace; color:var(--text); }
+
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); }
+  td { color:var(--text-muted); }
+  td:first-child { color:var(--text); font-weight:600; white-space:nowrap; width:1%; }
+
+  .callout { border-radius:12px; padding:14px 16px; margin:16px 0; font-size:14px;
+    background:var(--panel); border:1px solid var(--border); }
+  .callout.important { background:#1F1810; border-color:var(--amber); color:#FFD699; }
+  .callout.warn { background:#2A1512; border-color:var(--red); color:#F2B8B1; }
+  .callout.good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+  .callout strong { color:inherit; }
+
+  .check { list-style:none; padding:0; margin:12px 0; }
+  .check li { position:relative; padding:8px 0 8px 30px; font-size:14.5px;
+    border-bottom:1px solid var(--border); color:var(--text-muted); }
+  .check li::before { content:"☐"; position:absolute; left:4px; top:7px; font-size:16px; color:var(--text-faint); }
+  .check li strong { color:var(--text); }
+
+  .flag { background:#1F1810; border:1px solid var(--amber); color:#FFD699;
+    border-radius:6px; padding:1px 7px; font-size:11px; font-weight:800; letter-spacing:0.4px; }
+
+  .footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--border);
+    text-align:center; color:var(--text-faint); font-size:12px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    <h1>Football Package</h1>
+    <p>What goes where · Crowley, North Crowley &amp; Texas Wesleyan</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#every">In every camera case</a>
+    <a href="#cams">Camera positions</a>
+    <a href="#audio">Audio</a>
+    <a href="#comms">Comms</a>
+    <a href="#txwes">Texas Wesleyan add-on</a>
+    <a href="#strike">Strike &amp; secure</a>
+    <a href="#confirm">Still open</a>
+  </div>
+
+  <h2 id="every">In every camera case</h2>
+  <p>Same in all four, so nobody has to remember which case has what:</p>
+  <ul class="check">
+    <li><strong>Converter</strong></li>
+    <li><strong>Muffed headset</strong></li>
+    <li><strong>Weather gear</strong> — lives in the case, not the shop. It rains when it rains.</li>
+    <li><strong>Sandbag</strong> — the one that matches that position's tripod</li>
+    <li><strong>Power supply</strong></li>
+    <li><strong>Focus and zoom handles</strong></li>
+  </ul>
+  <p>
+    Cameras <strong>1, 2 and 3</strong> also take an <strong>attaching viewfinder</strong>.
+  </p>
+  <div class="callout good">
+    <strong>Camera 5 is the spare.</strong> It stays cased and comes to every game. The night you
+    need it is the night you won't have time to go get it.
+  </div>
+
+  <h2 id="cams">Camera positions</h2>
+
+  <div class="pos" style="--c:#4A8FC0;">
+    <div class="pos-head"><span class="pos-name">Camera 1</span><span class="pos-color">Blue</span></div>
+    <div class="pos-where">High 50</div>
+    <ul>
+      <li><span class="run">10 ft SMPTE</span></li>
+      <li>Tripod + sandbag</li>
+      <li>Attaching viewfinder</li>
+    </ul>
+  </div>
+
+  <div class="pos" style="--c:#D65A4E;">
+    <div class="pos-head"><span class="pos-name">Camera 2</span><span class="pos-color">Red</span></div>
+    <div class="pos-where">Low north end zone platform, on the field</div>
+    <ul>
+      <li><span class="run">200 ft SMPTE</span> to the <strong>visitor side JBT</strong></li>
+      <li>Tripod + sandbag</li>
+      <li>Attaching viewfinder</li>
+    </ul>
+  </div>
+
+  <div class="pos" style="--c:#33A870;">
+    <div class="pos-head"><span class="pos-name">Camera 3</span><span class="pos-color">Green</span></div>
+    <div class="pos-where">VIP — high north end zone</div>
+    <ul>
+      <li><span class="run">100 ft SMPTE</span> run up from the JBT into VIP</li>
+      <li><strong>Power cable</strong> — only position that needs one</li>
+      <li>Tripod + sandbag</li>
+      <li>Attaching viewfinder</li>
+    </ul>
+  </div>
+
+  <div class="pos" style="--c:#E6CE3A;">
+    <div class="pos-head"><span class="pos-name">Camera 4</span><span class="pos-color">Yellow</span></div>
+    <div class="pos-where">Home sideline</div>
+    <ul>
+      <li><span class="run">100 ft SMPTE</span></li>
+      <li><strong>No viewfinder</strong> — the only position without one</li>
+      <li><strong>Tripod travels with it</strong> — usually shot handheld, but it goes in the case
+        every time, along with its sandbag. Deciding you need it and not having it is the failure.</li>
+    </ul>
+  </div>
+
+  <h2 id="audio">Audio</h2>
+  <table>
+    <tr><th>What</th><th>Use</th></tr>
+    <tr><td>Lav pack 1</td><td>Referee headset, with push-to-talk tab</td></tr>
+    <tr><td>3× Shure ULXD handheld</td><td>National anthem, announcers, special event instructions</td></tr>
+  </table>
+
+  <p><strong>DJ line.</strong> Run down <strong>home radio D</strong> to the <strong>low south end zone D</strong>,
+  female end of the XLR to D. The DJ line runs to house A, male side of the XLR to the JBT.</p>
+
+  <div class="callout important">
+    <strong>Tag both ends of the DJ line.</strong> It crosses public space and pulling an XLR takes
+    no tools and no intent. <em>ADV MEDIA — LIVE BROADCAST LINE — DO NOT UNPLUG</em> with a phone
+    number. Most people who move our gear don't know it matters.
+  </div>
+
+  <h2 id="comms">Comms</h2>
+  <p><strong>5 wireless packs.</strong> Three are fixed:</p>
+  <table>
+    <tr><td>A2</td><td>Fixed</td></tr>
+    <tr><td>EIC</td><td>Fixed</td></tr>
+    <tr><td>PM</td><td>Fixed</td></tr>
+    <tr><td>Spare ×2</td><td>Assign to VIP or a camera as the show needs</td></tr>
+  </table>
+  <p><strong>DJ gets a wired pack.</strong></p>
+
+  <h2 id="txwes">Texas Wesleyan add-on</h2>
+  <p>Everything above, plus:</p>
+  <ul class="check">
+    <li><strong>2× wired shotgun mics</strong> — run off mic 3 and mic 4 on the <strong>home side JBT</strong></li>
+    <li><strong>Wired comm to band</strong> — comm line runs to <strong>home radio D</strong></li>
+  </ul>
+  <div class="callout">
+    Crowley and North Crowley run the base package. Texas Wesleyan is the only one that adds
+    the shotguns and the band comm — check which game you're on before you pack.
+  </div>
+
+  <h2 id="strike">Strike &amp; secure</h2>
+  <p>
+    This is the part that stops a repeat of a camera being moved before we arrived. It costs
+    ten minutes at strike and saves an hour of troubleshooting blind at 5pm.
+  </p>
+
+  <ul class="check">
+    <li><strong>De-rig every camera to the cage.</strong> A camera built on a mount is a camera
+      someone can pick up. In the cage, that isn't possible.</li>
+    <li><strong>Seal every SMPTE mate</strong> with a numbered seal or numbered zip tie.
+      Write the numbers down.</li>
+    <li><strong>Seal the case latches.</strong> One seal on a case beats checking six items inside it.</li>
+    <li><strong>Photograph each position</strong> as you leave it.</li>
+    <li><strong>Wireless goes home.</strong> Handhelds, the lav pack and ref headset, receivers,
+      batteries. Small, expensive, and football barely uses them — they shouldn't sleep in
+      someone else's building.</li>
+  </ul>
+
+  <p>On arrival, before anything else: <strong>read the seal numbers against the list.</strong>
+  A broken seal tells you what was touched before you start troubleshooting, instead of after.</p>
+
+  <div class="callout warn">
+    <strong>If a seal is broken or gear has moved:</strong> photograph it before you touch
+    anything, then tell the EIC or PM. The photo pair — how we left it, how we found it — is
+    what makes this a conversation with the district instead of a complaint.
+  </div>
+
+  <div class="callout good">
+    <strong>The cage only protects what's in it.</strong> Cable runs to camera positions can't be
+    caged, which is exactly what got moved. Seals cover what the cage can't.
+  </div>
+
+  <h2 id="confirm">Still open</h2>
+  <p>One thing left from the original rundown:</p>
+  <ul class="check">
+    <li><strong>8 mics and 5 stands</strong> are in inventory. Football uses the ref lav, 3 handhelds,
+      and 2 shotguns at Texas Wesleyan. What are the remaining mics and the stands for — and do
+      they need to travel to football at all, or do they stay behind?</li>
+  </ul>
+  <div class="callout important">
+    Worth settling, because anything that travels without a job is something else to account for
+    at strike and something else that can walk off.
+  </div>
+
+  <div class="footer">ADV Media — Internal Use — Do Not Distribute</div>
+</div>
+</body>
+</html>

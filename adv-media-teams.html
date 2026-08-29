@@ -464,20 +464,27 @@
     letter-spacing: 0.7px; margin: 20px 0 8px; padding-bottom: 5px;
     border-bottom: 1px solid var(--border);
   }
-  /* A beat between cues, so the end of one is visible at a glance and two
-     cues don't read as one block. Lights up under the live cue — that's the
-     one where "what's next" actually matters. */
+  /* Between every cue. Quiet everywhere except under the live cue, where it
+     becomes the "what's coming" line — that's the only boundary a producer
+     mid-show actually needs to see. */
   .ros-standby {
-    display: flex; align-items: center; gap: 8px;
-    margin: 2px 0 10px; padding: 0 4px;
-    font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px;
-    text-transform: uppercase; color: var(--text-faint);
+    height: 1px; background: var(--border); margin: 8px 10px 12px;
   }
-  .ros-standby::before, .ros-standby::after {
-    content: ""; flex: 1; height: 1px; background: var(--border);
+  .ros-standby.on {
+    height: auto; background: transparent; margin: 8px 0 12px;
+    display: flex; align-items: center; gap: 9px;
+    border: 1px solid var(--amber); border-radius: 9px;
+    background: #1F1810; padding: 9px 12px;
   }
-  .ros-standby.on { color: var(--blue); }
-  .ros-standby.on::before, .ros-standby.on::after { background: var(--blue); opacity: 0.5; }
+  .ros-standby-tag {
+    flex: 0 0 auto; background: var(--amber); color: #1A1205;
+    font-size: 10px; font-weight: 900; letter-spacing: 1.1px;
+    padding: 3px 8px; border-radius: 4px;
+  }
+  .ros-standby-next {
+    flex: 1; min-width: 0; color: #FFD699; font-size: 13.5px; font-weight: 700;
+    line-height: 1.3;
+  }
 
   .ros-cue {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -967,7 +974,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v18 · standby markers · call times v1";
+const APP_BUILD = "build 2026-08-27 · v19 · standby callout · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3945,7 +3952,16 @@ function rosShowListHtml(cues, cur) {
         ${rosFieldHtml("Audio", c.audio, "d-audio")}
         ${rosFieldHtml("Note", c.notes, "d-note")}
       </div>
-      ${i < cues.length - 1 ? `<div class="ros-standby ${i === cur ? "on" : ""}">standby for next cue</div>` : ""}`;
+      ${i < cues.length - 1 ? (
+        i === cur
+          // The one under the live cue is the only standby that matters, so it
+          // says what's actually coming rather than just marking a boundary.
+          ? `<div class="ros-standby on">
+               <span class="ros-standby-tag">STANDBY</span>
+               <span class="ros-standby-next">${escapeHtml(cues[i + 1].event || cues[i + 1].time || "next cue")}</span>
+             </div>`
+          : `<div class="ros-standby"></div>`
+      ) : ""}`;
   }).join("");
 }
 
