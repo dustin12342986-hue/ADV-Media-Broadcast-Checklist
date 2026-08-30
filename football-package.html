@@ -58,6 +58,15 @@
   .callout.good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
   .callout strong { color:inherit; }
 
+  ol.steps { counter-reset:s; list-style:none; padding:0; margin:12px 0; }
+  ol.steps li { counter-increment:s; position:relative; padding:9px 0 9px 40px;
+    font-size:14.5px; color:var(--text-muted); border-bottom:1px solid var(--border); }
+  ol.steps li::before { content:counter(s); position:absolute; left:2px; top:8px;
+    width:26px; height:26px; border-radius:50%; background:var(--red); color:#fff;
+    font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  ol.steps li strong { color:var(--text); }
+  h3 { font-size:16px; margin:22px 0 4px; }
+
   .check { list-style:none; padding:0; margin:12px 0; }
   .check li { position:relative; padding:8px 0 8px 30px; font-size:14.5px;
     border-bottom:1px solid var(--border); color:var(--text-muted); }
@@ -71,6 +80,8 @@
     display:block; width:100%; height:auto; border-radius:12px;
     border:1px solid var(--border); margin:14px 0 6px; background:#000;
   }
+  video.map { aspect-ratio:1/1; object-fit:cover; }
+  .cap a { color:var(--blue); }
 
   .cap { font-size:12.5px; color:var(--text-faint); margin:2px 0 18px; font-style:italic; }
 
@@ -88,6 +99,7 @@
 
   <div class="toc">
     <div class="toc-title">Contents</div>
+    <a href="#smpte">SMPTE fiber — read this first</a>
     <a href="#every">In every camera case</a>
     <a href="#map">Where the positions are</a>
     <a href="#cams">Camera positions</a>
@@ -96,6 +108,47 @@
     <a href="#txwes">Texas Wesleyan add-on</a>
     <a href="#strike">Strike &amp; secure</a>
     <a href="#confirm">Still open</a>
+  </div>
+
+  <h2 id="smpte">SMPTE fiber — read this first</h2>
+
+  <div class="callout warn" style="font-size:15px;">
+    <strong>SMPTE fiber can never get wet on the ends.</strong> Whether they are covered
+    or not, they must never be dragged through wet turf or puddles. It will ruin them
+    instantly.
+  </div>
+
+  <p>
+    It's glass, not copper. A drop of water or a speck of grit on the end face stops light
+    getting through — the camera still powers up, and you get no picture. There is no
+    partial failure and no field repair. A ruined end means a dead position.
+  </p>
+
+  <h3>Striking a run</h3>
+  <ol class="steps">
+    <li><strong>Unplug the SMPTE from the JBT.</strong></li>
+    <li><strong>Cap the end</strong> straight away.</li>
+    <li><strong>Plastic sleeve bag over the capped end.</strong> The cap alone is not a
+      water seal.</li>
+    <li><strong>Same on the other end.</strong> Both ends, every time.</li>
+  </ol>
+
+  <div class="callout important">
+    <strong>The two ends never touch the ground.</strong> Not on wet turf, not on dry
+    concrete, not "just for a second" while you coil. Grit does the same damage as water,
+    it just takes an extra show to show up.
+  </div>
+
+  <p>
+    <strong>Use reels for every camera.</strong> A reel keeps the ends off the ground by
+    design instead of by everyone remembering. That's the fix — the rule above depends on
+    people, the reel doesn't.
+  </p>
+
+  <div class="callout">
+    <strong>If an end does get wet or dropped:</strong> don't plug it in to see if it still
+    works. Tell the EIC or A1, tag the cable, and use a spare. Mating a dirty end can push
+    the contamination into the other connector and take out two ends instead of one.
   </div>
 
   <h2 id="every">In every camera case</h2>
@@ -117,20 +170,22 @@
   </div>
 
   <h2 id="map">Where the positions are</h2>
-  <p>Two angles, because one never shows every position. Marker colours match the
-  tally light, the roster and the position cards below.</p>
+  <p>All three views on a loop. Marker colours match the tally light, the roster
+  and the position cards below.</p>
 
-  <img class="map" src="stadium-overhead.jpg"
-       alt="Overhead of the field with camera positions marked" />
-  <p class="cap">Overhead. Camera 1 sits in the press box, out of frame here.</p>
-
-  <img class="map" src="stadium-angle-a.jpg"
-       alt="Stadium from the south west with all four camera positions marked" />
-  <p class="cap">Press box and the LED wall end.</p>
-
-  <img class="map" src="stadium-angle-b.jpg"
-       alt="Stadium from the north west with all four camera positions marked" />
-  <p class="cap">Opposite view — the VIP balcony end is clearest here.</p>
+  <video class="map" autoplay loop muted playsinline preload="metadata"
+         poster="stadium-tour-poster.jpg">
+    <source src="stadium-tour-web.mp4" type="video/mp4" />
+    <source src="stadium-tour-web.webm" type="video/webm" />
+    Your browser can't play this. The still views are linked below.
+  </video>
+  <p class="cap">
+    Cycles through all three views. Muted and looping — it starts on its own.
+    Full size stills:
+    <a href="stadium-overhead.jpg">overhead</a> ·
+    <a href="stadium-angle-a.jpg">angle A</a> ·
+    <a href="stadium-angle-b.jpg">angle B</a>
+  </p>
 
   <div class="callout">
     <strong>The two ends are easy to mix up.</strong> The <strong>LED wall</strong> end is
@@ -230,6 +285,9 @@
   <ul class="check">
     <li><strong>De-rig every camera to the cage.</strong> A camera built on a mount is a camera
       someone can pick up. In the cage, that isn't possible.</li>
+    <li><strong>Cap and bag both SMPTE ends</strong> before anything else — see
+      <a href="#smpte" style="color:var(--blue);">SMPTE fiber</a>. Ends never touch the ground.</li>
+    <li><strong>Onto reels</strong>, not coiled on the turf.</li>
     <li><strong>Seal every SMPTE mate</strong> with a numbered seal or numbered zip tie.
       Write the numbers down.</li>
     <li><strong>Seal the case latches.</strong> One seal on a case beats checking six items inside it.</li>

@@ -90,6 +90,28 @@ INSPECT
 Use a fiber inspection scope before and after cleaning. If it still looks
 contaminated, clean again — don't mate it and hope.
 
+WATER — THE ONE THAT ENDS A CABLE ON THE SPOT
+SMPTE fiber can never get wet on the ends. Covered or not, capped or not, the ends must
+never be dragged through wet turf or through puddles. It ruins them instantly. There is
+no partial failure and no field repair: the camera still powers up and there is simply no
+picture.
+
+STRIKING A RUN — the order matters
+1. Unplug the SMPTE from the JBT.
+2. Cap the end straight away.
+3. Plastic sleeve bag over the capped end. A cap is not a water seal.
+4. Same on the other end. Both ends, every time.
+
+THE ENDS NEVER TOUCH THE GROUND. Not wet turf, not dry concrete, not for a second while
+someone coils. Grit does the same damage as water, it just takes another show to appear.
+
+USE REELS for every camera run. A reel keeps the ends off the ground by design rather than
+by everyone remembering, which is the only version of this rule that survives a wet night.
+
+IF AN END GETS WET OR DROPPED: do not plug it in to test it. Tag the cable, tell the EIC
+or A1, use a spare. Mating a contaminated end pushes the contamination into the other
+connector and costs two ends instead of one.
+
 THINGS THAT WRECK CONNECTORS
 - Leaving a connector uncapped, even for a minute. Cap it the moment it's
   unmated, both ends, every time.
