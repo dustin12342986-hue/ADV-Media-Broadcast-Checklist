@@ -420,6 +420,58 @@
     color: var(--text-muted);
   }
 
+  /* Cables. Big number, big status — this gets read at arm's length on a
+     cart in bad light, not studied. */
+  .gear-head {
+    font-size: 11.5px; font-weight: 800; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.7px; margin: 0 0 6px;
+  }
+  .cab-warn {
+    background: #1F1810; border: 1px solid var(--amber); color: #FFD699;
+    border-radius: 10px; padding: 10px 13px; margin-bottom: 12px;
+    font-size: 12.5px; font-weight: 700;
+  }
+  /* Seal numbers run longer than a cable number, so they get their own size. */
+  .cab-num-seal { font-size: 15px; min-width: 58px; letter-spacing: -0.2px; }
+
+  .cab-alert {
+    background: #2A1512; border: 1px solid var(--red); color: #F2B8B1;
+    border-radius: 10px; padding: 11px 14px; margin-bottom: 12px;
+    font-size: 13px; font-weight: 800;
+  }
+  .cab-row {
+    display: flex; gap: 12px; align-items: center; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .cab-num {
+    flex: 0 0 auto; min-width: 42px; text-align: center;
+    font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums;
+  }
+  .cab-main { flex: 1; min-width: 0; }
+  .cab-label { font-size: 14px; font-weight: 700; }
+  .cab-state { font-size: 12px; font-weight: 800; margin-top: 2px; }
+  .cab-note { font-size: 12px; color: var(--amber); margin-top: 3px; }
+  .cab-by { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
+
+  .cab-good   { border-left-color: var(--green); }
+  .cab-good   .cab-state { color: var(--green); }
+  .cab-repair { border-left-color: var(--amber); }
+  .cab-repair .cab-state { color: var(--amber); }
+  .cab-bad    { border-left-color: var(--red); background: #2A1512; }
+  .cab-bad    .cab-state { color: #F2B8B1; }
+  .cab-bad    .cab-num { color: #F2B8B1; }
+
+  .cab-btn {
+    display: block; width: 100%; margin-top: 10px; padding: 14px 0;
+    border-radius: 11px; border: none; color: #fff;
+    font-size: 15px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
+  .cab-btn-good { background: var(--green); }
+  .cab-btn-bad { background: var(--red); }
+  .cab-btn-repair { background: var(--amber); color: #1A1205; }
+
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
     display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -974,7 +1026,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v19 · standby callout · call times v1";
+const APP_BUILD = "build 2026-08-27 · v20 · gear check · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1012,6 +1064,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
       <button class="tab-btn ${mainState.view === "runofshow" ? "active" : ""}" id="tabRunOfShow">Run of Show</button>
+      <button class="tab-btn ${mainState.view === "cables" ? "active" : ""}" id="tabCables">Gear</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
       <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
@@ -1050,6 +1103,7 @@ function renderMainApp() {
   document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabRunOfShow").onclick = () => { mainState.view = "runofshow"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabCables").onclick = () => { mainState.view = "cables"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabEquipment").onclick = () => { mainState.view = "equipment"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -1062,6 +1116,14 @@ function renderMainApp() {
 
   if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
   if (mainState.view !== "runofshow") rosExitFullscreenIfNeeded();
+
+  if (mainState.view !== "cables" && unsubCables) { unsubCables(); unsubCables = null; }
+
+  if (mainState.view === "cables") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderCablesView();
+    return;
+  }
 
   if (mainState.view === "runofshow") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
@@ -3133,6 +3195,303 @@ const CAMERA_NOTICE_HTML = `
     <strong>Aracely</strong> the day of the event. Until you are given your
     camera assignment, assume you are what is scheduled.
   </div>`;
+
+// ============================================================================
+// Cables
+// ============================================================================
+// The failure this exists for: a bad SMPTE and a good one look identical on a
+// shelf, so a crew member grabs the wrong one and — because the switcher needs
+// all four cameras up — the whole show is down. Segregating by shelf only
+// works until someone moves things.
+//
+// So the status lives on the cable's number, not its location. Tape a number
+// on both barrels, and anyone can check it in two taps from the field.
+//
+// Deliberately not an inventory system. A cable, a status, who said so and
+// when. Anything heavier stops getting updated by week three.
+let unsubCables = null;
+
+const CABLE_STATE = {
+  good:   { label: "Good",           cls: "cab-good",   rank: 2 },
+  bad:    { label: "BAD — DO NOT USE", cls: "cab-bad",  rank: 0 },
+  repair: { label: "Out for repair", cls: "cab-repair", rank: 1 },
+};
+
+// Seeds the list the first time, from the runs the football package calls for.
+const CABLE_SEED = [
+  { id: "01", label: "SMPTE 10 ft" },
+  { id: "02", label: "SMPTE 100 ft" },
+  { id: "03", label: "SMPTE 100 ft" },
+  { id: "04", label: "SMPTE 200 ft" },
+  { id: "05", label: "SMPTE 100 ft (spare)" },
+];
+
+// ---- Case seals -------------------------------------------------------------
+// Camera Lead zip-ties each case after the quality check and records the tie
+// number here. At load-in the number on the case has to match the number on
+// the screen. A cut tie can be replaced with an identical one — a number can't,
+// which is the whole reason the number gets written down rather than just
+// "sealed / not sealed".
+//
+// A mismatch means someone was in the case between gigs. That's the thing we
+// had no way of knowing before.
+const CASE_SEED = [
+  { id: "cam1", label: "Camera 1 case" },
+  { id: "cam2", label: "Camera 2 case" },
+  { id: "cam3", label: "Camera 3 case" },
+  { id: "cam4", label: "Camera 4 case" },
+  { id: "cam5", label: "Camera 5 case (spare)" },
+];
+
+const CASE_STATE = {
+  broken: { label: "SEAL BROKEN — check the contents", cls: "cab-bad",    rank: 0 },
+  open:   { label: "Open — not sealed",                 cls: "cab-repair", rank: 1 },
+  sealed: { label: "Sealed",                            cls: "cab-good",   rank: 2 },
+};
+
+function renderCasesHtml(cases) {
+  const rows = Object.entries(cases)
+    .map(([id, c]) => ({ id, ...c, state: c.state || "open" }))
+    .sort((a, b) => CASE_STATE[a.state].rank - CASE_STATE[b.state].rank ||
+                    a.id.localeCompare(b.id));
+  const bad = rows.filter((r) => r.state === "broken").length;
+  const unsealed = rows.filter((r) => r.state === "open").length;
+
+  return `
+    <div class="gear-head">Case seals</div>
+    <div class="footnote" style="margin-bottom:10px;">
+      Camera Lead seals each case after the quality check and records the tie number.
+      At load-in, the number on the case must match the number here.
+    </div>
+    ${bad ? `<div class="cab-alert">${bad} case${bad === 1 ? "" : "s"} with a broken seal — check the contents before you build</div>` : ""}
+    ${!bad && unsealed ? `<div class="cab-warn">${unsealed} case${unsealed === 1 ? "" : "s"} not sealed yet</div>` : ""}
+    ${rows.map((r) => {
+      const st = CASE_STATE[r.state];
+      return `
+      <div class="cab-row ${st.cls}" data-case="${escapeAttr(r.id)}">
+        <div class="cab-num cab-num-seal">${r.seal ? escapeHtml(r.seal) : "—"}</div>
+        <div class="cab-main">
+          <div class="cab-label">${escapeHtml(r.label || r.id)}</div>
+          <div class="cab-state">${escapeHtml(st.label)}</div>
+          ${r.by ? `<div class="cab-by">${escapeHtml(r.by)}${r.at ? " · " + escapeHtml(shortWhen(r.at)) : ""}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("")}
+  `;
+}
+
+function openCaseSheet(id, c) {
+  const sealed = (c.state || "open") === "sealed";
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:360px;">
+      <div class="modal-title">${escapeHtml(c.label || id)}</div>
+      <div class="modal-subtitle">${sealed ? "Sealed with tie " + escapeHtml(c.seal || "?") : "Not sealed"}</div>
+      ${sealed ? `
+        <button class="cab-btn cab-btn-good" data-case-set="match">Seal matches — good to go</button>
+        <button class="cab-btn cab-btn-bad" data-case-set="broken">Seal broken or wrong number</button>
+        <button class="cab-btn cab-btn-repair" data-case-set="open">Opening it now</button>
+      ` : `
+        <button class="cab-btn cab-btn-good" data-case-set="seal">Seal it — record tie number</button>
+      `}
+      <button class="shift-btn shift-btn-ghost" id="caseCancel"
+        style="width:100%; margin-top:12px; padding:11px 0;">Cancel</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  function close() { overlay.remove(); document.body.style.overflow = ""; }
+  overlay.querySelector("#caseCancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  const who = () => (myProfileForShifts && myProfileForShifts.legalName)
+    || currentUser.displayName || currentUser.email || "";
+
+  overlay.querySelectorAll("[data-case-set]").forEach((btn) => {
+    btn.onclick = async () => {
+      const act = btn.dataset.caseSet;
+      let patch = null;
+
+      if (act === "seal") {
+        const n = prompt("Zip tie number on this case");
+        if (n === null) return;
+        const seal = n.trim();
+        if (!seal) return;
+        patch = { state: "sealed", seal, by: who(), at: new Date().toISOString() };
+      } else if (act === "match") {
+        // Confirming is a record too — it proves someone actually looked.
+        patch = { by: who(), at: new Date().toISOString() };
+      } else if (act === "broken") {
+        patch = { state: "broken", by: who(), at: new Date().toISOString() };
+      } else if (act === "open") {
+        patch = { state: "open", seal: null, by: who(), at: new Date().toISOString() };
+      }
+      close();
+      try { await db.ref(`cases/${id}`).update(patch); }
+      catch (e) { alert("Couldn't save: " + (e.message || "unknown error")); }
+    };
+  });
+}
+
+async function renderCablesView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading cables…</div>`;
+
+  if (unsubCables) { unsubCables(); unsubCables = null; }
+
+  let cablesVal = null, casesVal = null;
+  const cablesRef = db.ref("cables");
+  const casesRef  = db.ref("cases");
+
+  const paint = () => {
+    if (cablesVal === null || casesVal === null) return;   // wait for both
+    renderGear(cablesVal, casesVal);
+  };
+
+  const cbCables = (snap) => {
+    const v = snap.val();
+    if (!v && isAdmin()) {
+      const seed = {};
+      CABLE_SEED.forEach((c) => { seed[c.id] = { label: c.label, status: "good" }; });
+      db.ref("cables").set(seed).catch(() => {});
+      return;
+    }
+    cablesVal = v || {}; paint();
+  };
+  const cbCases = (snap) => {
+    const v = snap.val();
+    if (!v && isAdmin()) {
+      const seed = {};
+      CASE_SEED.forEach((c) => { seed[c.id] = { label: c.label, state: "open" }; });
+      db.ref("cases").set(seed).catch(() => {});
+      return;
+    }
+    casesVal = v || {}; paint();
+  };
+
+  cablesRef.on("value", cbCables);
+  casesRef.on("value", cbCases);
+  unsubCables = () => { cablesRef.off("value", cbCables); casesRef.off("value", cbCases); };
+}
+
+function renderGear(cables, cases) {
+  const inner = document.getElementById("innerRoot");
+  if (!inner || mainState.view !== "cables") return;
+  inner.innerHTML = renderCasesHtml(cases) + renderCablesHtml(cables);
+
+  inner.querySelectorAll("[data-case]").forEach((el) => {
+    el.onclick = () => openCaseSheet(el.dataset.case, cases[el.dataset.case] || {});
+  });
+  inner.querySelectorAll("[data-cab]").forEach((el) => {
+    el.onclick = () => openCableSheet(el.dataset.cab, cables[el.dataset.cab] || {});
+  });
+  const add = document.getElementById("cabAdd");
+  if (add) add.onclick = addCable;
+}
+
+function renderCablesHtml(cables) {
+  const admin = isAdmin();
+
+  // Bad first. Someone opening this at 5pm needs the problems, not the list.
+  const rows = Object.entries(cables)
+    .map(([id, c]) => ({ id, ...c, status: c.status || "good" }))
+    .sort((a, b) => (CABLE_STATE[a.status] || CABLE_STATE.good).rank -
+                    (CABLE_STATE[b.status] || CABLE_STATE.good).rank ||
+                    a.id.localeCompare(b.id));
+
+  const bad = rows.filter((r) => r.status !== "good").length;
+
+  return `
+    <div class="gear-head" style="margin-top:26px;">Cables</div>
+    <div class="footnote" style="margin-bottom:10px;">
+      Every cable has a number taped on both ends. Tap one to change its status.
+      Everyone sees it straight away.
+    </div>
+    ${bad ? `<div class="cab-alert">${bad} cable${bad === 1 ? "" : "s"} not in service — do not use ${bad === 1 ? "it" : "them"}</div>` : ""}
+    ${rows.length === 0 ? `<div class="footnote">No cables yet.${admin ? " Add one below." : ""}</div>` : ""}
+    ${rows.map((r) => {
+      const st = CABLE_STATE[r.status] || CABLE_STATE.good;
+      return `
+      <div class="cab-row ${st.cls}" data-cab="${escapeAttr(r.id)}">
+        <div class="cab-num">${escapeHtml(r.id)}</div>
+        <div class="cab-main">
+          <div class="cab-label">${escapeHtml(r.label || "SMPTE")}</div>
+          <div class="cab-state">${escapeHtml(st.label)}</div>
+          ${r.note ? `<div class="cab-note">${escapeHtml(r.note)}</div>` : ""}
+          ${r.by ? `<div class="cab-by">${escapeHtml(r.by)}${r.at ? " · " + escapeHtml(shortWhen(r.at)) : ""}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("")}
+    ${admin ? `<button class="shift-btn shift-btn-ghost" id="cabAdd"
+        style="width:100%; margin-top:16px; padding:11px 0;">+ Add a cable</button>` : ""}
+  `;
+}
+
+function shortWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function openCableSheet(id, cable) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:360px;">
+      <div class="modal-title">Cable ${escapeHtml(id)}</div>
+      <div class="modal-subtitle">${escapeHtml(cable.label || "SMPTE")}</div>
+      <button class="cab-btn cab-btn-good" data-set="good">Good — in service</button>
+      <button class="cab-btn cab-btn-bad" data-set="bad">Bad — pull it now</button>
+      <button class="cab-btn cab-btn-repair" data-set="repair">Out for repair</button>
+      <button class="shift-btn shift-btn-ghost" id="cabCancel"
+        style="width:100%; margin-top:12px; padding:11px 0;">Cancel</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  function close() { overlay.remove(); document.body.style.overflow = ""; }
+  overlay.querySelector("#cabCancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  overlay.querySelectorAll("[data-set]").forEach((btn) => {
+    btn.onclick = async () => {
+      const status = btn.dataset.set;
+      let note = cable.note || "";
+      if (status === "bad") {
+        // What failed matters when it comes back — "it was bad" isn't repairable.
+        const v = prompt("What went wrong? (no picture, intermittent, damaged end, wet…)");
+        if (v === null) return;
+        note = v.trim();
+      }
+      if (status === "good") note = "";
+      close();
+      try {
+        await db.ref(`cables/${id}`).update({
+          status, note: note || null,
+          by: (myProfileForShifts && myProfileForShifts.legalName)
+              || currentUser.displayName || currentUser.email || "",
+          at: new Date().toISOString(),
+        });
+      } catch (e) {
+        alert("Couldn't save: " + (e.message || "unknown error"));
+      }
+    };
+  });
+}
+
+async function addCable() {
+  const id = prompt("Cable number, as taped on the barrels (e.g. 06)");
+  if (id === null) return;
+  const key = id.trim();
+  if (!key) return;
+  if (/[.#$/\[\]]/.test(key)) { alert("No . # $ / [ ] in a cable number."); return; }
+  const label = prompt("What is it? (e.g. SMPTE 100 ft)") || "SMPTE";
+  try {
+    await db.ref(`cables/${key}`).update({ label: label.trim(), status: "good" });
+  } catch (e) {
+    alert("Couldn't add that: " + (e.message || "unknown error")
+      + "\n\nIf this says permission denied, the database rules need a \"cables\" section.");
+  }
+}
 
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
