@@ -39,6 +39,14 @@
 
 const VIDEO_KB = [
   {
+    title: "Cleaning a SMPTE / LEMO fiber connector",
+    url: "https://www.youtube.com/watch?v=v06c4lwcMKs",
+    covers: "SMPTE cleaning, LEMO connector, one-click cleaner, dirty fiber, no picture, "
+          + "no video from camera, cleaning the plug, cleaning the socket, fiber inspection",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
     title: "URSA Broadcast G2 setup walkthrough",
     url: "https://www.youtube.com/watch?v=UHVHmoYAigI",
     covers: "URSA Broadcast G2 first-time setup, camera menus, getting configured",
@@ -48,10 +56,6 @@ const VIDEO_KB = [
 
   // ---- [ADD YOURS] ---------------------------------------------------------
   // Slots worth filling first, based on what crew actually ask about:
-  //
-  // { title: "Cleaning a SMPTE fiber connector",
-  //   url: "", covers: "SMPTE cleaning, one-click cleaner, plug vs socket, dirty fiber, no picture",
-  //   source: "", minutes: null },
   //
   // { title: "ULX-D group scan and IR sync",
   //   url: "", covers: "wireless scan, sync, dropouts, RF interference, no audio from a mic",

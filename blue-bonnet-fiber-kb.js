@@ -68,6 +68,10 @@ WHAT'S IN A KIT
 - LEMO/SMPTE alignment tool
 - Fiber inspection scope
 
+THERE IS A VIDEO. If someone is cleaning a connector for the first time, point them
+at the SMPTE / LEMO cleaning video in the video library — the plug and socket differ and
+it's easier to watch once than to read.
+
 CLEANING A SOCKET (PUW, EDW, PEW, PBW style — the receptacle end)
 1. Gently remove the first/front cap to expose the fibers.
 2. Insert the one-click cleaner tip into the connector and push.
