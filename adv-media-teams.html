@@ -528,6 +528,23 @@ const MONITOR_DEMO = true;
   .doc-pick-label { display: block; font-size: 14px; font-weight: 800; }
   .doc-pick-blurb { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
 
+  /* Audio portal rows */
+  .ac-list { margin-top: 10px; border-top: 1px solid var(--border); }
+  .ac-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .ac-row:last-child { border-bottom: none; }
+  .ac-time {
+    flex: 0 0 62px; font-size: 11.5px; font-weight: 800; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; padding-top: 1px;
+  }
+  .ac-main { flex: 1; min-width: 0; }
+  .ac-event { display: block; font-size: 13px; font-weight: 700; }
+  .ac-event em { font-style: normal; font-weight: 600; color: var(--text-faint); }
+  .ac-src { display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .ap-group {
+    font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--accent); margin: 14px 0 2px;
+  }
+
   /* ULX-D. Minutes are the headline; bars are a secondary cue, because bars
      are what A1 already has on the receiver and minutes are what they don't. */
   .ulx-list { margin-top: 10px; border-top: 1px solid var(--border); }
@@ -1350,7 +1367,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v37 · ULX-D wireless";
+const APP_BUILD = "build 2026-09-01 · v38 · audio portal";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1390,6 +1407,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
       <button class="tab-btn ${mainState.view === "runofshow" ? "active" : ""}" id="tabRunOfShow">Run of Show</button>
       <button class="tab-btn ${mainState.view === "cables" ? "active" : ""}" id="tabCables">Gear</button>
+      <button class="tab-btn ${mainState.view === "audio" ? "active" : ""}" id="tabAudio">Audio</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
       <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
@@ -1441,6 +1459,7 @@ function renderMainApp() {
   document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabRunOfShow").onclick = () => { mainState.view = "runofshow"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabCables").onclick = () => { mainState.view = "cables"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabAudio").onclick = () => { mainState.view = "audio"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabEquipment").onclick = () => { mainState.view = "equipment"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -1458,6 +1477,14 @@ function renderMainApp() {
 
   if (mainState.view !== "cables" && unsubCables) { unsubCables(); unsubCables = null; }
   if (mainState.view !== "today" && unsubSignal) { unsubSignal(); unsubSignal = null; }
+
+  if (mainState.view !== "audio" && unsubAudio) { unsubAudio(); unsubAudio = null; }
+
+  if (mainState.view === "audio") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAudioView();
+    return;
+  }
 
   if (mainState.view === "cables") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
@@ -4466,8 +4493,11 @@ async function ulxdPoll() {
   } catch (e) {
     ulxdData = { online: false, ts: null, channels: [] };
   }
+  // Guard on the host element, not the view name. This read `=== "today"`
+  // after the panel moved to Audio, so the fetch worked and the screen never
+  // updated.
   const host = document.getElementById("ulxdHost");
-  if (host && mainState.view === "today") host.innerHTML = renderUlxd();
+  if (host) host.innerHTML = renderUlxd();
 }
 
 function renderUlxd() {
@@ -4508,6 +4538,169 @@ function renderUlxd() {
             </div>`;
           }).join("")}
         </div>` : ""}
+    </div>`;
+}
+
+// ============================================================================
+// Audio portal — A1
+// ============================================================================
+// Everything the audio engineer needs in one place, instead of scattered
+// across Today and the run of show. A1 is the position that spends the whole
+// show looking at one screen, so it earns its own.
+//
+// Contents, in the order they matter on a show day:
+//   1. Wireless   — ULX-D battery in minutes, live from the receivers
+//   2. Comms      — the pre-show check
+//   3. Audio cues — only the cues with an audio department, not all 38
+//   4. Patch      — what is plugged where, so it survives someone leaving
+//   5. Handoffs   — the two coordination points that have gone wrong before
+let unsubAudio = null;
+
+// The football patch as it actually is. Static because it is the same every
+// week; TXWES adds to it rather than changing it.
+const AUDIO_PATCH = [
+  { group: "Wireless", items: [
+    { what: "Ref mic", detail: "Lav pack 1 with PTT. A2 mics the referee FIRST, before anything else." },
+    { what: "Handheld 1", detail: "National anthem" },
+    { what: "Handheld 2", detail: "Announcers" },
+    { what: "Handheld 3", detail: "Special events / presentations" },
+  ]},
+  { group: "Wired", items: [
+    { what: "DJ line", detail: "Down home radio D to the low south end zone D. Female XLR to D, house A male to the JBT." },
+    { what: "Shotguns (TXWES only)", detail: "Mics 3 and 4, home side JBT." },
+  ]},
+  { group: "Comms", items: [
+    { what: "Wireless packs", detail: "A2, EIC, PM fixed. Two spares." },
+    { what: "DJ", detail: "Wired." },
+    { what: "Band (TXWES only)", detail: "Wired comm down home radio D." },
+  ]},
+];
+
+const AUDIO_HANDOFFS = [
+  { title: "Ref mic first", body: "A2 finds the referee and mics him up before anything else on the list. He walks away and you lose him." },
+  { title: "Coin toss", body: "A2 confirms the coin toss time with the Producer, tells the referee that time, and tests the ref mic back to A1 before the referee walks away." },
+  { title: "Anthem", body: "Handheld 1. Check it live before doors, not at 6:57." },
+];
+
+async function renderAudioView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+
+  const todayId = localDateId();
+  let game = GAMES.find((g) => g.id === todayId);
+  let gameId = todayId;
+  if (!game) {
+    const t = tomorrowId();
+    game = GAMES.find((g) => g.id === t);
+    gameId = t;
+  }
+  // No game today or tomorrow: the patch and handoffs are still worth reading,
+  // so the page renders without the live parts rather than showing nothing.
+  const hasGame = !!game;
+
+  const draw = (comms, cues) => {
+    if (mainState.view !== "audio") return;
+    inner.innerHTML = `
+      ${hasGame ? `<div class="footnote" style="margin-bottom:12px;">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>` : ""}
+      <div id="ulxdHost">${renderUlxd()}</div>
+      ${hasGame ? renderCommsCheck(gameId, comms || {}) : ""}
+      ${hasGame ? renderAudioCues(cues, gameId) : ""}
+      ${renderAudioPatch()}
+      ${renderAudioHandoffs()}
+    `;
+    if (hasGame) wireShowTools(gameId, game);
+  };
+
+  if (!hasGame) { draw(null, null); return; }
+
+  if (unsubAudio) { unsubAudio(); unsubAudio = null; }
+  const cRef = db.ref(`commsCheck/${gameId}`);
+  const rRef = db.ref(`runOfShow/${gameId}/cues`);
+  let comms = null, cues = null;
+  const paint = () => { if (comms !== null && cues !== null) draw(comms, cues); };
+  const cCb = (s) => { comms = s.val() || {}; paint(); };
+  const rCb = (s) => { cues = s.val() || []; paint(); };
+  cRef.on("value", cCb);
+  rRef.on("value", rCb);
+  unsubAudio = () => { cRef.off("value", cCb); rRef.off("value", rCb); };
+
+  if (ULXD_STATE_URL) {
+    ulxdPoll();
+    if (ulxdTimer) clearInterval(ulxdTimer);
+    ulxdTimer = setInterval(ulxdPoll, ULXD_POLL_MS);
+  }
+}
+
+// Only the cues that have an audio department. A1 does not need all 38 —
+// they need the dozen where something has to happen at the desk.
+function renderAudioCues(cues, gameId) {
+  // The stored cue list is only written once someone opens Run of Show. A1
+  // should not have to wait for that, so fall back to the seed.
+  let src = Array.isArray(cues) ? cues : Object.values(cues || {});
+  if (!src.length && gameId && RUN_OF_SHOW[gameId]) {
+    src = [];
+    (RUN_OF_SHOW[gameId].sections || []).forEach((sec) => {
+      (sec.cues || []).forEach((c) => src.push(Object.assign({ section: sec.name }, c)));
+    });
+  }
+  const list = src.filter((c) => c && c.audio && String(c.audio).trim());
+  if (!list.length) {
+    return `
+      <div class="sig-card" style="border-left-color:var(--text-faint)">
+        <div class="sig-head"><span class="sig-title">Audio cues</span></div>
+        <div class="sig-sub">No cues with an audio department for this game yet.</div>
+      </div>`;
+  }
+  return `
+    <div class="sig-card" style="border-left-color:var(--green)">
+      <div class="sig-head">
+        <span class="sig-title">Audio cues</span>
+        <span class="sig-count">${list.length}</span>
+      </div>
+      <div class="sig-sub">Only the cues with something to do at the desk.</div>
+      <div class="ac-list">
+        ${list.map((c) => `
+          <div class="ac-row">
+            <span class="ac-time">${escapeHtml(c.time || "—")}</span>
+            <span class="ac-main">
+              <span class="ac-event">${escapeHtml(c.event || "")}${c.dur ? ` <em>${escapeHtml(c.dur)}</em>` : ""}</span>
+              <span class="ac-src">${escapeHtml(c.audio)}</span>
+            </span>
+          </div>`).join("")}
+      </div>
+    </div>`;
+}
+
+function renderAudioPatch() {
+  return `
+    <div class="sig-card" style="border-left-color:var(--text-faint)">
+      <div class="sig-head"><span class="sig-title">Patch</span></div>
+      <div class="sig-sub">The same every week. Texas Wesleyan adds to it rather than changing it.</div>
+      ${AUDIO_PATCH.map((g) => `
+        <div class="ap-group">${escapeHtml(g.group)}</div>
+        ${g.items.map((i) => `
+          <div class="ac-row">
+            <span class="ac-main">
+              <span class="ac-event">${escapeHtml(i.what)}</span>
+              <span class="ac-src">${escapeHtml(i.detail)}</span>
+            </span>
+          </div>`).join("")}
+      `).join("")}
+    </div>`;
+}
+
+function renderAudioHandoffs() {
+  return `
+    <div class="sig-card" style="border-left-color:var(--amber)">
+      <div class="sig-head"><span class="sig-title">Handoffs</span></div>
+      <div class="sig-sub">The coordination points that have gone wrong before.</div>
+      ${AUDIO_HANDOFFS.map((h) => `
+        <div class="ac-row">
+          <span class="ac-main">
+            <span class="ac-event">${escapeHtml(h.title)}</span>
+            <span class="ac-src">${escapeHtml(h.body)}</span>
+          </span>
+        </div>`).join("")}
     </div>`;
 }
 
@@ -4800,11 +4993,10 @@ async function renderTodayView() {
   {
     const paths = {
       signal: `signalUp/${gameId}`,
-      comms:  `commsCheck/${gameId}`,
       hold:   `weatherHold/${gameId}`,
       inc:    `incidents/${gameId}`,
     };
-    const data = { signal: null, comms: null, hold: null, inc: null };
+    const data = { signal: null, hold: null, inc: null };
     const refs = {};
     const cbs = {};
 
@@ -4812,11 +5004,11 @@ async function renderTodayView() {
       const host = document.getElementById("sigGateHost");
       if (!host || mainState.view !== "today") return;
       if (Object.values(data).some((v) => v === null)) return;   // wait for all
+      // Wireless and the comms check live on the Audio tab — they are A1's
+      // job, and Today is read by the whole crew.
       host.innerHTML =
           renderWeatherHold(gameId, data.hold)
-        + `<div id="ulxdHost">${renderUlxd()}</div>`
         + renderSignalGate(gameId, game, data.signal)
-        + renderCommsCheck(gameId, data.comms)
         + renderIncidents(gameId, data.inc);
       wireSignalGate(gameId);
       wireShowTools(gameId, game);
@@ -4835,16 +5027,9 @@ async function renderTodayView() {
       if (data.hold && data.hold.active) paint();
     }, 1000);
 
-    if (ULXD_STATE_URL) {
-      ulxdPoll();
-      if (ulxdTimer) clearInterval(ulxdTimer);
-      ulxdTimer = setInterval(ulxdPoll, ULXD_POLL_MS);
-    }
-
     unsubSignal = () => {
       Object.keys(refs).forEach((k) => refs[k].off("value", cbs[k]));
       clearInterval(tick);
-      if (ulxdTimer) { clearInterval(ulxdTimer); ulxdTimer = null; }
     };
   }
 }
