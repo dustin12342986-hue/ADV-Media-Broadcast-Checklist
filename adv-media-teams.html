@@ -1191,7 +1191,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v31 · real sheet format";
+const APP_BUILD = "build 2026-09-01 · v33 · CHS vs Lamar";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4634,15 +4634,53 @@ function rosMonApplyMode() {
     return;
   }
   el.style.display = "";
-  const wantVideo = view === "runofshow" || rosMonMax;
+  // Every view gets the corner launcher; video only plays once it's opened.
+  // The mini player on Run of Show took up space on the one screen where the
+  // cue list matters most, and kept a video decoding the whole show for
+  // something nobody was watching.
+  const wantVideo = rosMonMax;
   box.style.display = wantVideo ? "" : "none";
-  launch.style.display = (view === "today" && !rosMonMax) ? "" : "none";
+  launch.style.display = rosMonMax ? "none" : "";
+
+  // Run of Show has a sticky transport bar pinned to the bottom. At the
+  // default 14px the launcher lands straight on the Prev button.
+  rosMonPlaceLaunch();
   if (wantVideo) {
     if (!rosMonVideoRunning()) rosMonRestartVideo();
   } else {
     rosMonStopVideo();
   }
 }
+
+// Measured rather than a fixed offset, because the bar grows with the text
+// size setting. Runs again after paint: this is called during the render that
+// creates the bar, so the first measurement finds nothing.
+function rosMonPlaceLaunch() {
+  const launch = document.getElementById("rosMonLaunch");
+  if (!launch) return;
+  const put = () => {
+    // Run of Show stacks three sticky bars at the bottom — the producer strip,
+    // the prompter and the transport row. Measuring only .ros-controls left the
+    // button sitting on the speed controls, so take the highest top edge of
+    // whichever are on screen.
+    let top = null;
+    [".ros-primary", ".ros-prompt", ".ros-controls"].forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.top > window.innerHeight * 0.4) {
+          top = top === null ? r.top : Math.min(top, r.top);
+        }
+      });
+    });
+    const clear = top === null ? 0 : Math.max(0, window.innerHeight - top);
+    launch.style.bottom = (!rosMonMax && clear > 0) ? Math.round(clear + 14) + "px" : "14px";
+  };
+  put();
+  requestAnimationFrame(put);
+}
+
+// Text size and rotation both change the bar height.
+window.addEventListener("resize", () => rosMonPlaceLaunch());
 
 function rosMonVideoRunning() {
   const video = document.getElementById("rosMonVideo");
@@ -5534,6 +5572,115 @@ function renderProfileEditor(profile) {
 // optional — leave a field off and its row just doesn't render.
 // ============================================================================
 const RUN_OF_SHOW = {
+  // Built from the "Run of Show - CHS vs. Lamar" sheet, row for row.
+  // Sheet columns map: START TIME -> time, DURATION -> dur,
+  // SPEAKER/EVENT -> event, BIG SCREEN -> screen, RIBBON -> ribbon,
+  // AUDIO -> audio, NOTES -> notes.
+  //
+  // Durations are written as the sheet means them, not as Sheets stored them:
+  // the sheet holds "2:04:00" for The Texas Way, but the screen column says
+  // (2:04), so it is 2 min 4 sec. "2:00:00" on House Music really is two hours
+  // (3:15 to 5:15), so that one is left alone.
+  "2026-09-03": {
+    header: "Crowley HS vs Lamar",
+    sub: "September 3, 2026 · 7:00 PM kickoff · CISD Multi-Purpose Stadium",
+    sections: [
+      {
+        name: "Pregame",
+        cues: [
+          { time: "3:15 PM", dur: "2:00:00", event: "House Music", screen: "Welcome", ribbon: "Excellence Every Day", audio: "House Music" },
+          { time: "5:15 PM", dur: "45:00", event: "Crowley Mix", screen: "Teams Graphic", audio: "See Crowley Music" },
+          { time: "6:00 PM", dur: "11:00", event: "CISD Communications pregame content", screen: "Videos", ribbon: "Versus", audio: "Videos" },
+          { time: "6:31 PM", dur: "1:00", event: "Welcome", screen: "CISD Logo", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:32 PM", dur: "2:00", event: "UIL Guidelines", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:34 PM", dur: "1:00", event: "Introduction of administrations", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:35 PM", dur: "2:04", event: "The Texas Way VIDEO", screen: "The Texas Way (2:04)", ribbon: "Versus", audio: "Texas Way" },
+          { time: "6:40 PM", dur: "2:00", event: "Intro CHS Cheerleaders", screen: "Individual Photos", ribbon: "CHS logo", audio: "Announcer" },
+          { time: "6:42 PM", dur: "1:30", event: "Visiting band alma mater", screen: "Live Action", ribbon: "Versus", audio: "LHS Band" },
+          { time: "6:44 PM", dur: "1:30", event: "Home band alma mater", screen: "Live Action", ribbon: "Versus", audio: "NCHS Band Alma Mater" },
+          { time: "6:46 PM", dur: "2:00", event: "CHS offensive starters", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
+          { time: "6:48 PM", dur: "2:00", event: "CHS defensive starters", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
+          { time: "6:50 PM", dur: "1:00", event: "CHS coaching staff introductions", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
+          { time: "", event: "Video — School Board welcome", screen: "Welcome from CISD School Board (1:01)", ribbon: "Excellence Every Day", audio: "Video", notes: "No start time on the sheet — sits between the coaching staff intro and the referees." },
+          { time: "6:51 PM", dur: "0:30", event: "Introduction of referees", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:51:30 PM", dur: "2:30", event: "Coin toss", screen: "Live Action", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:54 PM", dur: "1:00", event: "Lamar takes the field", screen: "Live Action", ribbon: "Versus", audio: "Announcer" },
+          { time: "6:55 PM", event: "CHS hype video", screen: "Video", ribbon: "CHS logo", audio: "Video", notes: "Duration shown as ??? on the sheet — confirm the runtime." },
+          { time: "6:56 PM", dur: "0:30", event: "CHS takes field", screen: "Live Action", ribbon: "CHS logo", audio: "NCHS Band Fight Song", notes: "NCHS runs out on the field." },
+          { time: "6:57 PM", dur: "0:30", event: "Introduction of JROTC Color Guard", screen: "Live Action", ribbon: "US Flag", audio: "Announcer" },
+          { time: "6:58 PM", dur: "2:00", event: "National Anthem", screen: "US Flag / Live Action", ribbon: "US Flag", audio: "CHS Band" },
+          { time: "7:00 PM", event: "Kickoff — hype music", screen: "Live Action", ribbon: "Versus", audio: "Make some noise!", notes: "Get fans excited for kickoff." },
+        ],
+      },
+      {
+        name: "1st Quarter",
+        cues: [
+          { time: "1st qtr", event: "Announcement #1", screen: "G. Williams Picture", ribbon: "Crowley Pride Unified", audio: "Announcer", notes: "See script" },
+          { time: "", event: "Dance Cam #1", screen: "Dance Cam Frame + Live Action", ribbon: "Crowley Pride Unified", audio: "DJ & Announcer", notes: "Boots on the Ground" },
+        ],
+      },
+      {
+        name: "End of 1st Quarter",
+        cues: [
+          { time: "End of 1st", event: "Announcement #2", screen: "CHS Home Schedule", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "2nd Quarter",
+        cues: [
+          { time: "2nd qtr", event: "Announcement #5", screen: "Dr. Colecia Williams", ribbon: "Crowley HS Logo", audio: "Announcer" },
+          { time: "", event: "Dance Cam #2", screen: "Dance Cam Frame + Live Action", ribbon: "Crowley Pride Unified", audio: "DJ & Announcer", notes: "Teach Me How to Dougie" },
+        ],
+      },
+      {
+        name: "End of 2nd Quarter",
+        cues: [
+          { time: "End of 2nd", event: "Video", screen: "New CHS short (1:08)", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "Halftime",
+        cues: [
+          { time: "Halftime", event: "Halftime show", screen: "Live Action", audio: "Bands" },
+          { time: "After CHS band", event: "Video", screen: "Bond Update (1:40)", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "3rd Quarter",
+        cues: [
+          { time: "", event: "Dance Cam #3", screen: "Dance Cam Frame + Live Action", ribbon: "Follow Social Media", audio: "DJ & Announcer", notes: "Crank That Soulja Boy" },
+        ],
+      },
+      {
+        name: "End of 3rd Quarter",
+        cues: [
+          { time: "End of 3rd", event: "Call your ride", screen: "Live Video", ribbon: "Call Your Ride", audio: "Announcer", notes: "KIDS CALL YOUR RIDE!" },
+        ],
+      },
+      {
+        name: "4th Quarter",
+        cues: [
+          { time: "", event: "Dance Cam #4", screen: "Dance Cam Frame + Live Action", ribbon: "Follow Social Media", audio: "DJ & Announcer", notes: "Swag Surfin'" },
+          { time: "First stoppage after 6:00", event: "Announcement — Call your ride", screen: "Live Video", ribbon: "Call Your Ride", audio: "Announcer", notes: "KIDS CALL YOUR RIDE!" },
+        ],
+      },
+      {
+        name: "Postgame",
+        cues: [
+          { time: "Postgame", event: "Have a good night!", screen: "Eagles Win!", ribbon: "Crowley HS Logo", audio: "Announcer" },
+        ],
+      },
+      {
+        name: "Emergency Response",
+        cues: [
+          { time: "If needed", event: "Fire evacuation", audio: "Announcer", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane.", notes: "Repeat once more." },
+          { time: "If needed", event: "Severe weather", audio: "Announcer", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
+          { time: "If needed", event: "Lightning", audio: "Announcer", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
+        ],
+      },
+    ],
+  },
+
   "2026-08-28": {
     header: "North Crowley HS vs Aledo",
     sub: "August 28, 2026 · 7:00 PM kickoff · CISD Multi-Purpose Stadium",
