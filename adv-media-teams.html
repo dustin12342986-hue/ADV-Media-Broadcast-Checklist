@@ -145,13 +145,19 @@
   const INVOICE_RECIPIENT = "invoices.advmedia@gmail.com";
 
   // ---- Stadium monitor (Run of Show tab) ----
-  // Both blank = the monitor block simply doesn't render, so this is safe to
-  // ship before the bridge PC exists. Fill in when the stadium side is live.
+  // DEMO MODE: while true and no real URLs are set, the Run of Show tab shows
+  // a built-in animated preview (fake program feed + fake multiview) so the
+  // layout can be seen before the bridge PC exists. Set to false, or fill in
+  // real URLs below, and the demo disappears.
+  const MONITOR_DEMO = true;
   // Cloudflare Worker route fed by tricaster-bridge.js on the bridge PC:
   const TRICASTER_STATE_URL = "";
-  // HLS program feed from MediaMTX (use the Cloudflare Tunnel URL so it
-  // works over HTTPS from anywhere):
-  const MONITOR_HLS_URL = "";
+  // HLS feeds from MediaMTX (use the Cloudflare Tunnel URLs so they work
+  // over HTTPS from anywhere). Leave one blank to hide its toggle button.
+  const MONITOR_FEEDS = {
+    program:   "",   // e.g. https://your-tunnel/program/index.m3u8
+    multiview: "",   // e.g. https://your-tunnel/multiview/index.m3u8
+  };
 </script>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1027,6 +1033,7 @@ function handleGoogleCredential(response) {
 }
 
 function renderAuthScreen() {
+  rosUnmountMonitor();
   const root = document.getElementById("viewRoot");
   root.innerHTML = `
     <div class="auth-card">
@@ -1162,6 +1169,7 @@ async function checkApprovalAndBoot(user) {
 }
 
 function renderPendingApproval() {
+  rosUnmountMonitor();
   const root = document.getElementById("viewRoot");
   root.innerHTML = `
     <div class="auth-card">
@@ -1183,7 +1191,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-31 · v26 · stadium monitor in run of show";
+const APP_BUILD = "build 2026-08-31 · v28 · floating monitor on today + run of show";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1280,7 +1288,7 @@ function renderMainApp() {
   if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
   if (mainState.view !== "runofshow" && unsubDocs) { unsubDocs(); unsubDocs = null; }
   if (mainState.view !== "runofshow") rosExitFullscreenIfNeeded();
-  if (mainState.view !== "runofshow") rosUnmountMonitor();
+  rosMonitorSync();
 
   if (mainState.view !== "cables" && unsubCables) { unsubCables(); unsubCables = null; }
 
@@ -4461,82 +4469,158 @@ function rosGameOptions() {
 }
 
 // ============================================================================
-// Stadium monitor — program video + verified switcher state, shown above the
-// cue list. Lives OUTSIDE innerRoot on purpose: rosRender() rebuilds innerRoot
-// on every cue advance, and rebuilding a <video> element restarts the stream.
-// Mounted once when the tab opens, removed when leaving the tab.
-// Renders nothing while TRICASTER_STATE_URL / MONITOR_HLS_URL are blank.
+// Stadium monitor — floating mini-player, docked bottom-left, shown on the
+// Today and Run of Show tabs. Tap the arrows to fill the screen, tap again to
+// shrink back. Program/Multiview toggle. Attached to <body>, never rebuilt by
+// tab renders or cue advances, so the video doesn't restart while switching
+// around the app. While MONITOR_DEMO is true and no real URLs are set, an
+// animated built-in preview stands in for the real feeds.
 // ============================================================================
 let rosMonPollTimer = null;
+let rosMonHls = null;
+let rosMonDemoTimer = null;
+let rosMonMax = false;
+let rosMonFeed = localStorage.getItem("rosMonFeed") || "program";
 
-function rosMountMonitor() {
-  if (!MONITOR_HLS_URL && !TRICASTER_STATE_URL) return;
+const ROS_MON_VIEWS = ["today", "runofshow"];
+
+function rosMonIsDemo() {
+  return MONITOR_DEMO && !MONITOR_FEEDS.program && !MONITOR_FEEDS.multiview;
+}
+
+function rosMonFeeds() {
+  return rosMonIsDemo()
+    ? ["program", "multiview"]
+    : ["program", "multiview"].filter((f) => MONITOR_FEEDS[f]);
+}
+
+// Called from renderMainApp on every tab change: mounts once, then just
+// shows/hides depending on the current tab.
+function rosMonitorSync() {
+  const anyVideo = rosMonIsDemo() || MONITOR_FEEDS.program || MONITOR_FEEDS.multiview;
+  if (!anyVideo && !TRICASTER_STATE_URL) return;
+  let el = document.getElementById("rosMonitor");
+  if (!el) { rosMonMount(); el = document.getElementById("rosMonitor"); }
+  if (!el) return;
+  const show = ROS_MON_VIEWS.includes(mainState.view);
+  el.style.display = show ? "" : "none";
+  if (!show && rosMonMax) rosMonSetMax(false);
+}
+
+function rosMonMount() {
   if (document.getElementById("rosMonitor")) return;
-  const inner = document.getElementById("innerRoot");
-  if (!inner) return;
+  const feeds = rosMonFeeds();
+  if (!feeds.includes(rosMonFeed)) rosMonFeed = feeds[0] || "program";
 
-  const pill = 'display:inline-block; padding:5px 13px; border-radius:999px; background:var(--panel2); border:1px solid var(--border); font-size:12px; margin:8px 8px 0 0;';
-  inner.insertAdjacentHTML("beforebegin", `
-    <div id="rosMonitor" style="margin:0 0 12px;">
-      ${MONITOR_HLS_URL ? `
-        <video id="rosMonVideo" playsinline muted autoplay controls
-          style="width:100%; border-radius:10px; background:#000; aspect-ratio:16/9;"></video>
-        <div class="footnote" id="rosMonNote" style="margin-top:4px;">Connecting to the monitor feed.</div>` : ""}
-      ${TRICASTER_STATE_URL ? `
-        <div>
-          <span style="${pill}" id="rosMonLink">Bridge: checking</span>
-          <span style="${pill}" id="rosMonRec">Recording: checking</span>
-          <span style="${pill}" id="rosMonStream">Streaming: checking</span>
-        </div>` : ""}
-    </div>`);
+  const wrap = document.createElement("div");
+  wrap.id = "rosMonitor";
+  wrap.innerHTML = `
+    <div id="rosMonBox" style="position:fixed; left:10px; bottom:14px; z-index:600;
+        width:min(290px, 46vw); background:var(--panel, #111); border:1px solid var(--border, #333);
+        border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.35);">
+      <div id="rosMonBar" style="display:flex; align-items:center; gap:6px; padding:6px 8px;">
+        ${feeds.length > 1 ? `
+          <button id="rosMonTabP" class="ros-mon-btn">PGM</button>
+          <button id="rosMonTabM" class="ros-mon-btn">MV</button>` : ""}
+        <span style="flex:1;"></span>
+        <button id="rosMonMaxBtn" class="ros-mon-btn" title="Full screen">⛶</button>
+      </div>
+      <video id="rosMonVideo" playsinline muted autoplay
+        style="display:block; width:100%; background:#000; aspect-ratio:16/9;"></video>
+      <div id="rosMonPills" style="display:none; padding:8px 10px 10px;">
+        <span class="ros-mon-pill" id="rosMonLink">Bridge: checking</span>
+        <span class="ros-mon-pill" id="rosMonRec">Recording: checking</span>
+        <span class="ros-mon-pill" id="rosMonStream">Streaming: checking</span>
+        <div class="footnote" id="rosMonNote" style="margin-top:6px;"></div>
+      </div>
+    </div>
+    <style>
+      .ros-mon-btn { font: inherit; font-size: 11px; font-weight: 700; padding: 3px 10px;
+        border-radius: 999px; border: 1px solid var(--border, #444);
+        background: var(--panel2, #222); color: inherit; cursor: pointer; }
+      .ros-mon-btn.on { background: var(--accent, #4a7c59); border-color: var(--accent, #4a7c59); color: #fff; }
+      .ros-mon-pill { display: inline-block; padding: 4px 12px; border-radius: 999px;
+        background: var(--panel2, #222); border: 1px solid var(--border, #444);
+        font-size: 12px; margin: 0 6px 6px 0; }
+      .ros-mon-pill.on { background: var(--accent, #4a7c59); border-color: var(--accent, #4a7c59); color: #fff; }
+      #rosMonBox.max { left: 0 !important; right: 0; top: 0; bottom: 0 !important;
+        width: auto !important; border-radius: 0; border: none; z-index: 900;
+        display: flex; flex-direction: column; justify-content: center; background: #000; }
+      #rosMonBox.max #rosMonBar { position: absolute; top: 0; left: 0; right: 0;
+        padding: 10px 12px; background: rgba(0,0,0,0.45); z-index: 2; }
+      #rosMonBox.max video { aspect-ratio: auto; flex: 0 1 auto; max-height: 100%; }
+      #rosMonBox.max #rosMonPills { display: block !important; position: absolute;
+        bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.45); color: #fff; }
+    </style>`;
+  document.body.appendChild(wrap);
+
+  const tp = document.getElementById("rosMonTabP");
+  const tm = document.getElementById("rosMonTabM");
+  if (tp && tm) {
+    const mark = () => {
+      tp.classList.toggle("on", rosMonFeed === "program");
+      tm.classList.toggle("on", rosMonFeed === "multiview");
+    };
+    tp.onclick = () => { rosMonFeed = "program"; localStorage.setItem("rosMonFeed", rosMonFeed); mark(); rosMonRestartVideo(); };
+    tm.onclick = () => { rosMonFeed = "multiview"; localStorage.setItem("rosMonFeed", rosMonFeed); mark(); rosMonRestartVideo(); };
+    mark();
+  }
+  document.getElementById("rosMonMaxBtn").onclick = () => rosMonSetMax(!rosMonMax);
 
   if (TRICASTER_STATE_URL) {
     rosMonPollState();
     rosMonPollTimer = setInterval(rosMonPollState, 5000);
+  } else if (rosMonIsDemo()) {
+    rosMonDemoPills();
   }
-  if (MONITOR_HLS_URL) rosMonStartVideo();
+  rosMonRestartVideo();
+}
+
+function rosMonSetMax(on) {
+  rosMonMax = on;
+  const box = document.getElementById("rosMonBox");
+  if (!box) return;
+  box.classList.toggle("max", on);
+  const btn = document.getElementById("rosMonMaxBtn");
+  if (btn) btn.textContent = on ? "✕" : "⛶";
+  const video = document.getElementById("rosMonVideo");
+  if (video) { if (on) video.setAttribute("controls", ""); else video.removeAttribute("controls"); }
 }
 
 function rosUnmountMonitor() {
   if (rosMonPollTimer) { clearInterval(rosMonPollTimer); rosMonPollTimer = null; }
+  rosMonStopVideo();
+  rosMonMax = false;
   const el = document.getElementById("rosMonitor");
   if (el) el.remove();
 }
 
-async function rosMonPollState() {
-  const word = (v) => v === true ? "running" : v === false ? "not running" : "not reported";
-  const on = (id, isOn, text) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = text;
-    el.style.background = isOn ? "var(--accent)" : "var(--panel2)";
-    el.style.borderColor = isOn ? "var(--accent)" : "var(--border)";
-    el.style.color = isOn ? "#fff" : "";
-  };
-  try {
-    const s = await (await fetch(TRICASTER_STATE_URL, { cache: "no-store" })).json();
-    const fresh = s.online && s.ts && (Date.now() - s.ts) < 20000;
-    on("rosMonLink", !!fresh, fresh ? "Bridge: reporting" : "Bridge: not reporting");
-    on("rosMonRec", fresh && s.recording === true, "Recording: " + (fresh ? word(s.recording) : "not reported"));
-    on("rosMonStream", fresh && s.streaming === true, "Streaming: " + (fresh ? word(s.streaming) : "not reported"));
-  } catch (e) {
-    on("rosMonLink", false, "Bridge: not reachable");
-  }
+function rosMonStopVideo() {
+  if (rosMonDemoTimer) { clearInterval(rosMonDemoTimer); rosMonDemoTimer = null; }
+  if (rosMonHls) { try { rosMonHls.destroy(); } catch (e) {} rosMonHls = null; }
+  const video = document.getElementById("rosMonVideo");
+  if (video) { video.srcObject = null; video.removeAttribute("src"); }
 }
 
-function rosMonStartVideo() {
+function rosMonRestartVideo() {
+  rosMonStopVideo();
   const video = document.getElementById("rosMonVideo");
   const note = document.getElementById("rosMonNote");
   if (!video) return;
+
+  if (rosMonIsDemo()) { rosMonStartDemo(video, note); return; }
+
+  const url = MONITOR_FEEDS[rosMonFeed];
+  if (!url) return;
   const start = () => {
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = MONITOR_HLS_URL;
+      video.src = url;
       if (note) note.textContent = "Monitor feed connected.";
     } else if (window.Hls && window.Hls.isSupported()) {
-      const h = new window.Hls({ liveSyncDurationCount: 2 });
-      h.loadSource(MONITOR_HLS_URL);
-      h.attachMedia(video);
-      h.on(window.Hls.Events.ERROR, (_, d) => {
+      rosMonHls = new window.Hls({ liveSyncDurationCount: 2 });
+      rosMonHls.loadSource(url);
+      rosMonHls.attachMedia(video);
+      rosMonHls.on(window.Hls.Events.ERROR, (_, d) => {
         if (d.fatal && note) note.textContent = "Monitor feed not reachable from this network.";
       });
       if (note) note.textContent = "Monitor feed connected.";
@@ -4544,8 +4628,7 @@ function rosMonStartVideo() {
       note.textContent = "This browser cannot play the monitor feed.";
     }
   };
-  if (video.canPlayType("application/vnd.apple.mpegurl")) { start(); return; }
-  if (window.Hls) { start(); return; }
+  if (video.canPlayType("application/vnd.apple.mpegurl") || window.Hls) { start(); return; }
   const s = document.createElement("script");
   s.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
   s.onload = start;
@@ -4553,10 +4636,108 @@ function rosMonStartVideo() {
   document.head.appendChild(s);
 }
 
+function rosMonSetPill(id, isOn, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("on", !!isOn);
+}
+
+function rosMonDemoPills() {
+  rosMonSetPill("rosMonLink", true, "Bridge: reporting");
+  rosMonSetPill("rosMonRec", true, "Recording: running");
+  rosMonSetPill("rosMonStream", true, "Streaming: running");
+}
+
+async function rosMonPollState() {
+  const word = (v) => v === true ? "running" : v === false ? "not running" : "not reported";
+  try {
+    const s = await (await fetch(TRICASTER_STATE_URL, { cache: "no-store" })).json();
+    const fresh = s.online && s.ts && (Date.now() - s.ts) < 20000;
+    rosMonSetPill("rosMonLink", !!fresh, fresh ? "Bridge: reporting" : "Bridge: not reporting");
+    rosMonSetPill("rosMonRec", fresh && s.recording === true, "Recording: " + (fresh ? word(s.recording) : "not reported"));
+    rosMonSetPill("rosMonStream", fresh && s.streaming === true, "Streaming: " + (fresh ? word(s.streaming) : "not reported"));
+  } catch (e) {
+    rosMonSetPill("rosMonLink", false, "Bridge: not reachable");
+  }
+}
+
+// ---- Built-in demo feeds (no network, no copyright, just canvas) ----------
+function rosMonStartDemo(video, note) {
+  const cv = document.createElement("canvas");
+  cv.width = 1280; cv.height = 720;
+  const ctx = cv.getContext("2d");
+  const t0 = Date.now();
+
+  function camScene(x, y, w, h, hue, label, live) {
+    const t = (Date.now() - t0) / 1000;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, `hsl(${hue}, 35%, 22%)`);
+    g.addColorStop(1, `hsl(${hue}, 45%, 10%)`);
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    const bx = x + w / 2 + Math.sin(t * (0.6 + hue / 400)) * w * 0.3;
+    const by = y + h / 2 + Math.cos(t * (0.8 + hue / 500)) * h * 0.22;
+    ctx.fillStyle = `hsla(${hue + 40}, 70%, 60%, 0.85)`;
+    ctx.beginPath(); ctx.arc(bx, by, h * 0.09, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.fillRect(x, y + h * 0.75, w, h * 0.25);
+    if (label) {
+      ctx.font = "bold " + Math.round(h * 0.07) + "px system-ui";
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(x + 10, y + h - 34, ctx.measureText(label).width + 20, 24);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(label, x + 18, y + h - 16);
+    }
+    ctx.restore();
+    if (live) { ctx.strokeStyle = "#e33"; ctx.lineWidth = 5; ctx.strokeRect(x + 3, y + 3, w - 6, h - 6); }
+  }
+
+  function drawProgram() {
+    const t = (Date.now() - t0) / 1000;
+    camScene(0, 0, cv.width, cv.height, 130, "", false);
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(40, 40, 400, 64);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 30px system-ui";
+    ctx.fillText("CRO 21", 60, 82);
+    ctx.fillText("OPP 14", 200, 82);
+    ctx.fillStyle = "#ffd24a"; ctx.font = "bold 24px system-ui";
+    ctx.fillText("Q2  " + String(11 - Math.floor(t / 60) % 12).padStart(2, "0") + ":" + String(59 - Math.floor(t) % 60).padStart(2, "0"), 330, 80);
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(40, cv.height - 90, 560, 50);
+    ctx.fillStyle = "#fff"; ctx.font = "26px system-ui";
+    ctx.fillText("PROGRAM — demo preview", 60, cv.height - 56);
+  }
+
+  function drawMultiview() {
+    const w = cv.width / 2, h = cv.height / 2;
+    camScene(0, 0, w, h, 130, "CAM 1 — WIDE", true);
+    camScene(w, 0, w, h, 210, "CAM 2 — TIGHT", false);
+    camScene(0, h, w, h, 30, "CAM 3 — ENDZONE", false);
+    camScene(w, h, w, h, 280, "CAM 4 — SIDELINE", false);
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 4;
+    ctx.strokeRect(0, 0, cv.width, cv.height);
+    ctx.beginPath(); ctx.moveTo(w, 0); ctx.lineTo(w, cv.height); ctx.moveTo(0, h); ctx.lineTo(cv.width, h); ctx.stroke();
+  }
+
+  function frame() {
+    if (rosMonFeed === "multiview") drawMultiview(); else drawProgram();
+  }
+  frame();
+  rosMonDemoTimer = setInterval(frame, 66);
+  try {
+    video.srcObject = cv.captureStream(15);
+    video.play().catch(() => {});
+  } catch (e) {
+    if (note) { note.textContent = "This browser can't show the demo preview."; return; }
+  }
+  if (note) note.textContent = "Demo preview — becomes the real feed once the bridge PC is set up.";
+}
+
 async function renderRunOfShowView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
-  rosMountMonitor();
 
   const options = rosGameOptions();
   if (options.length === 0) {
