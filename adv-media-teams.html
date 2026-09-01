@@ -143,6 +143,15 @@
   // unlike the private key which stays server-side as a Cloud Function secret.
   const VAPID_PUBLIC_KEY = "BBwANmkYcAnahWjWKj-Y1Mw2N73HXFEP4iwFZpa5nUlTT80lC8fJGNmxjbA1W_8Sv2nliM-9nJtJtkwHuPwdf8M";
   const INVOICE_RECIPIENT = "invoices.advmedia@gmail.com";
+
+  // ---- Stadium monitor (Run of Show tab) ----
+  // Both blank = the monitor block simply doesn't render, so this is safe to
+  // ship before the bridge PC exists. Fill in when the stadium side is live.
+  // Cloudflare Worker route fed by tricaster-bridge.js on the bridge PC:
+  const TRICASTER_STATE_URL = "";
+  // HLS program feed from MediaMTX (use the Cloudflare Tunnel URL so it
+  // works over HTTPS from anywhere):
+  const MONITOR_HLS_URL = "";
 </script>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1174,7 +1183,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v25 · script import · call times v1";
+const APP_BUILD = "build 2026-08-31 · v26 · stadium monitor in run of show";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1271,6 +1280,7 @@ function renderMainApp() {
   if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
   if (mainState.view !== "runofshow" && unsubDocs) { unsubDocs(); unsubDocs = null; }
   if (mainState.view !== "runofshow") rosExitFullscreenIfNeeded();
+  if (mainState.view !== "runofshow") rosUnmountMonitor();
 
   if (mainState.view !== "cables" && unsubCables) { unsubCables(); unsubCables = null; }
 
@@ -4450,9 +4460,103 @@ function rosGameOptions() {
   return GAMES.filter((g) => g.id >= todayId || RUN_OF_SHOW[g.id]);
 }
 
+// ============================================================================
+// Stadium monitor — program video + verified switcher state, shown above the
+// cue list. Lives OUTSIDE innerRoot on purpose: rosRender() rebuilds innerRoot
+// on every cue advance, and rebuilding a <video> element restarts the stream.
+// Mounted once when the tab opens, removed when leaving the tab.
+// Renders nothing while TRICASTER_STATE_URL / MONITOR_HLS_URL are blank.
+// ============================================================================
+let rosMonPollTimer = null;
+
+function rosMountMonitor() {
+  if (!MONITOR_HLS_URL && !TRICASTER_STATE_URL) return;
+  if (document.getElementById("rosMonitor")) return;
+  const inner = document.getElementById("innerRoot");
+  if (!inner) return;
+
+  const pill = 'display:inline-block; padding:5px 13px; border-radius:999px; background:var(--panel2); border:1px solid var(--border); font-size:12px; margin:8px 8px 0 0;';
+  inner.insertAdjacentHTML("beforebegin", `
+    <div id="rosMonitor" style="margin:0 0 12px;">
+      ${MONITOR_HLS_URL ? `
+        <video id="rosMonVideo" playsinline muted autoplay controls
+          style="width:100%; border-radius:10px; background:#000; aspect-ratio:16/9;"></video>
+        <div class="footnote" id="rosMonNote" style="margin-top:4px;">Connecting to the monitor feed.</div>` : ""}
+      ${TRICASTER_STATE_URL ? `
+        <div>
+          <span style="${pill}" id="rosMonLink">Bridge: checking</span>
+          <span style="${pill}" id="rosMonRec">Recording: checking</span>
+          <span style="${pill}" id="rosMonStream">Streaming: checking</span>
+        </div>` : ""}
+    </div>`);
+
+  if (TRICASTER_STATE_URL) {
+    rosMonPollState();
+    rosMonPollTimer = setInterval(rosMonPollState, 5000);
+  }
+  if (MONITOR_HLS_URL) rosMonStartVideo();
+}
+
+function rosUnmountMonitor() {
+  if (rosMonPollTimer) { clearInterval(rosMonPollTimer); rosMonPollTimer = null; }
+  const el = document.getElementById("rosMonitor");
+  if (el) el.remove();
+}
+
+async function rosMonPollState() {
+  const word = (v) => v === true ? "running" : v === false ? "not running" : "not reported";
+  const on = (id, isOn, text) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.style.background = isOn ? "var(--accent)" : "var(--panel2)";
+    el.style.borderColor = isOn ? "var(--accent)" : "var(--border)";
+    el.style.color = isOn ? "#fff" : "";
+  };
+  try {
+    const s = await (await fetch(TRICASTER_STATE_URL, { cache: "no-store" })).json();
+    const fresh = s.online && s.ts && (Date.now() - s.ts) < 20000;
+    on("rosMonLink", !!fresh, fresh ? "Bridge: reporting" : "Bridge: not reporting");
+    on("rosMonRec", fresh && s.recording === true, "Recording: " + (fresh ? word(s.recording) : "not reported"));
+    on("rosMonStream", fresh && s.streaming === true, "Streaming: " + (fresh ? word(s.streaming) : "not reported"));
+  } catch (e) {
+    on("rosMonLink", false, "Bridge: not reachable");
+  }
+}
+
+function rosMonStartVideo() {
+  const video = document.getElementById("rosMonVideo");
+  const note = document.getElementById("rosMonNote");
+  if (!video) return;
+  const start = () => {
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = MONITOR_HLS_URL;
+      if (note) note.textContent = "Monitor feed connected.";
+    } else if (window.Hls && window.Hls.isSupported()) {
+      const h = new window.Hls({ liveSyncDurationCount: 2 });
+      h.loadSource(MONITOR_HLS_URL);
+      h.attachMedia(video);
+      h.on(window.Hls.Events.ERROR, (_, d) => {
+        if (d.fatal && note) note.textContent = "Monitor feed not reachable from this network.";
+      });
+      if (note) note.textContent = "Monitor feed connected.";
+    } else if (note) {
+      note.textContent = "This browser cannot play the monitor feed.";
+    }
+  };
+  if (video.canPlayType("application/vnd.apple.mpegurl")) { start(); return; }
+  if (window.Hls) { start(); return; }
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+  s.onload = start;
+  s.onerror = () => { if (note) note.textContent = "Could not load the video player."; };
+  document.head.appendChild(s);
+}
+
 async function renderRunOfShowView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  rosMountMonitor();
 
   const options = rosGameOptions();
   if (options.length === 0) {
