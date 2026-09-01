@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADV Station</title>
+<style>
+  :root {
+    --bg: #f4f4f2;
+    --surface: #ffffff;
+    --text: #1e2124;
+    --muted: #6b7076;
+    --accent: #4a7c59;
+    --line: #e2e3e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101214;
+      --surface: #191c1f;
+      --text: #e8e9ea;
+      --muted: #8d9298;
+      --line: #26292d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+  header {
+    padding: 14px 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; font-weight: 600; }
+  header .show { color: var(--muted); }
+  main {
+    display: grid;
+    gap: 16px;
+    padding: 0 16px 24px;
+    grid-template-columns: 1fr;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (min-width: 980px) {
+    main { grid-template-columns: 3fr 2fr; align-items: start; }
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  video {
+    width: 100%;
+    border-radius: 8px;
+    background: #000;
+    aspect-ratio: 16 / 9;
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .pill {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .pill.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .note { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
+
+  .ros h2 { font-size: 1.05rem; margin: 0 0 10px; font-weight: 600; }
+  .ros ol { list-style: none; margin: 0; padding: 0; }
+  .ros li {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 12px;
+    padding: 12px 10px;
+    border-radius: 8px;
+    border-bottom: 1px solid var(--line);
+    cursor: default;
+  }
+  .ros li:last-child { border-bottom: none; }
+  .ros .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ros .n { font-weight: 500; }
+  .ros .d { color: var(--muted); font-size: 0.92rem; }
+  .ros li.now {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+    border-bottom-color: transparent;
+  }
+  .ros li.now .t { color: var(--accent); font-weight: 600; }
+  .ros li.done { opacity: 0.45; }
+
+  .adminbar { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+  button {
+    font: inherit;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    font: inherit;
+    font-size: 0.95rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ADV Station</h1>
+  <span class="show" id="showTitle"></span>
+</header>
+
+<main>
+  <section class="panel">
+    <video id="vid" playsinline muted autoplay controls></video>
+    <div class="pills">
+      <span class="pill" id="pillLink">Bridge: checking</span>
+      <span class="pill" id="pillRec">Recording: checking</span>
+      <span class="pill" id="pillStream">Streaming: checking</span>
+    </div>
+    <p class="note" id="vidNote">Connecting to the monitor feed.</p>
+  </section>
+
+  <section class="panel ros">
+    <h2>Run of show</h2>
+    <ol id="rosList"><li><span class="t"></span><span class="d">Loading.</span></li></ol>
+
+    <div class="adminbar">
+      <button id="btnAdmin">Producer mode</button>
+      <span class="note" id="adminNote"></span>
+    </div>
+    <div id="adminPanel" class="hidden">
+      <p class="note">One segment per line: time | segment | notes. Tap a segment above to mark it current.</p>
+      <textarea id="rosText" placeholder="6:30 PM | Crew call | comms check&#10;7:00 PM | Anthem | mic 2 hot&#10;7:05 PM | Kickoff | "></textarea>
+      <div class="adminbar">
+        <button id="btnSave">Save run of show</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  // --- CONFIG ---
+  const WORKER = 'https://YOUR-WORKER.workers.dev';
+  const HLS_URL = 'http://BRIDGE-PC-IP:8888/program/index.m3u8';
+  // --------------
+
+  const $ = id => document.getElementById(id);
+  let ros = { title: '', segments: [], currentId: null };
+  let adminKey = localStorage.getItem('advAdminKey') || '';
+
+  // ---- Switcher status ----
+  const word = v => v === true ? 'running' : v === false ? 'not running' : 'not reported';
+  async function pollState() {
+    try {
+      const s = await (await fetch(WORKER + '/api/tricaster/state', { cache: 'no-store' })).json();
+      const fresh = s.online && s.ts && (Date.now() - s.ts) < 20000;
+      $('pillLink').textContent = fresh ? 'Bridge: reporting' : 'Bridge: not reporting';
+      $('pillLink').classList.toggle('on', !!fresh);
+      $('pillRec').textContent = 'Recording: ' + (fresh ? word(s.recording) : 'not reported');
+      $('pillRec').classList.toggle('on', fresh && s.recording === true);
+      $('pillStream').textContent = 'Streaming: ' + (fresh ? word(s.streaming) : 'not reported');
+      $('pillStream').classList.toggle('on', fresh && s.streaming === true);
+    } catch {
+      $('pillLink').textContent = 'Bridge: not reachable';
+      $('pillLink').classList.remove('on');
+    }
+  }
+  pollState(); setInterval(pollState, 5000);
+
+  // ---- Run of show ----
+  function renderRos() {
+    $('showTitle').textContent = ros.title || '';
+    const list = $('rosList');
+    list.innerHTML = '';
+    const curIdx = ros.segments.findIndex(s => s.id === ros.currentId);
+    ros.segments.forEach((s, i) => {
+      const li = document.createElement('li');
+      if (i === curIdx) li.className = 'now';
+      else if (curIdx > -1 && i < curIdx) li.className = 'done';
+      li.innerHTML = '<span class="t">' + esc(s.time) + '</span>' +
+        '<span><span class="n">' + esc(s.name) + '</span>' +
+        (s.notes ? '<br><span class="d">' + esc(s.notes) + '</span>' : '') + '</span>';
+      li.onclick = () => { if (adminKey) setCurrent(s.id); };
+      list.appendChild(li);
+    });
+    if (!ros.segments.length) {
+      list.innerHTML = '<li><span class="t"></span><span class="d">No run of show loaded yet.</span></li>';
+    }
+  }
+  const esc = t => (t || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  async function loadRos() {
+    try {
+      const r = await (await fetch(WORKER + '/api/ros', { cache: 'no-store' })).json();
+      if (r && r.segments) { ros = r; renderRos(); }
+    } catch {}
+  }
+  loadRos(); setInterval(loadRos, 5000);
+
+  async function saveRos() {
+    const res = await fetch(WORKER + '/api/ros', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-key': adminKey },
+      body: JSON.stringify(ros),
+    });
+    $('adminNote').textContent = res.ok ? 'Saved.' : 'Save did not go through.';
+    setTimeout(() => { $('adminNote').textContent = ''; }, 3000);
+  }
+
+  function setCurrent(id) {
+    ros.currentId = id;
+    renderRos();
+    saveRos();
+  }
+
+  // ---- Producer mode ----
+  $('btnAdmin').onclick = () => {
+    if (!adminKey) {
+      const k = prompt('Producer key');
+      if (!k) return;
+      adminKey = k;
+      localStorage.setItem('advAdminKey', k);
+    }
+    $('adminPanel').classList.toggle('hidden');
+    $('rosText').value = ros.segments
+      .map(s => [s.time, s.name, s.notes].filter(Boolean).join(' | '))
+      .join('\n');
+  };
+
+  $('btnSave').onclick = () => {
+    const lines = $('rosText').value.split('\n').map(l => l.trim()).filter(Boolean);
+    ros.segments = lines.map((l, i) => {
+      const p = l.split('|').map(x => x.trim());
+      return { id: 'seg' + i, time: p[0] || '', name: p[1] || p[0] || '', notes: p[2] || '' };
+    });
+    if (!ros.segments.find(s => s.id === ros.currentId)) ros.currentId = null;
+    renderRos();
+    saveRos();
+  };
+
+  // ---- Monitor feed ----
+  const video = $('vid');
+  function startHls() {
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = HLS_URL;
+      $('vidNote').textContent = 'Monitor feed connected.';
+    } else if (window.Hls && window.Hls.isSupported()) {
+      const h = new window.Hls({ liveSyncDurationCount: 2 });
+      h.loadSource(HLS_URL); h.attachMedia(video);
+      h.on(window.Hls.Events.ERROR, (_, d) => {
+        if (d.fatal) $('vidNote').textContent = 'Monitor feed not reachable from this network.';
+      });
+      $('vidNote').textContent = 'Monitor feed connected.';
+    } else {
+      $('vidNote').textContent = 'This browser cannot play the monitor feed.';
+    }
+  }
+  if (video.canPlayType('application/vnd.apple.mpegurl')) startHls();
+  else {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
+    s.onload = startHls;
+    s.onerror = () => { $('vidNote').textContent = 'Could not load the video player.'; };
+    document.head.appendChild(s);
+  }
+})();
+</script>
+</body>
+</html>
