@@ -149,7 +149,12 @@
   // a built-in animated preview (fake program feed + fake multiview) so the
   // layout can be seen before the bridge PC exists. Set to false, or fill in
   // real URLs below, and the demo disappears.
-  const MONITOR_DEMO = true;
+  // Left on so the player does something before the bridge PC is deployed, but
+// the picture is now permanently watermarked. An animated demo that looks like
+// program, on a phone, in a dark booth, is a bad thing to leave unlabelled —
+// "remember to turn it off" is the kind of rule that fails on the one night it
+// matters.
+const MONITOR_DEMO = true;
   // Cloudflare Worker route fed by tricaster-bridge.js on the bridge PC:
   const TRICASTER_STATE_URL = "";
   // HLS feeds from MediaMTX (use the Cloudflare Tunnel URLs so they work
@@ -522,6 +527,52 @@
   }
   .doc-pick-label { display: block; font-size: 14px; font-weight: 800; }
   .doc-pick-blurb { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
+  /* Signal-up gate. Reads at a glance from across the truck: how many of the
+     four, and whether we're past the deadline. */
+  .sig-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 5px solid var(--amber); border-radius: 13px;
+    padding: 14px; margin-bottom: 14px;
+  }
+  .sig-card.sig-ok { border-left-color: var(--green); }
+  .sig-card.sig-late { border-left-color: var(--red); }
+  .sig-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .sig-title { font-size: 15px; font-weight: 800; }
+  .sig-count { font-size: 13px; font-weight: 800; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .sig-ok .sig-count { color: var(--green); }
+  .sig-late .sig-count { color: var(--red); }
+  .sig-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+  .sig-alert {
+    margin-top: 10px; background: var(--bad-bg); border: 1px solid var(--red);
+    color: var(--bad-ink); border-radius: 9px; padding: 9px 11px;
+    font-size: 12.5px; font-weight: 700;
+  }
+  .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 11px; }
+  .sig-cam {
+    display: flex; align-items: center; gap: 9px; text-align: left;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 11px; padding: 10px; cursor: pointer;
+    font-family: inherit; color: var(--text);
+  }
+  .sig-cam.on { border-color: var(--cam); box-shadow: inset 0 0 0 1px var(--cam); }
+  .sig-dot {
+    width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+    border: 2px solid var(--cam); background: transparent;
+  }
+  .sig-cam.on .sig-dot { background: var(--cam); }
+  .sig-cam-main { min-width: 0; }
+  .sig-cam-label { display: block; font-size: 13px; font-weight: 800; }
+  .sig-cam-by {
+    display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sig-cam.on .sig-cam-by { color: var(--text-muted); }
+  .sig-reset {
+    width: 100%; margin-top: 10px; padding: 8px 0; border-radius: 9px;
+    background: none; border: 1px solid var(--border); color: var(--text-faint);
+    font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
 
   .gear-head {
     font-size: 11.5px; font-weight: 800; color: var(--text-faint);
@@ -1191,7 +1242,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v33 · CHS vs Lamar";
+const APP_BUILD = "build 2026-09-01 · v34 · signal-up gate + demo watermark";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1291,6 +1342,7 @@ function renderMainApp() {
   rosMonitorSync();
 
   if (mainState.view !== "cables" && unsubCables) { unsubCables(); unsubCables = null; }
+  if (mainState.view !== "today" && unsubSignal) { unsubSignal(); unsubSignal = null; }
 
   if (mainState.view === "cables") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
@@ -3383,6 +3435,7 @@ const CAMERA_NOTICE_HTML = `
 // Deliberately not an inventory system. A cable, a status, who said so and
 // when. Anything heavier stops getting updated by week three.
 let unsubCables = null;
+let unsubSignal = null;
 
 const CABLE_STATE = {
   good:   { label: "Good",           cls: "cab-good",   rank: 2 },
@@ -4099,6 +4152,124 @@ async function addCable() {
   }
 }
 
+// ============================================================================
+// Signal-up gate
+// ============================================================================
+// The failure this exists for: the TriCaster and the Blackmagic CCUs need all
+// four cameras up or the switcher will not come up at all. There is no partial
+// failure — it is a whole show or nothing. On 8/28 one bad cable took the
+// entire rig down and nobody knew until the client was in the room.
+//
+// So this is a hard checkpoint at a fixed time before doors. Four cameras,
+// each confirmed by a named person, with a timestamp. Not "we're getting
+// there" — a yes or a no, early enough that a no still has daylight in it.
+//
+// Deliberately not automatic. Nothing in the app can see a CCU. A person looks
+// at the switcher and says the camera is up, and their name goes next to it.
+// A green tick nobody checked is worse than no tick at all.
+const SIGNAL_CAMS = [
+  { id: "cam1", label: "Camera 1", colour: "#4A8FC0" },
+  { id: "cam2", label: "Camera 2", colour: "#D65A4E" },
+  { id: "cam3", label: "Camera 3", colour: "#33A870" },
+  { id: "cam4", label: "Camera 4", colour: "#E6CE3A" },
+];
+
+// Doors are 90 minutes before kickoff. The gate sits there rather than at
+// call time so a failure still leaves an hour to fix it.
+const SIGNAL_GATE_MINUTES_BEFORE = 90;
+
+function signalGateTime(game) {
+  // The schedule field is gameTime, not kickoff.
+  if (!game || !game.gameTime) return null;
+  const m = String(game.gameTime).match(/^(\d{1,2}):(\d{2})\s*([AP])M$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10) % 12;
+  if (m[3].toUpperCase() === "P") h += 12;
+  const d = new Date();
+  d.setHours(h, parseInt(m[2], 10), 0, 0);
+  d.setMinutes(d.getMinutes() - SIGNAL_GATE_MINUTES_BEFORE);
+  return d;
+}
+
+function renderSignalGate(gameId, game, state) {
+  const done = SIGNAL_CAMS.filter((c) => state && state[c.id]);
+  const all = done.length === SIGNAL_CAMS.length;
+  const gate = signalGateTime(game);
+  const now = new Date();
+  const late = gate && now > gate && !all;
+
+  const when = gate
+    ? gate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+
+  return `
+    <div class="sig-card ${all ? "sig-ok" : late ? "sig-late" : ""}">
+      <div class="sig-head">
+        <span class="sig-title">Signal up</span>
+        <span class="sig-count">${done.length} of ${SIGNAL_CAMS.length}</span>
+      </div>
+      <div class="sig-sub">
+        ${all
+          ? "All four cameras confirmed on the CCUs."
+          : when
+            ? `All four confirmed on the CCUs by <strong>${escapeHtml(when)}</strong>.`
+            : "All four confirmed on the CCUs before doors."}
+      </div>
+      ${late ? `<div class="sig-alert">Past the gate with ${SIGNAL_CAMS.length - done.length} still unconfirmed. Escalate now, not at kickoff.</div>` : ""}
+      <div class="sig-grid">
+        ${SIGNAL_CAMS.map((c) => {
+          const rec = state && state[c.id];
+          return `
+          <button class="sig-cam ${rec ? "on" : ""}" data-sigcam="${c.id}"
+                  style="--cam:${c.colour}">
+            <span class="sig-dot"></span>
+            <span class="sig-cam-main">
+              <span class="sig-cam-label">${escapeHtml(c.label)}</span>
+              <span class="sig-cam-by">${rec
+                ? escapeHtml(rec.by || "confirmed") + (rec.at ? " · " + escapeHtml(shortClock(rec.at)) : "")
+                : "not confirmed"}</span>
+            </span>
+          </button>`;
+        }).join("")}
+      </div>
+      ${done.length ? `<button class="sig-reset" id="sigReset">Clear all</button>` : ""}
+    </div>`;
+}
+
+function shortClock(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function wireSignalGate(gameId) {
+  document.querySelectorAll("[data-sigcam]").forEach((el) => {
+    el.onclick = async () => {
+      const cam = el.dataset.sigcam;
+      const ref = db.ref(`signalUp/${gameId}/${cam}`);
+      const snap = await ref.once("value");
+      if (snap.val()) {
+        // Un-confirming needs a deliberate second action — a mis-tap that
+        // silently clears a confirmation is how you end up trusting a board
+        // that isn't true.
+        if (!confirm(`Clear the ${cam.replace("cam", "Camera ")} confirmation?`)) return;
+        await ref.remove();
+        return;
+      }
+      await ref.set({
+        by: (myProfileForShifts && myProfileForShifts.legalName)
+            || currentUser.displayName || currentUser.email || "",
+        at: new Date().toISOString(),
+      });
+    };
+  });
+  const reset = document.getElementById("sigReset");
+  if (reset) reset.onclick = async () => {
+    if (!confirm("Clear all four confirmations?")) return;
+    await db.ref(`signalUp/${gameId}`).remove();
+  };
+}
+
 async function renderTodayView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
@@ -4155,6 +4326,7 @@ async function renderTodayView() {
   const openCount = rows.length - assignedCount;
 
   inner.innerHTML = `
+    <div id="sigGateHost"></div>
     <div class="shift-game-card">
       <div class="shift-game-header">
         ${isTomorrow ? "Tomorrow — " : ""}${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}
@@ -4193,6 +4365,20 @@ async function renderTodayView() {
   const weatherEl = document.getElementById("todayWeather");
   if (weatherEl) {
     weatherEl.textContent = weather ? `${weather.name}: ${weather.temp}°${weather.unit} — ${weather.forecast}` : "Weather unavailable right now.";
+  }
+
+  // Live so a confirmation on one phone appears on every other phone at once.
+  if (unsubSignal) { unsubSignal(); unsubSignal = null; }
+  {
+    const sref = db.ref(`signalUp/${gameId}`);
+    const scb = (snap) => {
+      const host = document.getElementById("sigGateHost");
+      if (!host || mainState.view !== "today") return;
+      host.innerHTML = renderSignalGate(gameId, game, snap.val() || {});
+      wireSignalGate(gameId);
+    };
+    sref.on("value", scb);
+    unsubSignal = () => sref.off("value", scb);
   }
 }
 
@@ -4906,8 +5092,36 @@ function rosMonStartDemo(video, note) {
     ctx.beginPath(); ctx.moveTo(w, 0); ctx.lineTo(w, cv.height); ctx.moveTo(0, h); ctx.lineTo(cv.width, h); ctx.stroke();
   }
 
+  // Permanent watermark. Without it this is an animated picture that looks
+  // like program on a phone in a dark booth, and the only thing stopping
+  // someone trusting it is remembering to switch a flag off.
+  function watermark() {
+    const t = (Date.now() - t0) / 1000;
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(t * 2) * 0.12;
+    ctx.fillStyle = "#D65A4E";
+    ctx.fillRect(0, cv.height - 74, cv.width, 74);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 40px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("DEMO — NOT PROGRAM", cv.width / 2, cv.height - 26);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 130px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.translate(cv.width / 2, cv.height / 2);
+    ctx.rotate(-0.32);
+    ctx.fillText("DEMO", 0, 0);
+    ctx.restore();
+  }
+
   function frame() {
     if (rosMonFeed === "multiview") drawMultiview(); else drawProgram();
+    watermark();
   }
   frame();
   rosMonDemoTimer = setInterval(frame, 66);
