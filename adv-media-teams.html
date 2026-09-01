@@ -171,119 +171,10 @@
 
 </script>
 
-<script>
-  // Appearance is applied before anything renders. If this ran with the rest of
-  // the app the page would paint in the default theme first and then snap —
-  // ugly, and worse on a slow stadium connection.
-  (function () {
-    try {
-      var s = JSON.parse(localStorage.getItem("advAppearance") || "{}");
-      var r = document.documentElement;
-      if (s.theme)  r.setAttribute("data-theme", s.theme);
-      if (s.accent) r.setAttribute("data-accent", s.accent);
-      if (s.font)   r.setAttribute("data-font", s.font);
-      if (s.fs)     r.setAttribute("data-fs", s.fs);
-    } catch (e) { /* first run, or storage blocked — defaults are fine */ }
-  })();
-</script>
+<!-- Shared appearance, used by every ADV page. Loads before our styles. -->
+<script src="adv-theme.js"></script>
 <style>
-  /* ---- Appearance -------------------------------------------------------
-     Everything downstream already reads these variables, so a theme is just a
-     different set of values — no rule below needs to change.
-
-     Semantic colours (green/amber/red) and the camera band colours stay put in
-     every theme, including monochrome. They carry meaning: red is a dead cable,
-     the bands are which camera. Greying those out would break the gear system
-     to make the UI prettier.
-     ------------------------------------------------------------------------ */
-  :root {
-    --bg: #0A0D12;
-    --panel: #12181F;
-    --panel2: #1A222B;
-    --border: #26313D;
-    --text: #EDEFF3;
-    --text-muted: #8A96A3;
-    --text-faint: #5C6774;
-    --green: #33A870;
-    --amber: #E0A63C;
-    --red: #D65A4E;
-    --blue: #4A8FC0;
-
-    /* Tinted panels for warnings, failures and confirmations. Variables so
-       they flip with the theme — hardcoded dark tints stayed dark in light
-       mode and looked broken. */
-    --warn-bg: #1F1810;  --warn-ink: #FFD699;  --warn-strong: #FFE9C2;
-    --bad-bg:  #2A1512;  --bad-ink:  #F2B8B1;
-    --good-bg: #10201A;  --good-ink: #A8E0C4;
-    --info-bg: #1B2A38;  --info-ink: #8FC6F0;
-
-    --accent: var(--blue);
-    --accent-ink: #FFFFFF;
-    --shadow: 0 2px 0 rgba(0,0,0,0.35), 0 6px 16px rgba(0,0,0,0.35);
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --fs: 1;
-  }
-
-  /* Light. Warmer than pure white — a phone at a night game is the worst case
-     for glare, so the page is off-white rather than #FFF. */
-  html[data-theme="light"] {
-    --warn-bg: #FFF6E3;  --warn-ink: #6B4A05;  --warn-strong: #4A3303;
-    --bad-bg:  #FDECEA;  --bad-ink:  #8C2C22;
-    --good-bg: #E8F6EE;  --good-ink: #14603A;
-    --info-bg: #E9F2F9;  --info-ink: #1D5580;
-    --bg: #F4F6F8;
-    --panel: #FFFFFF;
-    --panel2: #EDF1F5;
-    --border: #D2DAE2;
-    --text: #131A21;
-    --text-muted: #55616D;
-    --text-faint: #7C8894;
-    --green: #1F7D4D;
-    --amber: #9A6B12;
-    --red: #B23B30;
-    --blue: #2C6E9E;
-    --shadow: 0 1px 0 rgba(16,24,32,0.06), 0 4px 12px rgba(16,24,32,0.10);
-  }
-
-  /* Monochrome. Interface goes grey; status and camera colours do not. */
-  html[data-theme="mono"] {
-    --bg: #0B0B0C;
-    --panel: #151517;
-    --panel2: #1E1E21;
-    --border: #33333A;
-    --text: #F2F2F3;
-    --text-muted: #9A9AA2;
-    --text-faint: #6B6B73;
-    --blue: #C9C9D2;
-    --accent-ink: #101012;
-  }
-  html[data-theme="mono-light"] {
-    --warn-bg: #FFF6E3;  --warn-ink: #6B4A05;  --warn-strong: #4A3303;
-    --bad-bg:  #FDECEA;  --bad-ink:  #8C2C22;
-    --good-bg: #E8F6EE;  --good-ink: #14603A;
-    --info-bg: #EDEDEF;  --info-ink: #3A3A42;
-    --bg: #F5F5F6;
-    --panel: #FFFFFF;
-    --panel2: #EBEBED;
-    --border: #D6D6DA;
-    --text: #16161A;
-    --text-muted: #5A5A63;
-    --text-faint: #85858E;
-    --blue: #3A3A42;
-    --accent-ink: #FFFFFF;
-    --shadow: 0 1px 0 rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.10);
-  }
-
-  /* Accents. Only the interface accent changes — never the semantic colours. */
-  html[data-accent="teal"]   { --accent: #2FA39B; }
-  html[data-accent="violet"] { --accent: #8B72D9; }
-  html[data-accent="amber"]  { --accent: #D2892B; --accent-ink: #1A1205; }
-  html[data-accent="green"]  { --accent: #2E9E63; }
-  html[data-accent="slate"]  { --accent: #6B7A89; }
-
-  html[data-font="serif"]  { --font: Georgia, "Times New Roman", serif; }
-  html[data-font="mono"]   { --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  html[data-font="rounded"]{ --font: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; }
+  /* Colours, fonts and sizing live in adv-theme.js so every page matches. */
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -293,16 +184,7 @@
     /* Colour changes shouldn't strobe when someone flips the theme mid-show. */
     transition: background-color .18s ease, color .18s ease;
   }
-  /* Text scale. Sizes throughout this file are in px, so a font-size change
-     alone would do nothing — zoom scales the whole layout, which for a utility
-     app is what people actually want when they say "bigger": bigger buttons
-     too, not just text.
-     Applied to #app only, so overlays and the appearance sheet keep a constant
-     size and the control you're shrinking with doesn't shrink under you. */
-  #app { zoom: var(--fs); }
-  html[data-fs="s"]  { --fs: 0.92; }
-  html[data-fs="l"]  { --fs: 1.10; }
-  html[data-fs="xl"] { --fs: 1.22; }
+
   .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
   h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 21px; font-weight: 700; letter-spacing: 1px; margin: 0; }
   .brand-logo { height: 40px; width: auto; flex-shrink: 0; }
@@ -656,10 +538,6 @@
   .ap-prev-row b { flex: 1; font-size: 13px; }
   .ap-prev-row i { font-size: 12px; color: var(--text-muted); font-style: normal; font-weight: 800; }
 
-  /* The logo is white artwork. On a light background it disappears, so it
-     gets inverted there rather than shipping a second image. */
-  html[data-theme="light"] .brand-logo,
-  html[data-theme="mono-light"] .brand-logo { filter: invert(1) brightness(0.75); }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
@@ -1222,7 +1100,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v22 · appearance · call times v1";
+const APP_BUILD = "build 2026-08-27 · v23 · shared theme · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1252,7 +1130,7 @@ function renderMainApp() {
   const adminMenuOpen = mainState.adminMenuOpen && admin;
 
   root.innerHTML = `
-    <button class="logout-btn" id="appearanceBtn" style="margin-right:8px;" title="Appearance">Aa</button>
+    <button class="logout-btn" id="appearanceBtn" data-adv-appearance style="margin-right:8px;" title="Appearance">Aa</button>
     <button class="logout-btn" id="logoutBtn">Log Out</button>
     <button class="logout-btn" id="notifBtn" style="margin-right:8px;">🔔 Notifications</button>
     <div style="clear:both"></div>
@@ -3552,143 +3430,10 @@ function openCaseSheet(id, c) {
   });
 }
 
-// ============================================================================
-// Appearance
-// ============================================================================
-// Stored in localStorage rather than the crew profile on purpose: it's a
-// property of the device and the eyes using it, not the person. Someone
-// borrowing the booth iPad shouldn't inherit whoever last signed in.
-const APPEARANCE_KEY = "advAppearance";
-
-const THEMES = [
-  { id: "",           label: "Dark",       swatch: "#0A0D12", ink: "#EDEFF3" },
-  { id: "light",      label: "Light",      swatch: "#F4F6F8", ink: "#131A21" },
-  { id: "mono",       label: "Mono dark",  swatch: "#0B0B0C", ink: "#F2F2F3" },
-  { id: "mono-light", label: "Mono light", swatch: "#F5F5F6", ink: "#16161A" },
-];
-const ACCENTS = [
-  { id: "",       label: "Blue",   hex: "#4A8FC0" },
-  { id: "teal",   label: "Teal",   hex: "#2FA39B" },
-  { id: "violet", label: "Violet", hex: "#8B72D9" },
-  { id: "green",  label: "Green",  hex: "#2E9E63" },
-  { id: "amber",  label: "Amber",  hex: "#D2892B" },
-  { id: "slate",  label: "Slate",  hex: "#6B7A89" },
-];
-const FONTS = [
-  { id: "",        label: "System",  css: '-apple-system, "Segoe UI", Roboto, sans-serif' },
-  { id: "rounded", label: "Rounded", css: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif' },
-  { id: "serif",   label: "Serif",   css: 'Georgia, "Times New Roman", serif' },
-  { id: "mono",    label: "Mono",    css: 'ui-monospace, Menlo, Consolas, monospace' },
-];
-const SIZES = [
-  { id: "s",  label: "S" },
-  { id: "",   label: "M" },
-  { id: "l",  label: "L" },
-  { id: "xl", label: "XL" },
-];
-
-function loadAppearance() {
-  try { return JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}"); }
-  catch (e) { return {}; }
-}
-
-function applyAppearance(a) {
-  const r = document.documentElement;
-  const set = (attr, val) => val ? r.setAttribute(attr, val) : r.removeAttribute(attr);
-  set("data-theme", a.theme);
-  set("data-accent", a.accent);
-  set("data-font", a.font);
-  set("data-fs", a.fs);
-  // Keeps the phone's status bar in step with the page.
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    meta.setAttribute("content",
-      getComputedStyle(r).getPropertyValue("--bg").trim() || "#0A0D12");
-  }
-  try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(a)); }
-  catch (e) { /* private mode — it just won't persist */ }
-}
-
+// Appearance lives in adv-theme.js so every page shares one setting. The
+// button here just opens it.
 function openAppearance() {
-  let a = loadAppearance();
-
-  const overlay = document.createElement("div");
-  overlay.className = "modal-overlay";
-  overlay.style.alignItems = "flex-start";
-  overlay.style.overflow = "auto";
-
-  const draw = () => {
-    overlay.innerHTML = `
-      <div class="modal-card ap-card">
-        <div class="modal-title">Appearance</div>
-        <div class="footnote" style="margin:0 0 16px;">
-          Applies to this device only, and sticks between visits.
-        </div>
-
-        <div class="ap-label">Theme</div>
-        <div class="ap-grid">
-          ${THEMES.map((t) => `
-            <button class="ap-theme ${(a.theme || "") === t.id ? "on" : ""}" data-theme="${t.id}">
-              <span class="ap-swatch" style="background:${t.swatch}; color:${t.ink}">Aa</span>
-              ${escapeHtml(t.label)}
-            </button>`).join("")}
-        </div>
-
-        <div class="ap-label">Accent</div>
-        <div class="ap-row">
-          ${ACCENTS.map((c) => `
-            <button class="ap-dot ${(a.accent || "") === c.id ? "on" : ""}"
-              data-accent="${c.id}" title="${escapeAttr(c.label)}"
-              style="background:${c.hex}"></button>`).join("")}
-        </div>
-
-        <div class="ap-label">Font</div>
-        <div class="ap-row ap-wrap">
-          ${FONTS.map((f) => `
-            <button class="ap-chip ${(a.font || "") === f.id ? "on" : ""}"
-              data-font="${f.id}" style="font-family:${f.css}">${escapeHtml(f.label)}</button>`).join("")}
-        </div>
-
-        <div class="ap-label">Text size</div>
-        <div class="ap-row">
-          ${SIZES.map((z) => `
-            <button class="ap-chip ap-size ${(a.fs || "") === z.id ? "on" : ""}"
-              data-fs="${z.id}">${escapeHtml(z.label)}</button>`).join("")}
-        </div>
-
-        <div class="ap-preview">
-          <div class="ap-prev-title">Preview</div>
-          <div class="ap-prev-row"><span>Camera 3</span><b>Patrick (Pat)</b><i>4:00 PM</i></div>
-          <button class="primary-btn" style="margin-top:10px;" disabled>Sample button</button>
-        </div>
-
-        <button class="shift-btn shift-btn-ghost" id="apReset"
-          style="width:100%; margin-top:14px; padding:11px 0;">Reset to default</button>
-        <button class="primary-btn" id="apDone" style="margin-top:10px;">Done</button>
-      </div>`;
-
-    overlay.querySelectorAll("[data-theme]").forEach((el) => {
-      el.onclick = () => { a.theme = el.dataset.theme; applyAppearance(a); draw(); };
-    });
-    overlay.querySelectorAll("[data-accent]").forEach((el) => {
-      el.onclick = () => { a.accent = el.dataset.accent; applyAppearance(a); draw(); };
-    });
-    overlay.querySelectorAll("[data-font]").forEach((el) => {
-      el.onclick = () => { a.font = el.dataset.font; applyAppearance(a); draw(); };
-    });
-    overlay.querySelectorAll("[data-fs]").forEach((el) => {
-      el.onclick = () => { a.fs = el.dataset.fs; applyAppearance(a); draw(); };
-    });
-    overlay.querySelector("#apReset").onclick = () => { a = {}; applyAppearance(a); draw(); };
-    overlay.querySelector("#apDone").onclick = close;
-  };
-
-  function close() { overlay.remove(); document.body.style.overflow = ""; }
-  overlay.onclick = (e) => { if (e.target === overlay) close(); };
-
-  document.body.appendChild(overlay);
-  document.body.style.overflow = "hidden";
-  draw();
+  if (window.ADVTheme) ADVTheme.open();
 }
 
 async function renderCablesView() {
