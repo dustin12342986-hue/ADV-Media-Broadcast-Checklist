@@ -223,9 +223,17 @@
   #app, .wrap, .adv-scale { zoom: var(--fs); }
   .adv-ap-overlay, .adv-ap-overlay * { zoom: 1; }
 
-  /* The logo is white artwork and vanishes on a light background. */
+  /* The ADV logo is white artwork and vanishes on any light background. The
+     first version only listed the two plain light themes, so it stayed white
+     and invisible on the three school light themes. */
   html[data-theme="light"] .brand-logo,
-  html[data-theme="mono-light"] .brand-logo { filter: invert(1) brightness(0.75); }
+  html[data-theme="mono-light"] .brand-logo,
+  html[data-theme="chs-light"] .brand-logo,
+  html[data-theme="nchs-light"] .brand-logo,
+  html[data-theme="txwes-light"] .brand-logo { filter: invert(1) brightness(0.7); }
+
+  /* School crests are full-colour artwork — never filter them. */
+  .adv-school-logo { filter: none !important; }
 
   button:focus-visible, a:focus-visible,
   select:focus-visible, input:focus-visible, textarea:focus-visible {
