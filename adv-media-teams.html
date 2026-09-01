@@ -1191,7 +1191,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v30 · monitor + sheet import";
+const APP_BUILD = "build 2026-09-01 · v31 · real sheet format";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -6496,14 +6496,19 @@ initFirebaseAndBoot();
 (function (root) {
   "use strict";
 
+  // Header names taken from the sheets actually in use, not invented ones.
+  // The CISD run of show uses "SPEAKER/EVENT" and "BIG SCREEN", which is why
+  // both spellings and their punctuation-stripped forms are here.
   const FIELD_ALIASES = {
     section: ["section", "block", "part", "segment"],
-    time:    ["time", "clock", "start", "start time"],
+    time:    ["time", "clock", "start", "start time", "starttime"],
     dur:     ["dur", "duration", "length", "runtime", "trt"],
-    event:   ["event", "cue", "item", "action", "description", "what"],
-    read:    ["read", "script", "announcer", "copy", "pa", "read copy"],
-    screen:  ["screen", "video", "led", "videoboard", "board", "wall"],
-    ribbon:  ["ribbon", "ribbon board"],
+    event:   ["event", "cue", "item", "action", "description", "what",
+              "speakerevent", "speaker event", "speaker", "eventspeaker"],
+    read:    ["read", "script", "announcer", "copy", "pa", "read copy", "readcopy"],
+    screen:  ["screen", "video", "led", "videoboard", "board", "wall",
+              "big screen", "bigscreen", "videowall", "video board"],
+    ribbon:  ["ribbon", "ribbon board", "ribbonboard"],
     audio:   ["audio", "sound", "a1", "source"],
     notes:   ["notes", "note", "crew", "comments", "remarks"],
   };
@@ -6511,6 +6516,38 @@ initFirebaseAndBoot();
   function normHeader(h) {
     return String(h || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
   }
+
+  // "3:15:00 PM" -> "3:15 PM". Sheets store clock values with seconds.
+  function tidyTime(v) {
+    const m = String(v || "").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp])\.?[Mm]\.?$/);
+    return m ? `${m[1]}:${m[2]} ${m[3].toUpperCase()}M` : String(v || "").trim();
+  }
+
+  // "0:01:00" -> "1:00", "2:04:00" -> "2:04". Sheets store durations as
+  // h:mm:ss, which reads as hours to a human scanning a cue list.
+  function tidyDur(v) {
+    const t = String(v || "").trim();
+    const m = t.match(/^(\d+):(\d{2}):(\d{2})$/);
+    if (!m) return t;
+    const h = +m[1], mi = +m[2], se = +m[3];
+    if (h === 0) return `${mi}:${String(se).padStart(2, "0")}`;
+    // A real hours value stays as written.
+    return t;
+  }
+
+  // A row that repeats the header is a section divider in these sheets.
+  function isRepeatedHeader(row, map) {
+    const vals = row.map(normHeader).filter(Boolean);
+    if (vals.length < 3) return false;
+    const known = vals.filter((v) => {
+      for (const f in FIELD_ALIASES) if (FIELD_ALIASES[f].includes(v)) return true;
+      return false;
+    });
+    return known.length >= 3;
+  }
+
+  // Things the CISD sheet puts in the START column instead of a time.
+  const SECTION_IN_TIME = /^(1st|2nd|3rd|4th)\s*(qtr|quarter)|^end of|^halftime|^post ?game|^pre ?game|^overtime|^emergency|^first stoppage|^after /i;
 
   function mapHeaders(headerRow) {
     const map = {};
@@ -6650,34 +6687,65 @@ initFirebaseAndBoot();
         cues: [],
         warnings: [
           "No Event column found. The first row must be headers, and one of them "
-          + "must be Event (or Cue, or Item). Found: "
+          + "must be Event (or Cue, Item, or Speaker/Event). Found: "
           + rows[0].map((h) => `"${h}"`).join(", "),
         ],
       };
     }
 
     const cues = [];
-    let lastSection = "";
+    let section = "Pregame";
+    let lastCue = null;
+
     rows.slice(1).forEach((r, i) => {
+      // Section dividers in these sheets are a repeat of the header row.
+      if (isRepeatedHeader(r, map)) return;
+
       const get = (f) => (map[f] != null ? String(r[map[f]] || "").trim() : "");
+      const rawTime = get("time");
       const event = get("event");
+
+      // The START column doubles as a section marker: "1st qtr", "End of 1st
+      // Quarter", "Halftime Show", "Postgame show", "Emergency Response ...".
+      if (rawTime && SECTION_IN_TIME.test(rawTime)) {
+        section = rawTime;
+        // Reset, or prose in the new section attaches to the last cue of the
+        // previous one — the fire and lightning scripts ended up appended to
+        // the postgame cue.
+        lastCue = null;
+        if (!event) return;           // divider row only
+      }
+
       if (!event) {
+        // Prose in the first column with no event — the emergency scripts are
+        // written this way. Attach as read copy rather than dropping it.
+        const prose = rawTime;
+        if (prose && !SECTION_IN_TIME.test(prose) && prose.length > 25) {
+          if (lastCue) {
+            lastCue.read = (lastCue.read ? lastCue.read + "\n" : "") + prose;
+          } else {
+            lastCue = { section, event: section, read: prose };
+            cues.push(lastCue);
+          }
+          return;
+        }
         if (r.some((c) => String(c).trim())) {
           warnings.push(`Row ${i + 2}: no event — skipped.`);
         }
         return;
       }
-      // A blank Section carries down, so the sheet only needs it on the first
-      // row of each block rather than repeated on every line.
-      const section = get("section") || lastSection || "Show";
-      lastSection = section;
 
       const cue = { section, event };
-      ["time", "dur", "read", "screen", "ribbon", "audio", "notes"].forEach((f) => {
+      const time = rawTime && !SECTION_IN_TIME.test(rawTime) ? tidyTime(rawTime) : "";
+      if (time) cue.time = time;
+      const dur = tidyDur(get("dur"));
+      if (dur && dur !== "???") cue.dur = dur;
+      ["read", "screen", "ribbon", "audio", "notes"].forEach((f) => {
         const v = get(f);
         if (v) cue[f] = v;
       });
       cues.push(cue);
+      lastCue = cue;
     });
 
     if (!cues.length) warnings.push("No rows with an event were found.");
