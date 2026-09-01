@@ -150,6 +150,19 @@
   }
   .signal-btn.on { border-color: var(--green); background: #12271D; color: #7FE0AC; box-shadow: 0 0 12px #33A87044; }
   .help-btn.on { border-color: var(--red); background: #3A1A17; color: #FF8478; box-shadow: 0 0 14px #D65A4E55; }
+  /* Sits above the tasks, not in them — checklist item text is escaped, so a
+     URL written as a task would render as dead text. */
+  .guide-link {
+    display: flex; align-items: center; gap: 10px; text-decoration: none;
+    background: #1B2A38; border: 1px solid var(--blue); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 14px;
+  }
+  .guide-link-tag {
+    flex: 0 0 auto; background: var(--blue); color: #fff; border-radius: 5px;
+    padding: 3px 8px; font-size: 9.5px; font-weight: 900; letter-spacing: 0.8px;
+  }
+  .guide-link-label { flex: 1; color: #8FC6F0; font-size: 13.5px; font-weight: 800; }
+
   .checklist-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
   .checklist-item {
     display: flex; gap: 10px; align-items: flex-start; padding: 13px 14px; cursor: pointer;
@@ -244,7 +257,7 @@ const GAMES = [
 ];
 
 const POSITIONS = {
-  "camera-lead": { label: "Camera Lead", readyLabel: "All cameras built, signal is up",
+  "camera-lead": { guide: { href: "camera-lead-football-setup.html", label: "Camera Lead Football Setup" }, label: "Camera Lead", readyLabel: "All cameras built, signal is up",
     pre: ["Check out all camera bodies, lenses, tripods/heads, cables, batteries, cases",
       "Inspect each unit for damage; confirm batteries charged, media formatted",
       "Confirm cable runs/connections to control room",
@@ -254,7 +267,7 @@ const POSITIONS = {
       "Inspect returned gear for damage; log any issues",
       "Confirm all equipment properly stored in cases",
       "Release camera operators to PM"] },
-  "camera-1": { label: "Camera 1 (Blue)", readyLabel: "Camera 1 is built, signal is up",
+  "camera-1": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera 1 (Blue)", readyLabel: "Camera 1 is built, signal is up",
     pre: ["Confirm you are on Camera 1 (Blue) — High 50 — in the press box opening",
       "Case check: converter, muffed headset, weather gear, sandbag, power supply, focus and zoom handles",
       "Run the 10 ft SMPTE to the press box JBT",
@@ -270,7 +283,7 @@ const POSITIONS = {
       "Weather gear back in the case",
       "Break down camera, tripod and sandbag; everything back in its case",
       "Return to Camera Lead and wait for confirmation before leaving"] },
-  "camera-2": { label: "Camera 2 (Red)", readyLabel: "Camera 2 is built, signal is up",
+  "camera-2": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera 2 (Red)", readyLabel: "Camera 2 is built, signal is up",
     pre: ["Confirm you are on Camera 2 (Red) — Field level, just above the Crowley mark in the end zone, under the LED wall",
       "Case check: converter, muffed headset, weather gear, sandbag, power supply, focus and zoom handles",
       "Check the run: 200 ft to the visitor side JBT while the north end zone JBT is dead, 100 ft to the north end zone JBT once the new box is in",
@@ -286,7 +299,7 @@ const POSITIONS = {
       "Weather gear back in the case",
       "Break down camera, tripod and sandbag; everything back in its case",
       "Return to Camera Lead and wait for confirmation before leaving"] },
-  "camera-3": { label: "Camera 3 (Green)", readyLabel: "Camera 3 is built, signal is up",
+  "camera-3": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera 3 (Green)", readyLabel: "Camera 3 is built, signal is up",
     pre: ["Confirm you are on Camera 3 (Green) — VIP balcony — far end, opposite the LED wall",
       "Case check: converter, muffed headset, weather gear, sandbag, power supply, focus and zoom handles",
       "Run the 100 ft SMPTE up from the JBT into VIP",
@@ -303,7 +316,7 @@ const POSITIONS = {
       "Weather gear back in the case",
       "Break down camera, tripod and sandbag; everything back in its case",
       "Return to Camera Lead and wait for confirmation before leaving"] },
-  "camera-4": { label: "Camera 4 (Yellow)", readyLabel: "Camera 4 is built, signal is up",
+  "camera-4": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera 4 (Yellow)", readyLabel: "Camera 4 is built, signal is up",
     pre: ["Confirm you are on Camera 4 (Yellow) — Home sideline",
       "Case check: converter, muffed headset, weather gear, sandbag, power supply, focus and zoom handles",
       "Run the 365 ft SMPTE off the reel — the sideline camera moves, so it needs the length",
@@ -319,7 +332,7 @@ const POSITIONS = {
       "Weather gear back in the case",
       "Break down camera, tripod and sandbag; everything back in its case",
       "Return to Camera Lead and wait for confirmation before leaving"] },
-  "camera-op": { label: "Camera Operator", readyLabel: "Camera is built, signal is up",
+  "camera-op": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera Operator", readyLabel: "Camera is built, signal is up",
     pre: ["Check in with Camera Lead for assigned camera and position",
       "Verify gear matches checkout log; report pre-existing damage",
       "Set position and confirm shot with Director/Shader"],
@@ -682,6 +695,14 @@ function renderChecklistBody(rec, items, position) {
         ${rec.signalUp ? position.readyLabel + " ✓" + (rec.signalUpAt ? " · " + new Date(rec.signalUpAt).toLocaleTimeString() : "") : position.readyLabel}
       </button>
     `;
+  }
+
+  if (position.guide) {
+    html += `
+      <a class="guide-link" href="${escapeAttr(position.guide.href)}" target="_blank" rel="noopener">
+        <span class="guide-link-tag">CHECK THIS FIRST</span>
+        <span class="guide-link-label">${escapeHtml(position.guide.label)}</span>
+      </a>`;
   }
 
   html += `<input id="nameInput" placeholder="Your name" value="${escapeAttr(rec.name)}" style="margin-bottom:14px" />`;
