@@ -443,6 +443,44 @@
      cart in bad light, not studied. */
   /* Show documents. The type tag carries the meaning, so it sits first and
      keeps a fixed width — a column of tags is scannable, inline labels aren't. */
+  /* Import preview. Deliberately dense — the point is to scan the whole cue
+     list quickly, not to admire it. */
+  .imp-card { max-width: 420px; margin: auto; }
+  .imp-sum {
+    background: var(--info-bg); color: var(--info-ink);
+    border-radius: 9px; padding: 9px 12px; font-size: 13px; margin: 10px 0;
+  }
+  .imp-warn {
+    background: var(--warn-bg); border: 1px solid var(--amber); color: var(--warn-ink);
+    border-radius: 9px; padding: 9px 12px; font-size: 12px; margin-bottom: 10px;
+  }
+  .imp-note { font-size: 12px; color: var(--text-faint); margin-bottom: 10px; }
+  .imp-list {
+    max-height: 46vh; overflow: auto; border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px; background: var(--panel2);
+  }
+  .imp-sec {
+    font-size: 10px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--accent); margin: 10px 0 5px;
+  }
+  .imp-sec:first-child { margin-top: 0; }
+  .imp-cue { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .imp-cue:last-child { border-bottom: none; }
+  .imp-time {
+    flex: 0 0 62px; font-size: 11px; font-weight: 800; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; padding-top: 1px;
+  }
+  .imp-body { flex: 1; min-width: 0; }
+  .imp-event { display: block; font-size: 12.5px; font-weight: 700; }
+  .imp-event em { color: var(--text-faint); font-style: normal; font-weight: 600; }
+  .imp-read { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .imp-note-line { display: block; font-size: 11px; color: var(--amber); margin-top: 2px; }
+  .imp-danger {
+    margin-top: 12px; background: var(--bad-bg); border: 1px solid var(--red);
+    color: var(--bad-ink); border-radius: 9px; padding: 9px 12px;
+    font-size: 12.5px; font-weight: 700;
+  }
+
   .doc-wrap { margin: 12px 0 4px; }
   .doc-row {
     display: flex; align-items: center; gap: 10px; text-decoration: none;
@@ -1136,7 +1174,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v24 · show documents · call times v1";
+const APP_BUILD = "build 2026-08-27 · v25 · script import · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3582,12 +3620,19 @@ function wireDocsSection(gameId) {
     const type = await askDocType(file.name);
     if (!type) return;
 
+    // Build the cue list FIRST. It's the valuable output, it needs no network,
+    // and an upload that hangs on a bad stadium connection shouldn't stand
+    // between you and a run of show on a show day.
+    if (type === "script" || type === "ros") {
+      await offerScriptImport(gameId, file);
+    }
+
     if (!firebase.storage) {
-      alert("Storage isn't available in this build.");
+      status.textContent = "";
       return;
     }
 
-    status.textContent = "Uploading " + file.name + "…";
+    status.textContent = "Filing " + file.name + "…";
     try {
       // Timestamped path so re-uploading the same filename doesn't overwrite
       // the previous version — useful when a school sends a revised script.
@@ -3613,8 +3658,10 @@ function wireDocsSection(gameId) {
     } catch (err) {
       status.textContent = "";
       alert("Upload failed: " + (err.message || "unknown error")
-        + "\n\nIf this says permission denied, Storage rules need a showDocs section.");
+        + "\n\nIf this says permission denied, Storage rules need a showDocs section."
+        + "\n\nYou can still build the run of show from this file.");
     }
+
   };
 }
 
@@ -3648,6 +3695,109 @@ function askDocType(filename) {
     overlay.querySelector("#docCancel").onclick = () => close(null);
     overlay.onclick = (e) => { if (e.target === overlay) close(null); };
   });
+}
+
+// Turning a script into cues, with the result shown before anything is saved.
+// A cue list that's subtly wrong is worse than none — you find out while
+// you're calling the show — so nothing is written until it's been looked at.
+async function offerScriptImport(gameId, file) {
+  let text;
+  try {
+    text = await readScriptFile(file);
+  } catch (e) {
+    alert(e.message || "Couldn't read that file.");
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parsePaScript(text);
+  } catch (e) {
+    alert("Couldn't read a cue list out of that file.");
+    return;
+  }
+
+  if (!parsed.cues.length) {
+    alert("No cues found in that file. It may not be a PA script, or the text didn't come through.");
+    return;
+  }
+
+  await showImportPreview(gameId, file.name, parsed);
+}
+
+function showImportPreview(gameId, filename, parsed) {
+ return new Promise((done) => {
+  const { cues, warnings } = parsed;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+
+  const bySection = [];
+  cues.forEach((c) => {
+    const last = bySection[bySection.length - 1];
+    if (!last || last.name !== c.section) bySection.push({ name: c.section, cues: [c] });
+    else last.cues.push(c);
+  });
+
+  overlay.innerHTML = `
+    <div class="modal-card imp-card">
+      <div class="modal-title">Build the run of show?</div>
+      <div class="modal-subtitle">${escapeHtml(filename)}</div>
+
+      <div class="imp-sum">
+        <strong>${cues.length}</strong> cues across
+        <strong>${bySection.length}</strong> sections
+      </div>
+
+      ${warnings.length ? `
+        <div class="imp-warn">
+          ${warnings.map((w) => `<div>${escapeHtml(w)}</div>`).join("")}
+        </div>` : ""}
+
+      <div class="imp-note">
+        Check this before you commit. Anything wrong here is wrong on the night.
+      </div>
+
+      <div class="imp-list">
+        ${bySection.map((sec) => `
+          <div class="imp-sec">${escapeHtml(sec.name)}</div>
+          ${sec.cues.map((c) => `
+            <div class="imp-cue">
+              <span class="imp-time">${escapeHtml(c.time || "—")}</span>
+              <span class="imp-body">
+                <span class="imp-event">${escapeHtml(c.event || "")}${c.dur ? ` <em>${escapeHtml(c.dur)}</em>` : ""}</span>
+                ${c.read ? `<span class="imp-read">${escapeHtml(c.read.split("\\n")[0].slice(0, 120))}${c.read.length > 120 ? "…" : ""}</span>` : ""}
+                ${c.notes ? `<span class="imp-note-line">${escapeHtml(c.notes.slice(0, 90))}</span>` : ""}
+              </span>
+            </div>`).join("")}
+        `).join("")}
+      </div>
+
+      <div class="imp-danger">
+        This replaces the current cue list for this game.
+      </div>
+      <button class="primary-btn" id="impGo" style="margin-top:10px;">Replace with these ${cues.length} cues</button>
+      <button class="shift-btn shift-btn-ghost" id="impCancel"
+        style="width:100%; margin-top:10px; padding:11px 0;">Cancel — keep what's there</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => { overlay.remove(); document.body.style.overflow = ""; done(); };
+  overlay.querySelector("#impCancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  overlay.querySelector("#impGo").onclick = async () => {
+    overlay.remove(); document.body.style.overflow = "";
+    try {
+      await rosSaveCues(cues, 0);
+      alert(`Run of show built — ${cues.length} cues. Check the cue list before doors.`);
+    } catch (e) {
+      alert("Couldn't save: " + (e.message || "unknown error"));
+    }
+  };
+ });
 }
 
 async function renderCablesView() {
@@ -5564,6 +5714,325 @@ initFirebaseAndBoot();
                    it dead when that balance hit zero.
        assistant — memory. Optional; the widget works without it.
        gear/fiber KB — equipment references, appended to the system prompt. -->
+<!-- PA script -> cues. Inlined; no CDN. -->
+<script>
+/* ===========================================================================
+   PA SCRIPT -> RUN OF SHOW
+   ===========================================================================
+   Turns the PA script the school sends into the cue format the Run of Show tab
+   already uses. Built against the real North Crowley vs Aledo script, which is
+   the CISD template, so it keys off that document's actual shape rather than a
+   guessed one.
+
+   WHAT IT KEYS OFF
+
+     Section headers   IN GAME NOTES, GENERAL ANNOUNCEMENTS, 1st Quarter,
+                       End of 2nd Quarter, POSTGAME, EMERGENCY ...
+     Cue lines         "6:11 pm WELCOME ANNOUNCEMENTS"
+                       "6:15 pm (Texas Way Video: 4:45)"
+                       "Announcement #2 (Spirit Store)"
+                       "VIDEO #1 (Welcome From CISD School Board (1:01)"
+     Everything after  read copy, unless it looks like an instruction, in which
+     a cue line        case it becomes a note.
+
+   WHAT IT DOES NOT DO
+
+   It does not guess. A line it can't classify becomes read copy on the cue
+   above it, which is visible and easy to fix, rather than being silently
+   dropped or turned into a cue that doesn't exist. The importer shows the
+   result before anything is saved, because a subtly wrong cue list is worse
+   than no cue list — you don't find out until you're calling the show.
+   =========================================================================== */
+
+(function (root) {
+  "use strict";
+
+  // Lines that start a section rather than a cue.
+  const SECTION_PATTERNS = [
+    /^IN GAME NOTES$/i,
+    /^GENERAL ANNOUNCEMENTS$/i,
+    /^(1st|2nd|3rd|4th|first|second|third|fourth)\s+quarter$/i,
+    /^end of (the )?(1st|2nd|3rd|4th|first|second|third|fourth)\s+quarter$/i,
+    /^halftime( show)?$/i,
+    /^post ?game$/i,
+    /^pre ?game$/i,
+    /^emergency\b.*procedures?$/i,
+    /^overtime$/i,
+  ];
+
+  // "6:11 pm ...", "6:40pm ...", and "7 pm Kickoff" — the script is
+  // inconsistent about the space AND about writing the minutes. Missing the
+  // bare-hour form silently dropped Kickoff the first time.
+  const TIME_LINE = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s*(.*)$/i;
+
+  // "Announcement #4 (NCHS Principal picture)" / "VIDEO #2 State of the District"
+  const NUMBERED = /^(announcement|video|promo|read)\s*#\s*(\d+)\s*(.*)$/i;
+
+  // A duration anywhere in the event text: "(Texas Way Video: 4:45)", "VIDEO: 1:35"
+  const DURATION = /(\d{1,2}:\d{2})\s*\)?\s*$/;
+
+  // Instruction-shaped lines become notes rather than announcer copy.
+  const NOTE_HINTS = [
+    /^see\b/i, /^inside of\b/i, /^at (the )?first stoppage/i,
+    /^after the band/i, /^read the\b/i, /^\(.*\)$/,
+    /^note[:\s]/i, /^cue\b/i, /^play video/i,
+  ];
+
+  // Rough department hints. Deliberately shallow: getting these wrong is
+  // cosmetic, whereas inventing a cue is not.
+  function departmentsFor(event, body) {
+    const hay = (event + " " + body).toLowerCase();
+    const out = {};
+    if (/\bvideo\b|\bhype\b/.test(hay)) { out.screen = event.replace(DURATION, "").trim(); out.audio = "Video"; }
+    if (/\bband\b|alma mater|fight song|national anthem/.test(hay)) out.audio = "Band";
+    if (/\banthem\b|color guard|colors/.test(hay)) out.screen = out.screen || "US Flag";
+    if (/kickoff|coin toss|takes the field|live action/.test(hay)) out.screen = out.screen || "Live Action";
+    return out;
+  }
+
+  // A section that opens with body text needs an event name of its own.
+  function sectionEventName(section) {
+    if (/in game notes/i.test(section)) return "Standing note";
+    return section;
+  }
+
+  function isSection(line) {
+    return SECTION_PATTERNS.some((re) => re.test(line.trim()));
+  }
+
+  function looksLikeNote(line) {
+    return NOTE_HINTS.some((re) => re.test(line.trim()));
+  }
+
+  function tidyEvent(raw) {
+    let e = String(raw || "").trim();
+    // strip a single wrapping paren pair: "(Cheerleader Recognition)"
+    if (/^\(.*\)$/.test(e)) e = e.slice(1, -1).trim();
+    // Pull a trailing duration out, but keep the word "Video" when it's part
+    // of the name: "Texas Way Video: 4:45" -> "Texas Way Video".
+    e = e.replace(/\s*[-–—]\s*VIDEO\s*:\s*\d{1,2}:\d{2}\s*\)?\s*$/i, "");
+    e = e.replace(/\s*:\s*\d{1,2}:\d{2}\s*\)?\s*$/, "");
+    e = e.replace(/\s*\(\s*\d{1,2}:\d{2}\s*\)\s*$/, "");
+    e = e.replace(/[\s\-–—:]+$/, "").trim();
+    // The script has unbalanced parens where a duration was removed:
+    // "(Welcome From CISD School Board (1:01" -> strip the orphan.
+    if (e.startsWith("(") && !e.includes(")")) e = e.slice(1).trim();
+    if (e.endsWith(")") && !e.includes("(")) e = e.slice(0, -1).trim();
+    // Sentence case for lines the script shouts.
+    if (e === e.toUpperCase() && e.length > 3) {
+      e = e.charAt(0) + e.slice(1).toLowerCase();
+    }
+    return e;
+  }
+
+  function parsePaScript(text) {
+    const lines = String(text || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((l) => l.replace(/\u00a0/g, " ").trim())
+      .filter(Boolean)
+      // page furniture from the PDF/Word export
+      .filter((l) => !/^\d+\s*(North Crowley|Crowley|CISD)/i.test(l))
+      .filter((l) => !/^page \d+/i.test(l));
+
+    const cues = [];
+    const warnings = [];
+    let section = "Pregame";
+    let current = null;
+
+    const push = () => {
+      if (!current) return;
+      // Trailing whitespace tidy on the accumulated blocks.
+      if (current.read) current.read = current.read.trim();
+      if (current.notes) current.notes = current.notes.trim();
+      if (!current.read) delete current.read;
+      if (!current.notes) delete current.notes;
+      cues.push(current);
+      current = null;
+    };
+
+    lines.forEach((line, idx) => {
+      if (isSection(line)) {
+        push();
+        section = line.replace(/\s+/g, " ").trim();
+        // Title-case the shouted ones so headings read consistently.
+        if (section === section.toUpperCase()) {
+          section = section.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+        }
+        return;
+      }
+
+      const t = line.match(TIME_LINE);
+      if (t) {
+        push();
+        const rest = t[4] || "";
+        const durMatch = rest.match(DURATION);
+        // A line that is only a time and a stray character is script debris.
+        if (rest.replace(/[^A-Za-z]/g, "").length < 2) {
+          warnings.push(`Line ${idx + 1}: "${line}" has a time but no event — skipped.`);
+          return;
+        }
+        // The CISD script has no "Pregame" heading; it goes straight from the
+        // standing notes into timed cues. Name it so the tab reads properly.
+        if (/in game notes/i.test(section)) section = "Pregame";
+        current = {
+          section,
+          time: `${t[1]}:${t[2] || "00"} ${t[3].toUpperCase()}M`,
+          event: tidyEvent(rest),
+        };
+        if (durMatch) current.dur = durMatch[1];
+        Object.assign(current, departmentsFor(rest, ""));
+        return;
+      }
+
+      const n = line.match(NUMBERED);
+      if (n) {
+        push();
+        const label = n[3] || "";
+        const durMatch = label.match(/\((\d{1,2}:\d{2})\)/);
+        const kind = n[1].toLowerCase() === "video" ? "Video" : "Announcement";
+        current = {
+          section,
+          time: section,
+          event: `${kind} #${n[2]}${label.trim() ? " — " + tidyEvent(label.replace(/\(\d{1,2}:\d{2}\)/, "")) : ""}`,
+        };
+        if (durMatch) current.dur = durMatch[1];
+        Object.assign(current, departmentsFor(label, ""));
+        if (!label.trim()) current.notes = "Blank on the script.";
+        return;
+      }
+
+      // Body text belongs to the cue above it.
+      if (!current) {
+        // First body line of a section with no cue yet — e.g. the standing
+        // "every first down" instruction. Keep the wording as read copy.
+        current = { section, time: "Standing", event: sectionEventName(section), read: line };
+        return;
+      }
+      // "(Coin Toss)" on its own line is its own cue. Treating it as a note
+      // on the previous cue loses it — that happened to the coin toss.
+      if (/^\([^)]{2,60}\)$/.test(line) && !/[.!?]$/.test(line.slice(0, -1))) {
+        push();
+        current = { section, time: "", event: tidyEvent(line) };
+        Object.assign(current, departmentsFor(line, ""));
+        return;
+      }
+      if (looksLikeNote(line)) {
+        current.notes = (current.notes ? current.notes + " " : "") + line;
+      } else {
+        current.read = (current.read ? current.read + "\n" : "") + line;
+      }
+    });
+    push();
+
+    // Announcer is the default for anything with read copy and no audio set.
+    cues.forEach((c) => { if (c.read && !c.audio) c.audio = "Announcer"; });
+
+    return { cues, warnings };
+  }
+
+  root.parsePaScript = parsePaScript;
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ---------------------------------------------------------------------------
+   Reading the uploaded file
+   ---------------------------------------------------------------------------
+   A .docx is a ZIP containing word/document.xml. Rather than pull in a zip
+   library, this walks the ZIP central directory and inflates the one entry it
+   needs with the browser's own DecompressionStream. No dependency, and it
+   keeps the app's no-CDN property.
+
+   PDF is deliberately not supported. Extracting reliable line order from a PDF
+   needs a real PDF engine, and a script parsed out of order produces a cue
+   list that looks right and isn't. Word or plain text, or paste the text.
+   --------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+
+  async function inflateRaw(bytes) {
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("This browser can't unpack .docx files. Paste the text instead.");
+    }
+    const ds = new DecompressionStream("deflate-raw");
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function docxToText(arrayBuffer) {
+    const buf = new Uint8Array(arrayBuffer);
+    const dv = new DataView(arrayBuffer);
+
+    // End of central directory: scan back for the signature.
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= 0 && i > buf.length - 66000; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("That doesn't look like a .docx file.");
+
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method  = dv.getUint16(p + 10, true);
+      const compLen = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen= dv.getUint16(p + 30, true);
+      const cmtLen  = dv.getUint16(p + 32, true);
+      const lho     = dv.getUint32(p + 42, true);
+      const name    = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nameLen));
+
+      if (name === "word/document.xml") {
+        const lnameLen  = dv.getUint16(lho + 26, true);
+        const lextraLen = dv.getUint16(lho + 28, true);
+        const start = lho + 30 + lnameLen + lextraLen;
+        const raw = buf.subarray(start, start + compLen);
+        const xmlBytes = method === 0 ? raw : await inflateRaw(raw);
+        return new TextDecoder().decode(xmlBytes);
+      }
+      p += 46 + nameLen + extraLen + cmtLen;
+    }
+    throw new Error("Couldn't find the document text inside that .docx.");
+  }
+
+  // Word paragraphs become lines; everything else is markup we don't need.
+  function xmlToLines(xml) {
+    let t = xml
+      .replace(/<w:p\b[^>]*\/>/g, "\n")
+      .replace(/<\/w:p>/g, "\n")
+      .replace(/<w:br\b[^>]*\/>/g, "\n")
+      .replace(/<w:tab\b[^>]*\/>/g, " ")
+      .replace(/<[^>]+>/g, "");
+    const map = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'", "&#39;": "'" };
+    t = t.replace(/&(amp|lt|gt|quot|apos|#39);/g, (m) => map[m]);
+    return t;
+  }
+
+  async function readScriptFile(file) {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".txt") || name.endsWith(".rtf") || name.endsWith(".csv")) {
+      return await file.text();
+    }
+    if (name.endsWith(".docx")) {
+      return xmlToLines(await docxToText(await file.arrayBuffer()));
+    }
+    if (name.endsWith(".pdf") || name.endsWith(".doc")) {
+      throw new Error(
+        name.endsWith(".pdf")
+          ? "PDFs can't be read reliably enough to build a cue list. Save it as .docx, or paste the text."
+          : "Old .doc files aren't supported. Save it as .docx, or paste the text."
+      );
+    }
+    return await file.text();
+  }
+
+  root.readScriptFile = readScriptFile;
+  root.docxToText = docxToText;
+  root.xmlToLines = xmlToLines;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+
 <script src="blue-bonnet-kit.js"></script>
 <script src="blue-bonnet-assistant.js"></script>
 <script src="blue-bonnet-gear-kb.js"></script>
