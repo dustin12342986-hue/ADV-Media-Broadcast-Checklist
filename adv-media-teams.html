@@ -1191,7 +1191,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-31 · v29 · mini monitor on ROS, launcher on Today";
+const APP_BUILD = "build 2026-09-01 · v30 · monitor + sheet import";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3584,11 +3584,22 @@ function renderDocsSection(gameId, docs) {
               ${admin ? `<span class="doc-del" data-docdel="${escapeAttr(d.id)}" title="Remove">✕</span>` : ""}
             </a>`;
           }).join("")}
+      ${admin && rosState.sheetUrl ? `
+        <div class="doc-row" style="border-style:dashed;">
+          <span class="doc-tag" style="background:#2FA39B">SHEET</span>
+          <span class="doc-main">
+            <span class="doc-name">Linked Google Sheet</span>
+            <span class="doc-meta">Edit the sheet, then Refresh to rebuild the cues</span>
+          </span>
+          <button class="ghost-pill" id="sheetRefresh" style="flex:0 0 auto;">Refresh</button>
+        </div>` : ""}
       ${admin ? `
         <button class="shift-btn shift-btn-ghost" id="docAdd"
           style="width:100%; margin-top:8px; padding:11px 0;">+ Upload a document</button>
+        <button class="shift-btn shift-btn-ghost" id="sheetLink"
+          style="width:100%; margin-top:8px; padding:11px 0;">${rosState.sheetUrl ? "Change" : "Link"} a Google Sheet</button>
         <input type="file" id="docFile" style="display:none"
-          accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg" />
+          accept=".pdf,.doc,.docx,.txt,.rtf,.csv,.xlsx,.png,.jpg,.jpeg" />
         <div class="footnote" id="docStatus" style="margin-top:8px;"></div>
       ` : ""}
     </div>`;
@@ -3617,6 +3628,11 @@ function wireDocsSection(gameId) {
       }
     };
   });
+
+  const linkBtn = document.getElementById("sheetLink");
+  if (linkBtn) linkBtn.onclick = () => linkSheet(gameId);
+  const refBtn = document.getElementById("sheetRefresh");
+  if (refBtn) refBtn.onclick = () => refreshSheet(gameId, rosState.sheetUrl);
 
   const addBtn = document.getElementById("docAdd");
   const fileInput = document.getElementById("docFile");
@@ -3718,25 +3734,122 @@ function askDocType(filename) {
 // Turning a script into cues, with the result shown before anything is saved.
 // A cue list that's subtly wrong is worse than none — you find out while
 // you're calling the show — so nothing is written until it's been looked at.
-async function offerScriptImport(gameId, file) {
-  let text;
+// ---- Linked Google Sheet ---------------------------------------------------
+// A sheet that stays linked beats a file that was uploaded once: edit the
+// sheet, hit Refresh, cues rebuild. No re-upload, no stale copy on someone's
+// phone.
+//
+// WHY A PUBLISHED LINK RATHER THAN SIGNING INTO DRIVE
+//
+// Reading private Drive files needs an extra OAuth scope, and the access token
+// Firebase hands back expires after about an hour with no refresh token in the
+// browser SDK. That means re-signing-in mid-show to reload a cue list, which is
+// exactly when nobody wants an auth prompt. File → Share → Publish to web →
+// CSV gives a URL that just works, forever, and XPression can read the same
+// one.
+//
+// The tradeoff is real and worth saying out loud: a published sheet is
+// reachable by anyone with the link. Fine for a run of show. Do not put
+// anything in it you wouldn't put on a public page.
+
+function normaliseSheetUrl(raw) {
+  const u = String(raw || "").trim();
+  if (!u) return null;
+
+  // Already a published CSV export.
+  if (/output=csv|\/export\?format=csv/i.test(u)) return u;
+
+  // A normal edit link — turn it into a CSV export of the first tab.
+  const m = u.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+  if (m) {
+    const gid = (u.match(/[#&?]gid=(\d+)/) || [])[1] || "0";
+    return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
+  }
+  return u;
+}
+
+async function fetchSheetCues(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 401 || res.status === 403
+        ? "That sheet isn't readable. In Sheets: File → Share → Publish to web → CSV."
+        : `Couldn't fetch the sheet (HTTP ${res.status}).`
+    );
+  }
+  const text = await res.text();
+  if (/^\s*<(!doctype|html)/i.test(text)) {
+    throw new Error("That link returned a web page, not data. Use File → Share → Publish to web → CSV.");
+  }
+  return rowsToCues(parseCsv(text));
+}
+
+async function linkSheet(gameId) {
+  const raw = prompt(
+    "Paste the Google Sheet link.\n\n"
+    + "In Sheets: File → Share → Publish to web → CSV, then paste that link.\n"
+    + "A normal edit link works too if the sheet is already published."
+  );
+  if (raw === null) return;
+  const url = normaliseSheetUrl(raw);
+  if (!url) return;
+
   try {
-    text = await readScriptFile(file);
+    const parsed = await fetchSheetCues(url);
+    if (!parsed.cues.length) {
+      alert(parsed.warnings.join("\n\n") || "No cues found in that sheet.");
+      return;
+    }
+    await db.ref(`showSettings/${gameId}/sheetUrl`).set(url);
+    await showImportPreview(gameId, "Linked Google Sheet", parsed);
+  } catch (e) {
+    alert(e.message || "Couldn't read that sheet.");
+  }
+}
+
+async function refreshSheet(gameId, url) {
+  try {
+    const parsed = await fetchSheetCues(url);
+    if (!parsed.cues.length) {
+      alert(parsed.warnings.join("\n\n") || "No cues found in that sheet.");
+      return;
+    }
+    await showImportPreview(gameId, "Linked Google Sheet", parsed);
+  } catch (e) {
+    alert(e.message || "Couldn't read that sheet.");
+  }
+}
+
+async function offerScriptImport(gameId, file) {
+  const name = (file.name || "").toLowerCase();
+  let parsed;
+
+  try {
+    if (name.endsWith(".xlsx")) {
+      parsed = rowsToCues(await xlsxToRows(await file.arrayBuffer()));
+    } else if (name.endsWith(".csv")) {
+      parsed = rowsToCues(parseCsv(await file.text()));
+    } else {
+      // Word or plain text: the prose script the school sends.
+      parsed = parsePaScript(await readScriptFile(file));
+    }
   } catch (e) {
     alert(e.message || "Couldn't read that file.");
     return;
   }
 
-  let parsed;
-  try {
-    parsed = parsePaScript(text);
-  } catch (e) {
-    alert("Couldn't read a cue list out of that file.");
+  if (parsed.warnings.length && !parsed.cues.length) {
+    alert(parsed.warnings.join("\n\n"));
     return;
   }
 
   if (!parsed.cues.length) {
     alert("No cues found in that file. It may not be a PA script, or the text didn't come through.");
+    return;
+  }
+
+  if (!parsed.cues.length) {
+    alert("No cues found in that file.");
     return;
   }
 
@@ -4795,6 +4908,14 @@ function rosSubscribe() {
   if (unsubRos) { unsubRos(); unsubRos = null; }
   if (unsubDocs) { unsubDocs(); unsubDocs = null; }
   {
+    const sref = db.ref(`showSettings/${rosState.gameId}/sheetUrl`);
+    const scb = (snap) => {
+      rosState.sheetUrl = snap.val() || null;
+      const host = document.getElementById("rosDocs");
+      if (host) { host.innerHTML = renderDocsSection(rosState.gameId, rosState.docs || {}); wireDocsSection(rosState.gameId); }
+    };
+    sref.on("value", scb);
+
     const dref = docsRefFor(rosState.gameId);
     const dcb = (snap) => {
       rosState.docs = snap.val() || {};
@@ -4802,7 +4923,7 @@ function rosSubscribe() {
       if (host) { host.innerHTML = renderDocsSection(rosState.gameId, rosState.docs); wireDocsSection(rosState.gameId); }
     };
     dref.on("value", dcb);
-    unsubDocs = () => dref.off("value", dcb);
+    unsubDocs = () => { dref.off("value", dcb); sref.off("value", scb); };
   }
   rosState.loaded = false;
   rosState.following = true;
@@ -6033,7 +6154,7 @@ initFirebaseAndBoot();
                    it dead when that balance hit zero.
        assistant — memory. Optional; the widget works without it.
        gear/fiber KB — equipment references, appended to the system prompt. -->
-<!-- PA script -> cues. Inlined; no CDN. -->
+<!-- Script and spreadsheet -> cues. Inlined; no CDN. -->
 <script>
 /* ===========================================================================
    PA SCRIPT -> RUN OF SHOW
@@ -6322,8 +6443,11 @@ initFirebaseAndBoot();
       .replace(/<w:br\b[^>]*\/>/g, "\n")
       .replace(/<w:tab\b[^>]*\/>/g, " ")
       .replace(/<[^>]+>/g, "");
-    const map = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'", "&#39;": "'" };
-    t = t.replace(/&(amp|lt|gt|quot|apos|#39);/g, (m) => map[m]);
+    const map = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'" };
+    t = t
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+      .replace(/&(amp|lt|gt|quot|apos);/g, (m) => map[m]);
     return t;
   }
 
@@ -6345,9 +6469,225 @@ initFirebaseAndBoot();
     return await file.text();
   }
 
+  root.__inflateRaw = inflateRaw;
   root.readScriptFile = readScriptFile;
   root.docxToText = docxToText;
   root.xmlToLines = xmlToLines;
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ---------------------------------------------------------------------------
+   SPREADSHEETS -> CUES
+   ---------------------------------------------------------------------------
+   A run of show in columns is far more reliable than one in prose. There is
+   nothing to infer: the header row says which column is which.
+
+   Recognised headers (case and spacing don't matter, and several spellings
+   map to the same field):
+
+     Section | Time | Dur / Duration / Length | Event / Cue / Item
+     Read / Script / Announcer | Screen / Video / LED | Ribbon
+     Audio / Sound | Notes / Note / Crew
+
+   Only Event is required. A row with no event is skipped and reported.
+
+   .xlsx is read with the same ZIP reader the .docx path uses, so there's still
+   no library and no CDN.
+   --------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+
+  const FIELD_ALIASES = {
+    section: ["section", "block", "part", "segment"],
+    time:    ["time", "clock", "start", "start time"],
+    dur:     ["dur", "duration", "length", "runtime", "trt"],
+    event:   ["event", "cue", "item", "action", "description", "what"],
+    read:    ["read", "script", "announcer", "copy", "pa", "read copy"],
+    screen:  ["screen", "video", "led", "videoboard", "board", "wall"],
+    ribbon:  ["ribbon", "ribbon board"],
+    audio:   ["audio", "sound", "a1", "source"],
+    notes:   ["notes", "note", "crew", "comments", "remarks"],
+  };
+
+  function normHeader(h) {
+    return String(h || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function mapHeaders(headerRow) {
+    const map = {};
+    headerRow.forEach((h, i) => {
+      const n = normHeader(h);
+      if (!n) return;
+      for (const field in FIELD_ALIASES) {
+        if (FIELD_ALIASES[field].includes(n)) { map[field] = i; return; }
+      }
+    });
+    return map;
+  }
+
+  // Handles quoted fields, embedded commas and doubled quotes.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], cell = "", inQ = false;
+    const s = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inQ) {
+        if (c === '"') {
+          if (s[i + 1] === '"') { cell += '"'; i++; }
+          else inQ = false;
+        } else cell += c;
+      } else if (c === '"') inQ = true;
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((c) => String(c).trim()));
+  }
+
+  function colToIndex(ref) {
+    const m = String(ref).match(/^([A-Z]+)/);
+    if (!m) return 0;
+    let n = 0;
+    for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  }
+
+  async function xlsxToRows(arrayBuffer) {
+    // Same ZIP walk as the .docx reader, pulling two entries instead of one.
+    const buf = new Uint8Array(arrayBuffer);
+    const dv = new DataView(arrayBuffer);
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= 0 && i > buf.length - 66000; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("That doesn't look like an .xlsx file.");
+
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const wanted = {};
+
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method  = dv.getUint16(p + 10, true);
+      const compLen = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen= dv.getUint16(p + 30, true);
+      const cmtLen  = dv.getUint16(p + 32, true);
+      const lho     = dv.getUint32(p + 42, true);
+      const name    = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nameLen));
+
+      if (name === "xl/sharedStrings.xml" || /^xl\/worksheets\/sheet1\.xml$/.test(name)) {
+        const lnameLen  = dv.getUint16(lho + 26, true);
+        const lextraLen = dv.getUint16(lho + 28, true);
+        const start = lho + 30 + lnameLen + lextraLen;
+        const raw = buf.subarray(start, start + compLen);
+        const bytes = method === 0 ? raw : await root.__inflateRaw(raw);
+        wanted[name] = new TextDecoder().decode(bytes);
+      }
+      p += 46 + nameLen + extraLen + cmtLen;
+    }
+
+    const sheet = wanted["xl/worksheets/sheet1.xml"];
+    if (!sheet) throw new Error("Couldn't find the first sheet in that workbook.");
+
+    const shared = [];
+    if (wanted["xl/sharedStrings.xml"]) {
+      const re = /<si>([\s\S]*?)<\/si>/g;
+      let m;
+      while ((m = re.exec(wanted["xl/sharedStrings.xml"]))) {
+        shared.push(decodeXml(m[1].replace(/<[^>]+>/g, "")));
+      }
+    }
+
+    const rows = [];
+    const rowRe = /<row[^>]*>([\s\S]*?)<\/row>/g;
+    let rm;
+    while ((rm = rowRe.exec(sheet))) {
+      const cells = [];
+      const cellRe = /<c([^>]*)>([\s\S]*?)<\/c>|<c([^>]*)\/>/g;
+      let cm;
+      while ((cm = cellRe.exec(rm[1]))) {
+        const attrs = cm[1] || cm[3] || "";
+        const body = cm[2] || "";
+        const refM = attrs.match(/r="([A-Z]+\d+)"/);
+        const idx = refM ? colToIndex(refM[1]) : cells.length;
+        const t = (attrs.match(/t="([^"]+)"/) || [])[1];
+        let val = "";
+        if (t === "s") {
+          const i = parseInt((body.match(/<v>(\d+)<\/v>/) || [])[1], 10);
+          val = shared[i] != null ? shared[i] : "";
+        } else if (t === "inlineStr") {
+          val = decodeXml(body.replace(/<[^>]+>/g, ""));
+        } else {
+          val = decodeXml((body.match(/<v>([\s\S]*?)<\/v>/) || [])[1] || "");
+        }
+        cells[idx] = val;
+      }
+      for (let i = 0; i < cells.length; i++) if (cells[i] == null) cells[i] = "";
+      rows.push(cells);
+    }
+    return rows.filter((r) => r.some((c) => String(c).trim()));
+  }
+
+  function decodeXml(s) {
+    const map = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'" };
+    return String(s)
+      // Numeric entities first — Excel writes em-dashes and smart quotes this
+      // way, and leaving them raw put "&#8212;" on screen in a cue.
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+      .replace(/&(amp|lt|gt|quot|apos);/g, (m) => map[m]);
+  }
+
+  function rowsToCues(rows) {
+    const warnings = [];
+    if (!rows.length) return { cues: [], warnings: ["The sheet is empty."] };
+
+    const map = mapHeaders(rows[0]);
+    if (map.event == null) {
+      return {
+        cues: [],
+        warnings: [
+          "No Event column found. The first row must be headers, and one of them "
+          + "must be Event (or Cue, or Item). Found: "
+          + rows[0].map((h) => `"${h}"`).join(", "),
+        ],
+      };
+    }
+
+    const cues = [];
+    let lastSection = "";
+    rows.slice(1).forEach((r, i) => {
+      const get = (f) => (map[f] != null ? String(r[map[f]] || "").trim() : "");
+      const event = get("event");
+      if (!event) {
+        if (r.some((c) => String(c).trim())) {
+          warnings.push(`Row ${i + 2}: no event — skipped.`);
+        }
+        return;
+      }
+      // A blank Section carries down, so the sheet only needs it on the first
+      // row of each block rather than repeated on every line.
+      const section = get("section") || lastSection || "Show";
+      lastSection = section;
+
+      const cue = { section, event };
+      ["time", "dur", "read", "screen", "ribbon", "audio", "notes"].forEach((f) => {
+        const v = get(f);
+        if (v) cue[f] = v;
+      });
+      cues.push(cue);
+    });
+
+    if (!cues.length) warnings.push("No rows with an event were found.");
+    return { cues, warnings };
+  }
+
+  root.parseCsv = parseCsv;
+  root.xlsxToRows = xlsxToRows;
+  root.rowsToCues = rowsToCues;
+  root.mapHeaders = mapHeaders;
 })(typeof window !== "undefined" ? window : globalThis);
 
 </script>
