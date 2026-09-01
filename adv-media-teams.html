@@ -1100,7 +1100,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v23 · shared theme · call times v1";
+const APP_BUILD = "build 2026-08-27 · v23 · school themes · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1165,6 +1165,9 @@ function renderMainApp() {
   `;
   const apBtn = document.getElementById("appearanceBtn");
   if (apBtn) apBtn.onclick = openAppearance;
+  // This shell is re-rendered on every tab change, which wipes the injected
+  // school crest. Put it back each time.
+  if (window.ADVTheme) ADVTheme.paintLogo(ADVTheme.load().theme);
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
   db.ref(`profiles/${currentUser.uid}`).once("value")
     .then((s) => { const p = s.val(); if (p) renderConfirmCard(p); })

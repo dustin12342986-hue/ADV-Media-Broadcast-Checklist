@@ -125,6 +125,82 @@
     --shadow: 0 1px 0 rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.10);
   }
 
+
+  /* ---- School themes ---------------------------------------------------
+     One dark and one light per school, built from their own colours. The
+     brand colour drives the accent and tints the panels; the background stays
+     near-neutral because a fully purple or navy page is unreadable over a
+     four-hour show. Semantic colours are untouched here too.
+
+     CHS      Crowley Eagles         purple #481878, silver #909090
+     NCHS     North Crowley Panthers royal blue #2323A0
+     TXWES    Texas Wesleyan Rams    navy #001860, gold #F0C000
+     -------------------------------------------------------------------- */
+
+  html[data-theme="chs"] {
+    --bg: #0C0A12; --panel: #16111F; --panel2: #1F1830; --border: #362A4D;
+    --text: #F0ECF6; --text-muted: #A296B4; --text-faint: #7A6E8C;
+    --blue: #9B7BD4; --accent: #6B2CA8; --accent-ink: #FFFFFF;
+    --info-bg: #201736; --info-ink: #C5AEE8;
+  }
+  html[data-theme="chs-light"] {
+    --bg: #F6F3FA; --panel: #FFFFFF; --panel2: #EFE9F6; --border: #D9CFE8;
+    --text: #1B1226; --text-muted: #5C5070; --text-faint: #857A96;
+    --green: #1F7D4D; --amber: #9A6B12; --red: #B23B30;
+    --blue: #5B2E90; --accent: #481878; --accent-ink: #FFFFFF;
+    --warn-bg: #FFF6E3; --warn-ink: #6B4A05; --warn-strong: #4A3303;
+    --bad-bg: #FDECEA; --bad-ink: #8C2C22;
+    --good-bg: #E8F6EE; --good-ink: #14603A;
+    --info-bg: #F0E9F8; --info-ink: #4A2378;
+    --shadow: 0 1px 0 rgba(24,10,40,0.07), 0 4px 12px rgba(24,10,40,0.10);
+  }
+
+  html[data-theme="nchs"] {
+    --bg: #080A14; --panel: #101425; --panel2: #171D36; --border: #283255;
+    --text: #ECEFF8; --text-muted: #949CBA; --text-faint: #6C7492;
+    --blue: #7C8AE0; --accent: #2E36B4; --accent-ink: #FFFFFF;
+    --info-bg: #161E3C; --info-ink: #A9B4EE;
+  }
+  html[data-theme="nchs-light"] {
+    --bg: #F3F5FB; --panel: #FFFFFF; --panel2: #EAEEF9; --border: #CBD4EC;
+    --text: #101528; --text-muted: #4F5872; --text-faint: #7A8299;
+    --green: #1F7D4D; --amber: #9A6B12; --red: #B23B30;
+    --blue: #2A3596; --accent: #2323A0; --accent-ink: #FFFFFF;
+    --warn-bg: #FFF6E3; --warn-ink: #6B4A05; --warn-strong: #4A3303;
+    --bad-bg: #FDECEA; --bad-ink: #8C2C22;
+    --good-bg: #E8F6EE; --good-ink: #14603A;
+    --info-bg: #E8EDFA; --info-ink: #1E2A80;
+    --shadow: 0 1px 0 rgba(10,16,40,0.07), 0 4px 12px rgba(10,16,40,0.10);
+  }
+
+  /* Gold is the Rams' second colour and it makes a better accent than the navy
+     — navy on a dark page disappears. */
+  html[data-theme="txwes"] {
+    --bg: #070B15; --panel: #0F1526; --panel2: #161E33; --border: #26314F;
+    --text: #EFF1F7; --text-muted: #97A0B6; --text-faint: #6E7791;
+    --blue: #E3B62A; --accent: #E3B62A; --accent-ink: #14180B;
+    --info-bg: #14203A; --info-ink: #9FB6DE;
+  }
+  html[data-theme="txwes-light"] {
+    --bg: #F5F6FA; --panel: #FFFFFF; --panel2: #ECEFF6; --border: #CCD4E4;
+    --text: #0F1626; --text-muted: #4E586E; --text-faint: #7A8398;
+    --green: #1F7D4D; --amber: #8A6208; --red: #B23B30;
+    --blue: #17356E; --accent: #001860; --accent-ink: #F0C000;
+    --warn-bg: #FFF6E3; --warn-ink: #6B4A05; --warn-strong: #4A3303;
+    --bad-bg: #FDECEA; --bad-ink: #8C2C22;
+    --good-bg: #E8F6EE; --good-ink: #14603A;
+    --info-bg: #E9EEF7; --info-ink: #14305F;
+    --shadow: 0 1px 0 rgba(8,16,38,0.07), 0 4px 12px rgba(8,16,38,0.10);
+  }
+
+  /* School crest, opposite the ADV logo in the header. */
+  .adv-school-logo {
+    height: 42px; width: auto; margin-left: auto; flex: 0 0 auto;
+    align-self: center;
+  }
+  html[data-theme="light"] .adv-school-logo,
+  html[data-theme="mono-light"] .adv-school-logo { filter: none; }
+
   html[data-accent="teal"]   { --accent: #2FA39B; }
   html[data-accent="violet"] { --accent: #8B72D9; }
   html[data-accent="amber"]  { --accent: #D2892B; --accent-ink: #1A1205; }
@@ -214,6 +290,39 @@
     { id: "mono",       label: "Mono dark",  sw: "#0B0B0C", ink: "#F2F2F3" },
     { id: "mono-light", label: "Mono light", sw: "#F5F5F6", ink: "#16161A" }
   ];
+  var SCHOOLS = [
+    { id: "chs",   label: "Crowley",        sw: "#481878", ink: "#FFFFFF", logo: "school-chs.png" },
+    { id: "nchs",  label: "North Crowley",  sw: "#2323A0", ink: "#FFFFFF", logo: "school-nchs.png" },
+    { id: "txwes", label: "Texas Wesleyan", sw: "#001860", ink: "#F0C000", logo: "school-txwes.png" }
+  ];
+
+  function schoolFor(theme) {
+    if (!theme) return null;
+    var base = String(theme).replace(/-light$/, "");
+    for (var i = 0; i < SCHOOLS.length; i++) {
+      if (SCHOOLS[i].id === base) return SCHOOLS[i];
+    }
+    return null;
+  }
+
+  // The crest sits opposite the ADV logo in the header. Injected rather than
+  // written into every page, so adding a school later touches one file.
+  function paintLogo(theme) {
+    var host = document.querySelector(".header-row") || document.querySelector(".banner");
+    if (!host) return;
+    var img = host.querySelector(".adv-school-logo");
+    var school = schoolFor(theme);
+    if (!school) { if (img) img.remove(); return; }
+    if (!img) {
+      img = document.createElement("img");
+      img.className = "adv-school-logo";
+      img.alt = "";
+      host.appendChild(img);
+    }
+    if (img.getAttribute("src") !== school.logo) img.setAttribute("src", school.logo);
+    img.title = school.label;
+  }
+
   var ACCENTS = [
     { id: "",       hex: "#4A8FC0", label: "Blue" },
     { id: "teal",   hex: "#2FA39B", label: "Teal" },
@@ -252,6 +361,7 @@
     if (save !== false) {
       try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {}
     }
+    try { paintLogo(a.theme); } catch (e) {}
   }
 
   // Styles and the saved theme go in before first paint. Waiting for
@@ -284,6 +394,19 @@
                 '" data-k="theme" data-v="' + t.id + '">' +
                 '<span class="adv-ap-sw" style="background:' + t.sw + ';color:' + t.ink + '">Aa</span>' +
                 esc(t.label) + '</button>';
+            }).join("") +
+          '</div>' +
+          '<div class="adv-ap-label">School</div><div class="adv-ap-grid">' +
+            SCHOOLS.map(function (sc) {
+              var dark = sc.id, light = sc.id + "-light";
+              return '<button class="adv-ap-theme' + ((a.theme || "") === dark ? " on" : "") +
+                  '" data-k="theme" data-v="' + dark + '">' +
+                  '<span class="adv-ap-sw" style="background:' + sc.sw + ';color:' + sc.ink + '">Aa</span>' +
+                  esc(sc.label) + '</button>' +
+                '<button class="adv-ap-theme' + ((a.theme || "") === light ? " on" : "") +
+                  '" data-k="theme" data-v="' + light + '">' +
+                  '<span class="adv-ap-sw" style="background:#FFFFFF;color:' + sc.sw + '">Aa</span>' +
+                  esc(sc.label) + ' light</button>';
             }).join("") +
           '</div>' +
           '<div class="adv-ap-label">Accent</div><div class="adv-ap-row">' +
@@ -331,12 +454,13 @@
       el.addEventListener("click", function (e) { e.preventDefault(); open(); });
     });
   }
+  function ready() { wire(); try { paintLogo(load().theme); } catch (e) {} }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", wire);
+    document.addEventListener("DOMContentLoaded", ready);
   } else {
-    wire();
+    ready();
   }
 
   // A page that renders its header late can call ADVTheme.wire() again.
-  window.ADVTheme = { open: open, apply: apply, load: load, wire: wire };
+  window.ADVTheme = { open: open, apply: apply, load: load, wire: wire, paintLogo: paintLogo };
 })();
