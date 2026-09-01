@@ -141,6 +141,34 @@
   .help-btn.on { border-color: var(--red); background: #3A1A17; color: #FF8478; box-shadow: 0 0 14px #D65A4E55; }
   /* Sits above the tasks, not in them — checklist item text is escaped, so a
      URL written as a task would render as dead text. */
+  /* Audio status. Two pills, readable across a room. */
+  .as-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+  }
+  .as-head {
+    font-size: 10.5px; font-weight: 900; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--text-faint); margin-bottom: 9px;
+  }
+  .as-row { display: flex; gap: 9px; }
+  .as-pill {
+    flex: 1; display: flex; align-items: center; gap: 9px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 11px; min-width: 0;
+  }
+  .as-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: var(--text-faint); }
+  .as-good .as-dot { background: var(--green); }
+  .as-warn .as-dot { background: var(--amber); }
+  .as-bad  .as-dot { background: var(--red); }
+  .as-good { border-color: var(--green); }
+  .as-warn { border-color: var(--amber); }
+  .as-bad  { border-color: var(--red); }
+  .as-label { display: block; font-size: 13px; font-weight: 800; }
+  .as-detail {
+    display: block; font-size: 11px; color: var(--text-muted); margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
   .guide-link {
     display: flex; align-items: center; gap: 10px; text-decoration: none;
     background: #1B2A38; border: 1px solid var(--blue); border-radius: 12px;
@@ -350,7 +378,7 @@ const POSITIONS = {
       "Confirm all cameras color balanced and ready for Director"],
     post: ["Monitor and adjust cameras as light changes",
       "Confirm final camera picture match with Director before wrap"] },
-  "audio-a1": { label: "Audio (A1)", readyLabel: "Booth is up and ready to roll",
+  "audio-a1": { guide: { href: "adv-media-teams.html#audio", label: "Audio portal — wireless, comms, cues, patch" }, label: "Audio (A1)", readyLabel: "Booth is up and ready to roll",
     pre: ["Follow booth checklist",
       "Test all mics (announcers, sideline, field)",
       "Confirm intercom/headset channels live",
@@ -758,6 +786,72 @@ function renderChecklistBody(rec, items, position) {
 // ============================================================================
 // Dashboard view
 // ============================================================================
+// ---- Audio status on the dashboard ----------------------------------------
+// Two questions the EIC and Producer ask A1 all night: are the mics up, and is
+// comms up. This answers both without anyone being asked.
+//
+// "Up" and "hot" are different things and are shown separately on purpose:
+//   up   = the transmitter is on and the receiver sees it
+//   hot  = it is not muted and audio is actually arriving
+// A mic that is on and muted looks fine on a receiver and is silent on air.
+const ULXD_STATE_URL = "";          // same Worker route as the app
+let audioStatus = { comms: null, ulxd: null };
+
+function renderAudioStatus() {
+  const box = document.getElementById("audioStatus");
+  if (!box) return;
+
+  const comms = audioStatus.comms || {};
+  const commsDone = Object.keys(comms).length;
+  const COMMS_TOTAL = 7;
+
+  const u = audioStatus.ulxd;
+  const fresh = !!(u && u.online && u.ts && Date.now() - u.ts < 45000);
+  const chans = (u && u.channels) || [];
+  const live = chans.filter((c) => c.present);
+  const hot = live.filter((c) => c.muted === false);
+  const low = live.filter((c) => c.batteryMinutes != null && c.batteryMinutes < 60);
+
+  const micState = !ULXD_STATE_URL ? "unknown"
+    : !fresh ? "unknown"
+    : live.length === 0 ? "bad"
+    : hot.length < live.length ? "warn"
+    : "good";
+  const commsState = commsDone === 0 ? "bad" : commsDone < COMMS_TOTAL ? "warn" : "good";
+
+  const pill = (state, label, detail) => `
+    <div class="as-pill as-${state}">
+      <span class="as-dot"></span>
+      <span>
+        <span class="as-label">${label}</span>
+        <span class="as-detail">${detail}</span>
+      </span>
+    </div>`;
+
+  box.innerHTML = `
+    <div class="as-head">Audio</div>
+    <div class="as-row">
+      ${pill(micState, "Mics",
+          !ULXD_STATE_URL ? "receivers not linked"
+          : !fresh ? "not reporting"
+          : live.length === 0 ? "none up"
+          : `${hot.length} of ${live.length} up and hot${low.length ? ` · ${low.length} low battery` : ""}`)}
+      ${pill(commsState, "Comms",
+          commsDone === 0 ? "not checked" : `${commsDone} of ${COMMS_TOTAL} checked`)}
+    </div>`;
+}
+
+async function pollUlxdStatus() {
+  if (!ULXD_STATE_URL) return;
+  try {
+    const r = await fetch(ULXD_STATE_URL, { cache: "no-store" });
+    audioStatus.ulxd = await r.json();
+  } catch (e) {
+    audioStatus.ulxd = { online: false, ts: null, channels: [] };
+  }
+  renderAudioStatus();
+}
+
 function renderDashboard() {
   const root = document.getElementById("viewRoot");
   const currentGame = GAMES.find(g => g.id === state.gameId);
@@ -768,6 +862,19 @@ function renderDashboard() {
 
   const records = {};
   const helps = {};
+
+  {
+    const cRef = db.ref(`commsCheck/${state.gameId}`);
+    const cCb = (snap) => { audioStatus.comms = snap.val() || {}; renderAudioStatus(); };
+    cRef.on("value", cCb);
+    unsubDash.push(() => cRef.off("value", cCb));
+    if (ULXD_STATE_URL) {
+      pollUlxdStatus();
+      const t = setInterval(pollUlxdStatus, 20000);
+      unsubDash.push(() => clearInterval(t));
+    }
+  }
+
   let clockEntries = {};
   let expanded = null;
   let pending = POSITION_KEYS.length * 3 + 1; // pre + post + help per position, plus one clock-in listener
@@ -852,6 +959,16 @@ function renderDashboard() {
 
     html += `</div>`;
     root.innerHTML = html;
+
+    // Audio status sits above the position rows — it's the thing people are
+    // asking A1 about, so it should be readable without scrolling.
+    const asBox = document.createElement("div");
+    asBox.id = "audioStatus";
+    asBox.className = "as-card";
+    const head = root.querySelector(".dash-gamehead");
+    if (head && head.nextSibling) root.insertBefore(asBox, head.nextSibling);
+    else root.insertBefore(asBox, root.firstChild);
+    renderAudioStatus();
 
     root.querySelectorAll(".dash-row").forEach(row => {
       row.onclick = () => {

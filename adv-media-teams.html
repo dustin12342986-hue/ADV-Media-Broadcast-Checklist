@@ -1367,7 +1367,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v38 · audio portal";
+const APP_BUILD = "build 2026-09-01 · v39 · audio deep link";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1431,6 +1431,19 @@ function renderMainApp() {
       ${escapeHtml(APP_BUILD)}
     </div>
   `;
+  // Deep link: adv-media-teams.html#audio opens the Audio portal directly.
+  // The checklist links here, and a link that lands on Today and makes someone
+  // hunt for a tab is a link that gets ignored.
+  if (!mainState.deepLinked) {
+    const want = (location.hash || "").replace("#", "").toLowerCase();
+    const ok = ["today", "audio", "runofshow", "cables", "shifts", "profile", "idcard"];
+    if (ok.includes(want)) {
+      mainState.deepLinked = true;
+      if (mainState.view !== want) { mainState.view = want; renderMainApp(); return; }
+    }
+    mainState.deepLinked = true;
+  }
+
   const apBtn = document.getElementById("appearanceBtn");
   if (apBtn) apBtn.onclick = openAppearance;
   // This shell is re-rendered on every tab change, which wipes the injected
