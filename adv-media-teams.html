@@ -528,6 +528,26 @@ const MONITOR_DEMO = true;
   .doc-pick-label { display: block; font-size: 14px; font-weight: 800; }
   .doc-pick-blurb { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
 
+  /* ULX-D. Minutes are the headline; bars are a secondary cue, because bars
+     are what A1 already has on the receiver and minutes are what they don't. */
+  .ulx-list { margin-top: 10px; border-top: 1px solid var(--border); }
+  .ulx-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+  }
+  .ulx-row:last-child { border-bottom: none; }
+  .ulx-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ulx-name em { font-style: normal; font-size: 10.5px; color: var(--amber); font-weight: 800; }
+  .ulx-batt { flex: 0 0 auto; font-size: 13px; font-weight: 800;
+    font-variant-numeric: tabular-nums; }
+  .ulx-bars { flex: 0 0 auto; font-size: 10px; letter-spacing: -1px; color: var(--text-faint); }
+  .ulx-good .ulx-batt { color: var(--green); }
+  .ulx-low  .ulx-batt { color: var(--amber); }
+  .ulx-crit .ulx-batt { color: var(--red); }
+  .ulx-off  { opacity: 0.5; }
+  .ulx-off .ulx-batt { font-size: 11.5px; font-weight: 600; color: var(--text-faint); }
+
   /* Beltpack message. Monospace so what you see is what lands on the pack. */
   .bp-line {
     display: flex; align-items: center; gap: 8px; margin-top: 11px;
@@ -1330,7 +1350,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v36 · beltpack messages";
+const APP_BUILD = "build 2026-09-01 · v37 · ULX-D wireless";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1397,7 +1417,14 @@ function renderMainApp() {
   if (apBtn) apBtn.onclick = openAppearance;
   // This shell is re-rendered on every tab change, which wipes the injected
   // school crest. Put it back each time.
-  if (window.ADVTheme) ADVTheme.paintLogo(ADVTheme.load().theme);
+  // Defensive: if adv-theme.js is missing, stale, or blocked, this must not
+  // take the whole app down with it. A missing crest is cosmetic; a thrown
+  // error here means nothing renders at all.
+  try {
+    if (window.ADVTheme && typeof ADVTheme.paintLogo === "function") {
+      ADVTheme.paintLogo(ADVTheme.load().theme);
+    }
+  } catch (e) { /* cosmetic only */ }
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
   db.ref(`profiles/${currentUser.uid}`).once("value")
     .then((s) => { const p = s.val(); if (p) renderConfirmCard(p); })
@@ -4402,6 +4429,88 @@ function renderCommsCheck(gameId, state) {
     </div>`;
 }
 
+// ============================================================================
+// ULX-D wireless — for A1
+// ============================================================================
+// Shure publish the ULX-D control protocol: raw TCP on port 2202, ASCII
+// command strings. Better still, the receiver SENDS a report whenever a value
+// changes, so the bridge listens rather than polls.
+//
+// A browser cannot open a TCP socket, so this reads what `ulxd-bridge.js`
+// posts to the Worker. Blank URL = the panel stays hidden, which is the state
+// until the bridge is running.
+//
+// The number that matters is BATT_RUN_TIME — actual minutes remaining, not
+// bars. "41 minutes" tells A1 to swap before the anthem; three bars does not.
+const ULXD_STATE_URL = "";
+const ULXD_POLL_MS = 20000;
+
+// Below this, swap it now rather than at the next break.
+const ULXD_LOW_MINUTES = 60;
+const ULXD_CRIT_MINUTES = 25;
+
+let ulxdTimer = null;
+let ulxdData = null;
+
+function ulxdFresh(d) {
+  // 45s: the bridge posts every 5s and KV expires at 30s, so anything older
+  // than this means the chain is broken somewhere.
+  return !!(d && d.online && d.ts && Date.now() - d.ts < 45000);
+}
+
+async function ulxdPoll() {
+  if (!ULXD_STATE_URL) return;
+  try {
+    const res = await fetch(ULXD_STATE_URL, { cache: "no-store" });
+    ulxdData = await res.json();
+  } catch (e) {
+    ulxdData = { online: false, ts: null, channels: [] };
+  }
+  const host = document.getElementById("ulxdHost");
+  if (host && mainState.view === "today") host.innerHTML = renderUlxd();
+}
+
+function renderUlxd() {
+  if (!ULXD_STATE_URL) return "";
+  const fresh = ulxdFresh(ulxdData);
+  const chans = (ulxdData && ulxdData.channels) || [];
+  const live = chans.filter((c) => c.present);
+  const low = live.filter((c) => c.batteryMinutes != null && c.batteryMinutes < ULXD_LOW_MINUTES);
+
+  return `
+    <div class="sig-card" style="border-left-color:${low.length ? "var(--amber)" : "var(--text-faint)"}">
+      <div class="sig-head">
+        <span class="sig-title">Wireless — A1</span>
+        <span class="sig-count">${fresh ? live.length + " live" : "not reporting"}</span>
+      </div>
+      ${!fresh
+        ? `<div class="sig-sub">No data from the receivers. The bridge PC may be off.</div>`
+        : low.length
+          ? `<div class="sig-sub">${low.length} pack${low.length === 1 ? "" : "s"} under ${ULXD_LOW_MINUTES} minutes.</div>`
+          : `<div class="sig-sub">Battery shown in minutes remaining, not bars.</div>`}
+      ${fresh && chans.length ? `
+        <div class="ulx-list">
+          ${chans.map((c) => {
+            if (!c.present) {
+              return `<div class="ulx-row ulx-off">
+                <span class="ulx-name">${escapeHtml(c.name)}</span>
+                <span class="ulx-batt">no transmitter</span>
+              </div>`;
+            }
+            const m = c.batteryMinutes;
+            const cls = m == null ? "" : m < ULXD_CRIT_MINUTES ? "ulx-crit" : m < ULXD_LOW_MINUTES ? "ulx-low" : "ulx-good";
+            const hrs = m == null ? "—" : (m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min");
+            return `
+            <div class="ulx-row ${cls}">
+              <span class="ulx-name">${escapeHtml(c.name)}${c.muted ? ` <em>muted</em>` : ""}</span>
+              <span class="ulx-batt">${escapeHtml(hrs)}</span>
+              <span class="ulx-bars">${c.batteryBars != null ? "▮".repeat(c.batteryBars) + "▯".repeat(5 - c.batteryBars) : ""}</span>
+            </div>`;
+          }).join("")}
+        </div>` : ""}
+    </div>`;
+}
+
 // ---- Beltpack messages -----------------------------------------------------
 // The FreeSpeak II base can push text to the wireless beltpacks from CCM.
 // There is no API for it — CCM is a browser interface, not something the app
@@ -4705,6 +4814,7 @@ async function renderTodayView() {
       if (Object.values(data).some((v) => v === null)) return;   // wait for all
       host.innerHTML =
           renderWeatherHold(gameId, data.hold)
+        + `<div id="ulxdHost">${renderUlxd()}</div>`
         + renderSignalGate(gameId, game, data.signal)
         + renderCommsCheck(gameId, data.comms)
         + renderIncidents(gameId, data.inc);
@@ -4725,9 +4835,16 @@ async function renderTodayView() {
       if (data.hold && data.hold.active) paint();
     }, 1000);
 
+    if (ULXD_STATE_URL) {
+      ulxdPoll();
+      if (ulxdTimer) clearInterval(ulxdTimer);
+      ulxdTimer = setInterval(ulxdPoll, ULXD_POLL_MS);
+    }
+
     unsubSignal = () => {
       Object.keys(refs).forEach((k) => refs[k].off("value", cbs[k]));
       clearInterval(tick);
+      if (ulxdTimer) { clearInterval(ulxdTimer); ulxdTimer = null; }
     };
   }
 }
