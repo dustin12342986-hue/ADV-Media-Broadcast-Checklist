@@ -1191,7 +1191,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-31 · v28 · floating monitor on today + run of show";
+const APP_BUILD = "build 2026-08-31 · v29 · mini monitor on ROS, launcher on Today";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4469,12 +4469,14 @@ function rosGameOptions() {
 }
 
 // ============================================================================
-// Stadium monitor — floating mini-player, docked bottom-left, shown on the
-// Today and Run of Show tabs. Tap the arrows to fill the screen, tap again to
-// shrink back. Program/Multiview toggle. Attached to <body>, never rebuilt by
-// tab renders or cue advances, so the video doesn't restart while switching
-// around the app. While MONITOR_DEMO is true and no real URLs are set, an
-// animated built-in preview stands in for the real feeds.
+// Stadium monitor.
+//  - Run of Show tab: a small floating mini-player, bottom-left, out of the
+//    way of the cue list. ⛶ fills the screen, ✕ shrinks back.
+//  - Today tab: just a "Stadium Monitor" button that opens it full screen.
+//  - Program/Multiview toggle in both. Attached to <body>, never rebuilt by
+//    tab renders or cue advances. Video only runs while actually visible.
+// While MONITOR_DEMO is true and no real URLs are set, an animated built-in
+// preview stands in for the real feeds.
 // ============================================================================
 let rosMonPollTimer = null;
 let rosMonHls = null;
@@ -4494,17 +4496,44 @@ function rosMonFeeds() {
     : ["program", "multiview"].filter((f) => MONITOR_FEEDS[f]);
 }
 
-// Called from renderMainApp on every tab change: mounts once, then just
-// shows/hides depending on the current tab.
+// Called from renderMainApp on every tab change: mounts once, then decides
+// what to show. Run of Show gets the mini player; Today gets a launch button;
+// everywhere else gets nothing.
 function rosMonitorSync() {
   const anyVideo = rosMonIsDemo() || MONITOR_FEEDS.program || MONITOR_FEEDS.multiview;
   if (!anyVideo && !TRICASTER_STATE_URL) return;
   let el = document.getElementById("rosMonitor");
   if (!el) { rosMonMount(); el = document.getElementById("rosMonitor"); }
   if (!el) return;
-  const show = ROS_MON_VIEWS.includes(mainState.view);
-  el.style.display = show ? "" : "none";
-  if (!show && rosMonMax) rosMonSetMax(false);
+  if (!ROS_MON_VIEWS.includes(mainState.view) && rosMonMax) rosMonSetMax(false);
+  rosMonApplyMode();
+}
+
+function rosMonApplyMode() {
+  const el = document.getElementById("rosMonitor");
+  const box = document.getElementById("rosMonBox");
+  const launch = document.getElementById("rosMonLaunch");
+  if (!el || !box || !launch) return;
+  const view = mainState.view;
+  if (!ROS_MON_VIEWS.includes(view)) {
+    el.style.display = "none";
+    rosMonStopVideo();
+    return;
+  }
+  el.style.display = "";
+  const wantVideo = view === "runofshow" || rosMonMax;
+  box.style.display = wantVideo ? "" : "none";
+  launch.style.display = (view === "today" && !rosMonMax) ? "" : "none";
+  if (wantVideo) {
+    if (!rosMonVideoRunning()) rosMonRestartVideo();
+  } else {
+    rosMonStopVideo();
+  }
+}
+
+function rosMonVideoRunning() {
+  const video = document.getElementById("rosMonVideo");
+  return !!(video && (video.srcObject || video.getAttribute("src") || rosMonHls));
 }
 
 function rosMonMount() {
@@ -4515,10 +4544,14 @@ function rosMonMount() {
   const wrap = document.createElement("div");
   wrap.id = "rosMonitor";
   wrap.innerHTML = `
-    <div id="rosMonBox" style="position:fixed; left:10px; bottom:14px; z-index:600;
-        width:min(290px, 46vw); background:var(--panel, #111); border:1px solid var(--border, #333);
-        border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.35);">
-      <div id="rosMonBar" style="display:flex; align-items:center; gap:6px; padding:6px 8px;">
+    <button id="rosMonLaunch" style="display:none; position:fixed; left:10px; bottom:14px; z-index:600;
+        font:inherit; font-size:13px; font-weight:700; padding:9px 16px; border-radius:999px;
+        border:1px solid var(--border, #333); background:var(--panel, #111); color:inherit;
+        box-shadow:0 4px 16px rgba(0,0,0,0.3); cursor:pointer;">▶ Stadium Monitor</button>
+    <div id="rosMonBox" style="display:none; position:fixed; left:8px; bottom:12px; z-index:600;
+        width:min(180px, 34vw); background:var(--panel, #111); border:1px solid var(--border, #333);
+        border-radius:10px; overflow:hidden; box-shadow:0 5px 20px rgba(0,0,0,0.35);">
+      <div id="rosMonBar" style="display:flex; align-items:center; gap:4px; padding:4px 6px;">
         ${feeds.length > 1 ? `
           <button id="rosMonTabP" class="ros-mon-btn">PGM</button>
           <button id="rosMonTabM" class="ros-mon-btn">MV</button>` : ""}
@@ -4535,7 +4568,7 @@ function rosMonMount() {
       </div>
     </div>
     <style>
-      .ros-mon-btn { font: inherit; font-size: 11px; font-weight: 700; padding: 3px 10px;
+      .ros-mon-btn { font: inherit; font-size: 10px; font-weight: 700; padding: 2px 8px;
         border-radius: 999px; border: 1px solid var(--border, #444);
         background: var(--panel2, #222); color: inherit; cursor: pointer; }
       .ros-mon-btn.on { background: var(--accent, #4a7c59); border-color: var(--accent, #4a7c59); color: #fff; }
@@ -4566,6 +4599,7 @@ function rosMonMount() {
     mark();
   }
   document.getElementById("rosMonMaxBtn").onclick = () => rosMonSetMax(!rosMonMax);
+  document.getElementById("rosMonLaunch").onclick = () => rosMonSetMax(true);
 
   if (TRICASTER_STATE_URL) {
     rosMonPollState();
@@ -4573,7 +4607,6 @@ function rosMonMount() {
   } else if (rosMonIsDemo()) {
     rosMonDemoPills();
   }
-  rosMonRestartVideo();
 }
 
 function rosMonSetMax(on) {
@@ -4585,6 +4618,7 @@ function rosMonSetMax(on) {
   if (btn) btn.textContent = on ? "✕" : "⛶";
   const video = document.getElementById("rosMonVideo");
   if (video) { if (on) video.setAttribute("controls", ""); else video.removeAttribute("controls"); }
+  if (typeof rosMonApplyMode === "function") rosMonApplyMode();
 }
 
 function rosUnmountMonitor() {
