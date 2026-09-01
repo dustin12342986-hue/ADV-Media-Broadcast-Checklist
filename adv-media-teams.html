@@ -528,6 +528,94 @@ const MONITOR_DEMO = true;
   .doc-pick-label { display: block; font-size: 14px; font-weight: 800; }
   .doc-pick-blurb { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
 
+  /* Beltpack message. Monospace so what you see is what lands on the pack. */
+  .bp-line {
+    display: flex; align-items: center; gap: 8px; margin-top: 11px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 9px;
+  }
+  .bp-tag {
+    flex: 0 0 auto; font-size: 8.5px; font-weight: 900; letter-spacing: 0.7px;
+    color: var(--text-faint);
+  }
+  .bp-msg {
+    flex: 1; min-width: 0; font-family: ui-monospace, Menlo, monospace;
+    font-size: 12.5px; font-weight: 700; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bp-copy {
+    flex: 0 0 auto; background: var(--accent); color: var(--accent-ink);
+    border: none; border-radius: 7px; padding: 6px 11px;
+    font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
+  }
+
+  /* Comms check */
+  .comms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .comms-item {
+    display: flex; align-items: center; gap: 8px; text-align: left;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 10px; cursor: pointer;
+    font-family: inherit; color: var(--text);
+  }
+  .comms-item.on { border-color: var(--green); }
+  .comms-tick {
+    width: 17px; height: 17px; flex: 0 0 auto; border-radius: 4px;
+    border: 1.5px solid var(--border); display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: 900; color: #fff;
+  }
+  .comms-item.on .comms-tick { background: var(--green); border-color: var(--green); }
+  .comms-label { display: block; font-size: 12.5px; font-weight: 700; }
+  .comms-by { display: block; font-size: 10px; color: var(--text-faint); }
+
+  /* Weather hold. Big enough to read across the truck, because during one of
+     these nobody is looking closely at a phone. */
+  .hold-start {
+    width: 100%; padding: 11px 0; margin-bottom: 14px; border-radius: 11px;
+    background: none; border: 1px dashed var(--border); color: var(--text-faint);
+    font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .hold-card {
+    background: var(--bad-bg); border: 2px solid var(--red);
+    border-radius: 13px; padding: 16px; margin-bottom: 14px; text-align: center;
+  }
+  .hold-card.hold-clear { background: var(--good-bg); border-color: var(--green); }
+  .hold-head {
+    font-size: 12px; font-weight: 900; letter-spacing: 1.2px;
+    color: var(--bad-ink); text-transform: uppercase;
+  }
+  .hold-clear .hold-head { color: var(--good-ink); }
+  .hold-clock {
+    font-size: 46px; font-weight: 900; line-height: 1.05; margin: 4px 0;
+    font-variant-numeric: tabular-nums; color: var(--text);
+  }
+  .hold-sub { font-size: 12.5px; color: var(--text-muted); }
+  .hold-by { font-size: 11px; color: var(--text-faint); margin-top: 5px; }
+  .hold-btns { display: flex; gap: 8px; margin-top: 12px; }
+  .hold-restart, .hold-end {
+    flex: 1; padding: 11px 6px; border-radius: 10px; border: none;
+    font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+  }
+  .hold-restart { background: var(--red); color: #fff; }
+  .hold-end { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Incident log */
+  .inc-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .inc-kind {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 7px 13px; font-family: inherit;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .inc-list { margin-top: 11px; border-top: 1px solid var(--border); }
+  .inc-row { display: flex; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .inc-time {
+    flex: 0 0 54px; font-size: 11px; font-weight: 800; color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .inc-main { flex: 1; min-width: 0; }
+  .inc-what { display: block; font-size: 12.5px; }
+  .inc-by { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
+  .inc-del { flex: 0 0 auto; color: var(--text-faint); font-size: 13px; cursor: pointer; }
+
   /* Signal-up gate. Reads at a glance from across the truck: how many of the
      four, and whether we're past the deadline. */
   .sig-card {
@@ -1242,7 +1330,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v34 · signal-up gate + demo watermark";
+const APP_BUILD = "build 2026-09-01 · v36 · beltpack messages";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4216,6 +4304,7 @@ function renderSignalGate(gameId, game, state) {
             : "All four confirmed on the CCUs before doors."}
       </div>
       ${late ? `<div class="sig-alert">Past the gate with ${SIGNAL_CAMS.length - done.length} still unconfirmed. Escalate now, not at kickoff.</div>` : ""}
+      ${late ? beltpackLine(`SIGNAL UP - CAM ${SIGNAL_CAMS.filter((c) => !(state && state[c.id])).map((c) => c.id.replace("cam", "")).join(",")} NEEDED`) : ""}
       <div class="sig-grid">
         ${SIGNAL_CAMS.map((c) => {
           const rec = state && state[c.id];
@@ -4268,6 +4357,235 @@ function wireSignalGate(gameId) {
     if (!confirm("Clear all four confirmations?")) return;
     await db.ref(`signalUp/${gameId}`).remove();
   };
+}
+
+// ============================================================================
+// Comms check
+// ============================================================================
+// Same idea as the signal-up gate, for the wireless. Everything on this list
+// has walked into a show dead at least once, and a comms failure is quieter
+// than a camera failure — you find out when someone doesn't answer.
+const COMMS_ITEMS = [
+  { id: "a2",    label: "A2 pack" },
+  { id: "eic",   label: "EIC pack" },
+  { id: "pm",    label: "PM pack" },
+  { id: "sp1",   label: "Spare 1" },
+  { id: "sp2",   label: "Spare 2" },
+  { id: "ref",   label: "Ref mic + PTT" },
+  { id: "dj",    label: "DJ line" },
+];
+
+function renderCommsCheck(gameId, state) {
+  const done = COMMS_ITEMS.filter((c) => state && state[c.id]);
+  const all = done.length === COMMS_ITEMS.length;
+  return `
+    <div class="sig-card ${all ? "sig-ok" : ""}" style="border-left-color:${all ? "var(--green)" : "var(--text-faint)"}">
+      <div class="sig-head">
+        <span class="sig-title">Comms check</span>
+        <span class="sig-count">${done.length} of ${COMMS_ITEMS.length}</span>
+      </div>
+      <div class="sig-sub">${all ? "Everything checked." : "Battery in, heard both ways."}</div>
+      <div class="comms-grid">
+        ${COMMS_ITEMS.map((c) => {
+          const rec = state && state[c.id];
+          return `
+          <button class="comms-item ${rec ? "on" : ""}" data-comms="${c.id}">
+            <span class="comms-tick">${rec ? "✓" : ""}</span>
+            <span>
+              <span class="comms-label">${escapeHtml(c.label)}</span>
+              ${rec ? `<span class="comms-by">${escapeHtml(rec.by || "")}</span>` : ""}
+            </span>
+          </button>`;
+        }).join("")}
+      </div>
+      ${done.length ? `<button class="sig-reset" id="commsReset">Clear all</button>` : ""}
+    </div>`;
+}
+
+// ---- Beltpack messages -----------------------------------------------------
+// The FreeSpeak II base can push text to the wireless beltpacks from CCM.
+// There is no API for it — CCM is a browser interface, not something the app
+// can call — so this does the part software can honestly do: works out the
+// right message and hands it over ready to paste.
+//
+// Beltpack displays are small. Keep these SHORT and upper case; anything long
+// gets truncated on the pack and a half-read message is worse than none.
+function beltpackLine(text) {
+  return `
+    <div class="bp-line">
+      <span class="bp-tag">TO BELTPACKS</span>
+      <code class="bp-msg">${escapeHtml(text)}</code>
+      <button class="bp-copy" data-bpcopy="${escapeAttr(text)}">Copy</button>
+    </div>`;
+}
+
+function wireBeltpackCopy() {
+  document.querySelectorAll("[data-bpcopy]").forEach((el) => {
+    el.onclick = async () => {
+      const text = el.dataset.bpcopy;
+      try {
+        await navigator.clipboard.writeText(text);
+        const was = el.textContent;
+        el.textContent = "Copied";
+        setTimeout(() => { el.textContent = was; }, 1400);
+      } catch (e) {
+        // Clipboard is blocked in some in-app browsers; select it instead so
+        // it can still be copied by hand.
+        const r = document.createRange();
+        r.selectNodeContents(el.previousElementSibling);
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(r);
+      }
+    };
+  });
+}
+
+// ============================================================================
+// Weather hold
+// ============================================================================
+// Texas, outdoors, August to November. The rule everyone uses is 30 minutes
+// from the last strike, and the clock RESTARTS on every new one — which is
+// exactly the thing nobody can track by memory while a stadium is emptying.
+//
+// This is a shared clock, not a personal one: the producer starts it and every
+// phone counts down to the same time, so nobody is doing mental arithmetic on
+// comms.
+//
+// The 30 minutes is the widely used standard. Confirm CISD's own policy with
+// Greg Williams — districts differ, and theirs is the one that counts.
+const HOLD_MINUTES = 30;
+
+function holdResumeAt(hold) {
+  if (!hold || !hold.lastStrike) return null;
+  const t = new Date(hold.lastStrike);
+  if (isNaN(t)) return null;
+  t.setMinutes(t.getMinutes() + HOLD_MINUTES);
+  return t;
+}
+
+function renderWeatherHold(gameId, hold) {
+  const active = hold && hold.active;
+  if (!active) {
+    return `
+      <button class="hold-start" id="holdStart">Start a weather hold</button>`;
+  }
+  const resume = holdResumeAt(hold);
+  const now = new Date();
+  const msLeft = resume ? resume - now : 0;
+  const clear = msLeft <= 0;
+  const mins = Math.floor(Math.max(0, msLeft) / 60000);
+  const secs = Math.floor((Math.max(0, msLeft) % 60000) / 1000);
+
+  return `
+    <div class="hold-card ${clear ? "hold-clear" : ""}">
+      <div class="hold-head">${clear ? "Hold clear" : "WEATHER HOLD"}</div>
+      <div class="hold-clock">${clear ? "00:00" : String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0")}</div>
+      <div class="hold-sub">
+        ${clear
+          ? `${HOLD_MINUTES} minutes since the last strike. Cleared to resume.`
+          : `Resume at <strong>${resume ? escapeHtml(resume.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })) : "—"}</strong> if there are no more strikes.`}
+      </div>
+      ${hold.by ? `<div class="hold-by">Started by ${escapeHtml(hold.by)}${hold.at ? " · " + escapeHtml(shortClock(hold.at)) : ""}</div>` : ""}
+      <div class="hold-btns">
+        <button class="hold-restart" id="holdStrike">New strike — restart ${HOLD_MINUTES}:00</button>
+        <button class="hold-end" id="holdEnd">End hold</button>
+      </div>
+      ${beltpackLine(clear ? "HOLD CLEAR - STAND BY" : `WX HOLD ${resume ? resume.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(" ", "") : ""}`)}
+    </div>`;
+}
+
+// ============================================================================
+// Incident log
+// ============================================================================
+// One tap during a show. Twenty seconds in the moment beats reconstructing it
+// on Sunday — every feature in this app came from a failure someone had to
+// remember afterwards, and memory is where the detail goes.
+const INCIDENT_KINDS = ["Cable", "Camera", "Audio", "Comms", "Switcher", "Graphics", "Other"];
+
+function renderIncidents(gameId, list) {
+  const rows = Object.entries(list || {})
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+
+  return `
+    <div class="sig-card" style="border-left-color:var(--text-faint)">
+      <div class="sig-head">
+        <span class="sig-title">Incident log</span>
+        <span class="sig-count">${rows.length}</span>
+      </div>
+      <div class="sig-sub">Log it now — the detail is gone by Sunday.</div>
+      <div class="inc-kinds">
+        ${INCIDENT_KINDS.map((k) => `<button class="inc-kind" data-inckind="${escapeAttr(k)}">${escapeHtml(k)}</button>`).join("")}
+      </div>
+      ${rows.length ? `
+        <div class="inc-list">
+          ${rows.slice(0, 12).map((r) => `
+            <div class="inc-row">
+              <span class="inc-time">${escapeHtml(shortClock(r.at))}</span>
+              <span class="inc-main">
+                <span class="inc-what"><strong>${escapeHtml(r.kind || "Other")}</strong> — ${escapeHtml(r.what || "")}</span>
+                <span class="inc-by">${escapeHtml(r.by || "")}</span>
+              </span>
+              ${isAdmin() ? `<span class="inc-del" data-incdel="${escapeAttr(r.id)}">✕</span>` : ""}
+            </div>`).join("")}
+        </div>
+        ${rows.length > 12 ? `<div class="footnote" style="margin-top:6px;">Showing the last 12 of ${rows.length}.</div>` : ""}
+      ` : ""}
+    </div>`;
+}
+
+function wireShowTools(gameId, game) {
+  const who = () => (myProfileForShifts && myProfileForShifts.legalName)
+    || currentUser.displayName || currentUser.email || "";
+
+  document.querySelectorAll("[data-comms]").forEach((el) => {
+    el.onclick = async () => {
+      const ref = db.ref(`commsCheck/${gameId}/${el.dataset.comms}`);
+      const snap = await ref.once("value");
+      if (snap.val()) { await ref.remove(); return; }
+      await ref.set({ by: who(), at: new Date().toISOString() });
+    };
+  });
+  const cReset = document.getElementById("commsReset");
+  if (cReset) cReset.onclick = async () => {
+    if (confirm("Clear the whole comms check?")) await db.ref(`commsCheck/${gameId}`).remove();
+  };
+
+  const start = document.getElementById("holdStart");
+  if (start) start.onclick = async () => {
+    if (!confirm(`Start a weather hold? Everyone's phone will show a ${HOLD_MINUTES} minute countdown.`)) return;
+    await db.ref(`weatherHold/${gameId}`).set({
+      active: true, lastStrike: new Date().toISOString(),
+      by: who(), at: new Date().toISOString(),
+    });
+  };
+  const strike = document.getElementById("holdStrike");
+  if (strike) strike.onclick = async () => {
+    // Restarting is the common case during a storm, so it is one tap with no
+    // confirm — the cost of an accidental restart is 30 minutes of caution,
+    // the cost of a missed one is people back in the stands too early.
+    await db.ref(`weatherHold/${gameId}/lastStrike`).set(new Date().toISOString());
+  };
+  const end = document.getElementById("holdEnd");
+  if (end) end.onclick = async () => {
+    if (confirm("End the weather hold?")) await db.ref(`weatherHold/${gameId}`).remove();
+  };
+
+  document.querySelectorAll("[data-inckind]").forEach((el) => {
+    el.onclick = async () => {
+      const kind = el.dataset.inckind;
+      const what = prompt(`${kind} — what happened?`);
+      if (what === null || !what.trim()) return;
+      await db.ref(`incidents/${gameId}`).push({
+        kind, what: what.trim(), by: who(), at: new Date().toISOString(),
+      });
+    };
+  });
+  document.querySelectorAll("[data-incdel]").forEach((el) => {
+    el.onclick = async () => {
+      if (confirm("Remove this entry?")) await db.ref(`incidents/${gameId}/${el.dataset.incdel}`).remove();
+    };
+  });
 }
 
 async function renderTodayView() {
@@ -4367,18 +4685,50 @@ async function renderTodayView() {
     weatherEl.textContent = weather ? `${weather.name}: ${weather.temp}°${weather.unit} — ${weather.forecast}` : "Weather unavailable right now.";
   }
 
-  // Live so a confirmation on one phone appears on every other phone at once.
+  // One watcher for all four show tools. They render together, so four
+  // separate subscriptions would mean four partial repaints on every change.
   if (unsubSignal) { unsubSignal(); unsubSignal = null; }
   {
-    const sref = db.ref(`signalUp/${gameId}`);
-    const scb = (snap) => {
+    const paths = {
+      signal: `signalUp/${gameId}`,
+      comms:  `commsCheck/${gameId}`,
+      hold:   `weatherHold/${gameId}`,
+      inc:    `incidents/${gameId}`,
+    };
+    const data = { signal: null, comms: null, hold: null, inc: null };
+    const refs = {};
+    const cbs = {};
+
+    const paint = () => {
       const host = document.getElementById("sigGateHost");
       if (!host || mainState.view !== "today") return;
-      host.innerHTML = renderSignalGate(gameId, game, snap.val() || {});
+      if (Object.values(data).some((v) => v === null)) return;   // wait for all
+      host.innerHTML =
+          renderWeatherHold(gameId, data.hold)
+        + renderSignalGate(gameId, game, data.signal)
+        + renderCommsCheck(gameId, data.comms)
+        + renderIncidents(gameId, data.inc);
       wireSignalGate(gameId);
+      wireShowTools(gameId, game);
+      wireBeltpackCopy();
     };
-    sref.on("value", scb);
-    unsubSignal = () => sref.off("value", scb);
+
+    Object.keys(paths).forEach((k) => {
+      refs[k] = db.ref(paths[k]);
+      cbs[k] = (snap) => { data[k] = snap.val() || {}; paint(); };
+      refs[k].on("value", cbs[k]);
+    });
+
+    // The hold is a countdown, so it has to repaint without a data change.
+    const tick = setInterval(() => {
+      if (mainState.view !== "today") return;
+      if (data.hold && data.hold.active) paint();
+    }, 1000);
+
+    unsubSignal = () => {
+      Object.keys(refs).forEach((k) => refs[k].off("value", cbs[k]));
+      clearInterval(tick);
+    };
   }
 }
 
