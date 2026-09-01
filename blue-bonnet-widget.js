@@ -425,9 +425,34 @@ If it's within an hour of kickoff and it isn't fixed in two attempts, escalate t
   // shows up as a wrong answer instead of a dead tap.
   const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
 
+  // Compare by YouTube video id, not by exact string. Library entries can
+  // carry a ?t= timestamp and the model may quote the link without it — an
+  // exact match would strip a link that is genuinely on the list. Matching on
+  // the id keeps the guarantee (only library videos survive) without being
+  // brittle about query strings.
+  const YT_HOSTS = ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"];
+
+  function videoIdOf(u) {
+    // Host must be YouTube. Matching on the id alone would have let
+    // https://evil.example/watch?v=<real id> through — the id is a valid
+    // library id, but the destination is not.
+    let host;
+    try { host = new URL(String(u)).hostname.toLowerCase(); }
+    catch (e) { return null; }
+    if (!YT_HOSTS.includes(host)) return null;
+
+    const m = String(u).match(/[?&]v=([A-Za-z0-9_-]{6,})/)
+           || String(u).match(/youtu\.be\/([A-Za-z0-9_-]{6,})/)
+           || String(u).match(/\/embed\/([A-Za-z0-9_-]{6,})/);
+    return m ? m[1] : null;
+  }
+
   function isAllowedUrl(u) {
     const clean = u.replace(/[.,;:!?]+$/, "");
-    return ALLOWED_VIDEO_URLS.some((ok) => ok === clean);
+    if (ALLOWED_VIDEO_URLS.some((ok) => ok === clean)) return true;
+    const id = videoIdOf(clean);
+    if (!id) return false;
+    return ALLOWED_VIDEO_URLS.some((ok) => videoIdOf(ok) === id);
   }
 
   function scrubLinks(text) {

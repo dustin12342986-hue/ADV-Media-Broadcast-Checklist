@@ -47,6 +47,95 @@ const VIDEO_KB = [
     minutes: null,
   },
   {
+    title: "Connecting and disconnecting a SMPTE cable",
+    url: "https://www.youtube.com/watch?v=stnkAEMsCv8",
+    covers: "how to plug in SMPTE, mating the connector, unplugging, latch, "
+          + "won't go in, stuck connector, disconnecting safely, camera end, JBT end",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Over-under cable coiling",
+    url: "https://www.youtube.com/watch?v=TbxMyytWw60",
+    covers: "coiling cable, over under, wrapping, kinks, twisted cable, "
+          + "how to wrap without damaging, strike, packing cable away",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Finalizing and calibrating a studio camera system — URSA Broadcast G2",
+    url: "https://www.youtube.com/watch?v=sLgGLd4PzCk",
+    covers: "camera calibration, matching cameras, studio setup, finalising the rig, "
+          + "cameras don't match, colour match, black balance, setting up the system",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Shading the URSA Broadcast over fiber with a SKAARHOJ RCP",
+    url: "https://www.youtube.com/watch?v=vrLT1EWlfsU",
+    covers: "shading, shader position, RCP, remote control panel, CCU, iris, "
+          + "black level, painting cameras, matching over fiber, SKAARHOJ",
+    source: "supplied by ADV",
+    minutes: null,
+    note: "Publisher marks this LEGACY — check current firmware behaviour before relying on menu paths.",
+  },
+  {
+    title: "Connecting URSA Cine to the internet",
+    url: "https://www.youtube.com/watch?v=l86YxVK4RoM",
+    covers: "network setup, connecting camera to internet, wifi, ethernet, cloud",
+    source: "supplied by ADV",
+    minutes: null,
+    note: "URSA CINE, not URSA Broadcast — network menus differ. Confirm which body before following.",
+  },
+  {
+    title: "Update your camera software",
+    url: "https://www.youtube.com/watch?v=mf4RcOM5ogs",
+    covers: "firmware update, camera software, updating the camera, version mismatch, "
+          + "camera control not working, tally not working, Blackmagic Camera Setup",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Using LUTs with your Blackmagic camera",
+    url: "https://www.youtube.com/watch?v=SwjyE9foXRs&t=3s",
+    covers: "LUTs, look up table, loading a LUT, monitoring LUT, picture looks flat, "
+          + "washed out image, colour looks wrong, matching the look, film to video",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Blackmagic URSA Studio Viewfinder",
+    url: "https://www.youtube.com/watch?v=ro5E5WAhoNw",
+    covers: "studio viewfinder, viewfinder setup, mounting the viewfinder, "
+          + "tally light on the viewfinder, VLock plate, operator monitor",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
+    title: "Transferring media from a URSA Cine camera",
+    url: "https://www.youtube.com/watch?v=wI0QLD0Wh4k",
+    covers: "offloading footage, transferring media, getting files off the camera, media management",
+    source: "supplied by ADV",
+    minutes: null,
+    note: "URSA CINE, not URSA Broadcast — confirm which body before following.",
+  },
+  {
+    title: "Connecting URSA Cine to Blackmagic Cloud",
+    url: "https://www.youtube.com/watch?v=0vhj3R3SXA8",
+    covers: "Blackmagic Cloud, cloud sync, uploading footage, remote workflow",
+    source: "supplied by ADV",
+    minutes: null,
+    note: "URSA CINE, not URSA Broadcast — confirm which body before following.",
+  },
+  {
+    title: "Blackmagic URSA menu setup",
+    url: "https://www.youtube.com/watch?v=4Dd97s-4h9w&t=17s",
+    covers: "URSA menus, camera settings, setup, frame rate, shutter, ISO, "
+          + "white balance, camera ID number, configuring the camera",
+    source: "supplied by ADV",
+    minutes: null,
+  },
+  {
     title: "URSA Broadcast G2 setup walkthrough",
     url: "https://www.youtube.com/watch?v=UHVHmoYAigI",
     covers: "URSA Broadcast G2 first-time setup, camera menus, getting configured",
@@ -90,6 +179,7 @@ function videoKbText() {
         + "\n  Covers: " + (v.covers || "")
         + (v.source ? "\n  Source: " + v.source : "")
         + (v.minutes ? "\n  Length: about " + v.minutes + " min" : "")
+        + (v.note ? "\n  CAVEAT (say this when you offer it): " + v.note : "")
       ).join("\n")
     + "\n\nRULES FOR VIDEOS — firm:\n"
     + "- Offer a video only when one above genuinely covers the question. A rough match is worse than none.\n"

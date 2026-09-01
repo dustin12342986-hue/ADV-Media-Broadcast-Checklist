@@ -107,6 +107,7 @@
     <a href="#smpte">SMPTE fiber — read this first</a>
     <a href="#every">In every camera case</a>
     <a href="#map">Where the positions are</a>
+    <a href="#setup">Camera setup</a>
     <a href="#cams">Camera positions</a>
     <a href="#audio">Audio</a>
     <a href="#comms">Comms</a>
@@ -141,6 +142,19 @@
     Watch this before you clean one for the first time. The plug and the socket are
     cleaned differently, and the alignment sleeve stays in place on the plug — that's
     the step people get wrong.
+  </p>
+
+  <h3>Connecting and disconnecting</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/stnkAEMsCv8"
+            title="Connecting and disconnecting a SMPTE cable"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    A connector that won't seat is almost never fixed by pushing harder. If it fights
+    you, stop and inspect it.
   </p>
 
   <h3>Striking a run</h3>
@@ -213,6 +227,89 @@
     a lost pregame.
   </div>
 
+  <h2 id="setup">Camera setup</h2>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/4Dd97s-4h9w?start=17"
+            title="Blackmagic URSA menu setup"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    Menu walkthrough for the URSA. Worth watching once before your first show rather
+    than learning the menus at call time.
+  </p>
+  <h3>LUTs</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/SwjyE9foXRs?start=3"
+            title="Using LUTs with your Blackmagic camera"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    If a camera looks flat or washed out next to the others, check the LUT before you
+    start shading — it's usually a monitoring setting, not the camera.
+  </p>
+
+  <h3>Studio viewfinder</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/ro5E5WAhoNw"
+            title="Blackmagic URSA Studio Viewfinder"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">Cameras 1, 2 and 3. Mounts to the VLock plate on top of the fiber converter.</p>
+
+  <h3>Firmware</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/mf4RcOM5ogs"
+            title="Update your camera software"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <div class="callout important">
+    <strong>Update the whole chain together</strong> — cameras, both fiber converters and
+    the switcher. Mismatched firmware causes camera control and tally faults that look
+    exactly like hardware failures, and it is a bad thing to be diagnosing at 5pm.
+    Do this in the shop, never on a show day.
+  </div>
+
+  <h3>Calibrating and matching the system</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/sLgGLd4PzCk"
+            title="Finalizing and calibrating a studio camera system — URSA Broadcast G2"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    Getting all four cameras matched. Worth doing properly at build — four cameras that
+    don't match is something the audience notices on every cut.
+  </p>
+
+  <h3>Shading — for the Shader position</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/vrLT1EWlfsU"
+            title="Shading the URSA Broadcast over fiber with a SKAARHOJ RCP"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <div class="callout">
+    <strong>Blackmagic label this one LEGACY.</strong> The workflow holds up, but menu
+    paths may have moved in current firmware. Use it to understand what shading is doing,
+    then check the actual menus on the unit.
+  </div>
+
+  <div class="callout important">
+    <strong>Set your camera ID number to match the position.</strong> Camera 3 is ID 3.
+    Two cameras sharing an ID is the usual reason camera control and tally stop working
+    while the picture looks perfect at the switcher.
+  </div>
+
   <h2 id="cams">Camera positions</h2>
 
   <div class="pos" style="--c:#4A8FC0;">
@@ -229,10 +326,18 @@
     <div class="pos-head"><span class="pos-name">Camera 2</span><span class="pos-color">Red</span></div>
     <div class="pos-where">Field level, just above the Crowley mark in the end zone, under the LED wall</div>
     <ul>
-      <li><span class="run">200 ft SMPTE</span> to the <strong>visitor side JBT</strong></li>
+      <li><strong>Now:</strong> <span class="run">200 ft SMPTE</span> to the
+        <strong>visitor side JBT</strong> — the long way round, because the north end
+        zone JBT is dead</li>
+      <li><strong>Once the new box is in:</strong> <span class="run">100 ft SMPTE</span>
+        to the <strong>north end zone JBT</strong>, about 75 ft away</li>
       <li>Tripod + sandbag</li>
       <li>Attaching viewfinder</li>
     </ul>
+    <div class="callout important" style="margin:12px 0 0;">
+      Check which run you're on before you pull cable. Until the north end zone JBT is
+      replaced this is the longest run at the stadium; afterwards it's one of the shortest.
+    </div>
   </div>
 
   <div class="pos" style="--c:#33A870;">
@@ -251,7 +356,8 @@
     <div class="pos-head"><span class="pos-name">Camera 4</span><span class="pos-color">Yellow</span></div>
     <div class="pos-where">Home sideline</div>
     <ul>
-      <li><span class="run">100 ft SMPTE</span></li>
+      <li><span class="run">365 ft SMPTE</span> on a reel — the sideline camera moves,
+        so it needs the length</li>
       <li><strong>No viewfinder</strong> — the only position without one</li>
       <li><strong>Tripod travels with it</strong> — usually shot handheld, but it goes in the case
         every time, along with its sandbag. Deciding you need it and not having it is the failure.</li>
@@ -307,6 +413,22 @@
     <li><strong>Cap and bag both SMPTE ends</strong> before anything else — see
       <a href="#smpte" style="color:var(--blue);">SMPTE fiber</a>. Ends never touch the ground.</li>
     <li><strong>Onto reels</strong>, not coiled on the turf.</li>
+  </ul>
+
+  <h3>Coiling — over-under</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/TbxMyytWw60"
+            title="Over-under cable coiling"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    Every cable gets coiled over-under. Coiling the same direction every loop builds
+    twist into the jacket, and twist is what kinks a run and eventually breaks the fibre.
+  </p>
+
+  <ul class="check">
     <li><strong>Seal every SMPTE mate</strong> with a numbered seal or numbered zip tie.
       Write the numbers down.</li>
     <li><strong>Seal the case latches.</strong> One seal on a case beats checking six items inside it.</li>

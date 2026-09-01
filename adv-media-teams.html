@@ -171,7 +171,31 @@
 
 </script>
 
+<script>
+  // Appearance is applied before anything renders. If this ran with the rest of
+  // the app the page would paint in the default theme first and then snap —
+  // ugly, and worse on a slow stadium connection.
+  (function () {
+    try {
+      var s = JSON.parse(localStorage.getItem("advAppearance") || "{}");
+      var r = document.documentElement;
+      if (s.theme)  r.setAttribute("data-theme", s.theme);
+      if (s.accent) r.setAttribute("data-accent", s.accent);
+      if (s.font)   r.setAttribute("data-font", s.font);
+      if (s.fs)     r.setAttribute("data-fs", s.fs);
+    } catch (e) { /* first run, or storage blocked — defaults are fine */ }
+  })();
+</script>
 <style>
+  /* ---- Appearance -------------------------------------------------------
+     Everything downstream already reads these variables, so a theme is just a
+     different set of values — no rule below needs to change.
+
+     Semantic colours (green/amber/red) and the camera band colours stay put in
+     every theme, including monochrome. They carry meaning: red is a dead cable,
+     the bands are which camera. Greying those out would break the gear system
+     to make the UI prettier.
+     ------------------------------------------------------------------------ */
   :root {
     --bg: #0A0D12;
     --panel: #12181F;
@@ -184,14 +208,101 @@
     --amber: #E0A63C;
     --red: #D65A4E;
     --blue: #4A8FC0;
+
+    /* Tinted panels for warnings, failures and confirmations. Variables so
+       they flip with the theme — hardcoded dark tints stayed dark in light
+       mode and looked broken. */
+    --warn-bg: #1F1810;  --warn-ink: #FFD699;  --warn-strong: #FFE9C2;
+    --bad-bg:  #2A1512;  --bad-ink:  #F2B8B1;
+    --good-bg: #10201A;  --good-ink: #A8E0C4;
+    --info-bg: #1B2A38;  --info-ink: #8FC6F0;
+
+    --accent: var(--blue);
+    --accent-ink: #FFFFFF;
+    --shadow: 0 2px 0 rgba(0,0,0,0.35), 0 6px 16px rgba(0,0,0,0.35);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --fs: 1;
   }
+
+  /* Light. Warmer than pure white — a phone at a night game is the worst case
+     for glare, so the page is off-white rather than #FFF. */
+  html[data-theme="light"] {
+    --warn-bg: #FFF6E3;  --warn-ink: #6B4A05;  --warn-strong: #4A3303;
+    --bad-bg:  #FDECEA;  --bad-ink:  #8C2C22;
+    --good-bg: #E8F6EE;  --good-ink: #14603A;
+    --info-bg: #E9F2F9;  --info-ink: #1D5580;
+    --bg: #F4F6F8;
+    --panel: #FFFFFF;
+    --panel2: #EDF1F5;
+    --border: #D2DAE2;
+    --text: #131A21;
+    --text-muted: #55616D;
+    --text-faint: #7C8894;
+    --green: #1F7D4D;
+    --amber: #9A6B12;
+    --red: #B23B30;
+    --blue: #2C6E9E;
+    --shadow: 0 1px 0 rgba(16,24,32,0.06), 0 4px 12px rgba(16,24,32,0.10);
+  }
+
+  /* Monochrome. Interface goes grey; status and camera colours do not. */
+  html[data-theme="mono"] {
+    --bg: #0B0B0C;
+    --panel: #151517;
+    --panel2: #1E1E21;
+    --border: #33333A;
+    --text: #F2F2F3;
+    --text-muted: #9A9AA2;
+    --text-faint: #6B6B73;
+    --blue: #C9C9D2;
+    --accent-ink: #101012;
+  }
+  html[data-theme="mono-light"] {
+    --warn-bg: #FFF6E3;  --warn-ink: #6B4A05;  --warn-strong: #4A3303;
+    --bad-bg:  #FDECEA;  --bad-ink:  #8C2C22;
+    --good-bg: #E8F6EE;  --good-ink: #14603A;
+    --info-bg: #EDEDEF;  --info-ink: #3A3A42;
+    --bg: #F5F5F6;
+    --panel: #FFFFFF;
+    --panel2: #EBEBED;
+    --border: #D6D6DA;
+    --text: #16161A;
+    --text-muted: #5A5A63;
+    --text-faint: #85858E;
+    --blue: #3A3A42;
+    --accent-ink: #FFFFFF;
+    --shadow: 0 1px 0 rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.10);
+  }
+
+  /* Accents. Only the interface accent changes — never the semantic colours. */
+  html[data-accent="teal"]   { --accent: #2FA39B; }
+  html[data-accent="violet"] { --accent: #8B72D9; }
+  html[data-accent="amber"]  { --accent: #D2892B; --accent-ink: #1A1205; }
+  html[data-accent="green"]  { --accent: #2E9E63; }
+  html[data-accent="slate"]  { --accent: #6B7A89; }
+
+  html[data-font="serif"]  { --font: Georgia, "Times New Roman", serif; }
+  html[data-font="mono"]   { --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  html[data-font="rounded"]{ --font: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font);
+    /* Colour changes shouldn't strobe when someone flips the theme mid-show. */
+    transition: background-color .18s ease, color .18s ease;
   }
+  /* Text scale. Sizes throughout this file are in px, so a font-size change
+     alone would do nothing — zoom scales the whole layout, which for a utility
+     app is what people actually want when they say "bigger": bigger buttons
+     too, not just text.
+     Applied to #app only, so overlays and the appearance sheet keep a constant
+     size and the control you're shrinking with doesn't shrink under you. */
+  #app { zoom: var(--fs); }
+  html[data-fs="s"]  { --fs: 0.92; }
+  html[data-fs="l"]  { --fs: 1.10; }
+  html[data-fs="xl"] { --fs: 1.22; }
   .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
   h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 21px; font-weight: 700; letter-spacing: 1px; margin: 0; }
   .brand-logo { height: 40px; width: auto; flex-shrink: 0; }
@@ -243,7 +354,7 @@
     padding: 9px 14px; border-radius: 9px; border: none; cursor: pointer; white-space: nowrap;
     background: transparent; color: var(--text-muted); font-weight: 700; font-size: 13px;
   }
-  .tab-btn.active { background: var(--blue); color: #fff; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
   .label {
     font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase;
     letter-spacing: 0.6px; margin-bottom: 6px;
@@ -265,10 +376,29 @@
     flex: 1; padding: 9px 0; border-radius: 10px; font-weight: 700; font-size: 13px;
     border: 1px solid var(--border); background: var(--panel2); color: var(--text-muted); cursor: pointer;
   }
-  .auth-toggle-btn.active { border-color: var(--blue); background: #1B2A38; color: #8FC6F0; }
+  .auth-toggle-btn.active { border-color: var(--blue); background: var(--info-bg); color: var(--info-ink); }
+  /* Buttons carry a hair of depth and a press response. On a phone held at
+     arm's length in a dark booth, a flat rectangle reads as a label rather
+     than something you can hit. */
   .primary-btn {
-    width: 100%; padding: 14px 0; border-radius: 12px; font-weight: 800; font-size: 15px;
-    border: none; cursor: pointer; color: #fff; background: var(--blue); margin-top: 4px;
+    width: 100%; padding: 15px 0; border-radius: 13px; font-weight: 800;
+    font-size: 15.5px; letter-spacing: 0.2px; border: none; cursor: pointer;
+    color: var(--accent-ink); background: var(--accent); margin-top: 4px;
+    font-family: inherit; box-shadow: var(--shadow);
+    transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .primary-btn:hover { filter: brightness(1.06); }
+  .primary-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+    filter: brightness(0.96);
+  }
+  .primary-btn:disabled {
+    box-shadow: none; filter: none; transform: none; cursor: not-allowed;
+  }
+  /* Anything focused by keyboard or switch control gets a visible ring. */
+  button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
   }
   .primary-btn:disabled { background: var(--border); color: var(--text-faint); cursor: not-allowed; }
   .error-msg { color: #FF8478; font-size: 12.5px; margin-top: 8px; }
@@ -281,7 +411,7 @@
     padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--panel2);
     color: var(--text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer;
   }
-  .skill-chip.selected { border-color: var(--blue); background: #1B2A38; color: #8FC6F0; }
+  .skill-chip.selected { border-color: var(--blue); background: var(--info-bg); color: var(--info-ink); }
   .photo-upload-box {
     width: 100%; aspect-ratio: 1; border-radius: 14px; border: 2px dashed var(--border);
     display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
@@ -290,7 +420,7 @@
   .photo-upload-box img { width: 100%; height: 100%; object-fit: cover; }
   .photo-upload-hint { color: var(--text-faint); font-size: 12px; text-align: center; padding: 20px; }
   .save-confirm {
-    background: #12271D; border: 1px solid var(--green); color: #7FE0AC; border-radius: 12px;
+    background: var(--good-bg); border: 1px solid var(--green); color: var(--good-ink); border-radius: 12px;
     padding: 12px 14px; margin-top: 14px; font-size: 13px; font-weight: 700; text-align: center;
   }
   /* ID Card */
@@ -387,7 +517,7 @@
     font-size: 11px; font-weight: 800; text-transform: uppercase;
     letter-spacing: 0.6px; margin-bottom: 5px;
   }
-  .camera-notice strong { color: #FFE9C2; }
+  .camera-notice strong { color: var(--warn-strong); }
 
   /* Direct deposit — an action, so it gets the blue call-to-action treatment
      rather than the amber used for warnings. */
@@ -427,7 +557,7 @@
     text-transform: uppercase; letter-spacing: 0.7px; margin: 0 0 6px;
   }
   .cab-warn {
-    background: #1F1810; border: 1px solid var(--amber); color: #FFD699;
+    background: var(--warn-bg); border: 1px solid var(--amber); color: var(--warn-ink);
     border-radius: 10px; padding: 10px 13px; margin-bottom: 12px;
     font-size: 12.5px; font-weight: 700;
   }
@@ -435,7 +565,7 @@
   .cab-num-seal { font-size: 15px; min-width: 58px; letter-spacing: -0.2px; }
 
   .cab-alert {
-    background: #2A1512; border: 1px solid var(--red); color: #F2B8B1;
+    background: var(--bad-bg); border: 1px solid var(--red); color: var(--bad-ink);
     border-radius: 10px; padding: 11px 14px; margin-bottom: 12px;
     font-size: 13px; font-weight: 800;
   }
@@ -445,6 +575,12 @@
     border-left: 5px solid var(--border);
     border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
   }
+  /* The coloured band on the reel, reproduced. Reading a band is faster than
+     reading a number in bad light, which is why the cables ship with them. */
+  .cab-band {
+    flex: 0 0 auto; width: 14px; align-self: stretch; min-height: 46px;
+    border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,0.22);
+  }
   .cab-num {
     flex: 0 0 auto; min-width: 42px; text-align: center;
     font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums;
@@ -452,6 +588,7 @@
   .cab-main { flex: 1; min-width: 0; }
   .cab-label { font-size: 14px; font-weight: 700; }
   .cab-state { font-size: 12px; font-weight: 800; margin-top: 2px; }
+  .cab-use { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
   .cab-note { font-size: 12px; color: var(--amber); margin-top: 3px; }
   .cab-by { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
 
@@ -459,9 +596,9 @@
   .cab-good   .cab-state { color: var(--green); }
   .cab-repair { border-left-color: var(--amber); }
   .cab-repair .cab-state { color: var(--amber); }
-  .cab-bad    { border-left-color: var(--red); background: #2A1512; }
-  .cab-bad    .cab-state { color: #F2B8B1; }
-  .cab-bad    .cab-num { color: #F2B8B1; }
+  .cab-bad    { border-left-color: var(--red); background: var(--bad-bg); }
+  .cab-bad    .cab-state { color: var(--bad-ink); }
+  .cab-bad    .cab-num { color: var(--bad-ink); }
 
   .cab-btn {
     display: block; width: 100%; margin-top: 10px; padding: 14px 0;
@@ -471,6 +608,58 @@
   .cab-btn-good { background: var(--green); }
   .cab-btn-bad { background: var(--red); }
   .cab-btn-repair { background: var(--amber); color: #1A1205; }
+
+  /* Appearance sheet. Deliberately outside #app so the zoom scale doesn't
+     apply to it — the control you shrink text with shouldn't shrink too. */
+  .ap-card { max-width: 380px; margin: auto; }
+  .ap-label {
+    font-size: 11px; font-weight: 800; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.7px; margin: 16px 0 8px;
+  }
+  .ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ap-row { display: flex; gap: 8px; align-items: center; }
+  .ap-wrap { flex-wrap: wrap; }
+  .ap-theme {
+    display: flex; align-items: center; gap: 9px; text-align: left;
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 11px; padding: 9px 10px; font-size: 13px; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+  }
+  .ap-theme.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .ap-swatch {
+    width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; border: 1px solid var(--border);
+  }
+  .ap-dot {
+    width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; padding: 0; box-shadow: 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .ap-dot.on { border-color: var(--text); }
+  .ap-chip {
+    flex: 1; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 11px 8px;
+    font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+  .ap-chip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .ap-size { font-family: inherit; }
+  .ap-preview {
+    margin-top: 18px; background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .ap-prev-title {
+    font-size: 10px; font-weight: 800; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px;
+  }
+  .ap-prev-row { display: flex; align-items: baseline; gap: 10px; font-family: var(--font); }
+  .ap-prev-row span { flex: 0 0 78px; font-size: 12px; color: var(--text-muted); font-weight: 700; }
+  .ap-prev-row b { flex: 1; font-size: 13px; }
+  .ap-prev-row i { font-size: 12px; color: var(--text-muted); font-style: normal; font-weight: 800; }
+
+  /* The logo is white artwork. On a light background it disappears, so it
+     gets inverted there rather than shipping a second image. */
+  html[data-theme="light"] .brand-logo,
+  html[data-theme="mono-light"] .brand-logo { filter: invert(1) brightness(0.75); }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
@@ -482,7 +671,7 @@
      screen; everything already called is dimmed so the eye lands forward. */
   .ros-btn {
     width: 100%; margin-top: 10px; padding: 12px 0; border-radius: 10px;
-    border: 1px solid var(--blue); background: #1B2A38; color: #8FC6F0;
+    border: 1px solid var(--blue); background: var(--info-bg); color: var(--info-ink);
     font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer;
   }
   /* Full screen — hide the app's own chrome so the cue list gets the page.
@@ -526,7 +715,7 @@
     height: auto; background: transparent; margin: 8px 0 12px;
     display: flex; align-items: center; gap: 9px;
     border: 1px solid var(--amber); border-radius: 9px;
-    background: #1F1810; padding: 9px 12px;
+    background: var(--warn-bg); padding: 9px 12px;
   }
   .ros-standby-tag {
     flex: 0 0 auto; background: var(--amber); color: #1A1205;
@@ -534,7 +723,7 @@
     padding: 3px 8px; border-radius: 4px;
   }
   .ros-standby-next {
-    flex: 1; min-width: 0; color: #FFD699; font-size: 13.5px; font-weight: 700;
+    flex: 1; min-width: 0; color: var(--warn-ink); font-size: 13.5px; font-weight: 700;
     line-height: 1.3;
   }
 
@@ -545,7 +734,7 @@
   body.ros-driving .ros-cue { cursor: pointer; }
   .ros-done { opacity: 0.4; }
   .ros-now {
-    background: #14212C; border-color: var(--blue);
+    background: var(--info-bg); border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--blue);
   }
   .ros-nowtag {
@@ -668,6 +857,13 @@
     border-radius: 14px; padding: 9px 10px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.45);
   }
+  .shift-btn, .cab-btn, .ghost-pill, .ros-nav, .ros-btn, .tab-btn {
+    transition: transform .06s ease, filter .12s ease;
+  }
+  .shift-btn:active, .cab-btn:active, .ghost-pill:active,
+  .ros-nav:active, .ros-btn:active { transform: translateY(1px); filter: brightness(0.96); }
+  .cab-btn { box-shadow: var(--shadow); }
+
   .ros-nav {
     flex: 1; padding: 14px 0; border-radius: 10px; border: 1px solid var(--border);
     background: var(--panel); color: var(--text); font-size: 15px; font-weight: 800;
@@ -1026,7 +1222,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-08-27 · v20 · gear check · call times v1";
+const APP_BUILD = "build 2026-08-27 · v22 · appearance · call times v1";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1056,6 +1252,7 @@ function renderMainApp() {
   const adminMenuOpen = mainState.adminMenuOpen && admin;
 
   root.innerHTML = `
+    <button class="logout-btn" id="appearanceBtn" style="margin-right:8px;" title="Appearance">Aa</button>
     <button class="logout-btn" id="logoutBtn">Log Out</button>
     <button class="logout-btn" id="notifBtn" style="margin-right:8px;">🔔 Notifications</button>
     <div style="clear:both"></div>
@@ -1088,6 +1285,8 @@ function renderMainApp() {
       ${escapeHtml(APP_BUILD)}
     </div>
   `;
+  const apBtn = document.getElementById("appearanceBtn");
+  if (apBtn) apBtn.onclick = openAppearance;
   document.getElementById("logoutBtn").onclick = () => auth.signOut();
   db.ref(`profiles/${currentUser.uid}`).once("value")
     .then((s) => { const p = s.val(); if (p) renderConfirmCard(p); })
@@ -3218,13 +3417,33 @@ const CABLE_STATE = {
 };
 
 // Seeds the list the first time, from the runs the football package calls for.
+// The runs, as they actually pair up with cameras.
+//
+// Blue is the only one not on a reel — Camera 1 sits in the press box opening
+// and the run is 10 ft, so a reel would be in the way rather than useful.
 const CABLE_SEED = [
-  { id: "01", label: "SMPTE 10 ft" },
-  { id: "02", label: "SMPTE 100 ft" },
-  { id: "03", label: "SMPTE 100 ft" },
-  { id: "04", label: "SMPTE 200 ft" },
-  { id: "05", label: "SMPTE 100 ft (spare)" },
+  { id: "blu-10",   label: "10 ft",  colour: "Blue",   use: "Camera 1 — no reel" },
+  { id: "red-100",  label: "100 ft", colour: "Red",    use: "Camera 2" },
+  { id: "grn-100",  label: "100 ft", colour: "Green",  use: "Camera 3" },
+  { id: "yel-365",  label: "365 ft", colour: "Yellow", use: "Camera 4" },
+  { id: "red-100b", label: "100 ft", colour: "Red",    use: "Camera 2 backup" },
+  { id: "grn-100b", label: "100 ft", colour: "Green",  use: "Camera 3 backup" },
+  { id: "spr-100",  label: "100 ft", colour: "Spare",  use: "Spare" },
+  { id: "ext-1",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
+  { id: "ext-2",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
+  { id: "ext-3",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
+  { id: "ext-4",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
+  { id: "ext-5",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
 ];
+
+// Same palette as the tally, the roster and the maps.
+const CABLE_BAND = {
+  "Blue":   "#4A8FC0",
+  "Red":    "#D65A4E",
+  "Green":  "#33A870",
+  "Yellow": "#E6CE3A",
+  "Spare":  "#8A96A3",
+};
 
 // ---- Case seals -------------------------------------------------------------
 // Camera Lead zip-ties each case after the quality check and records the tie
@@ -3333,6 +3552,145 @@ function openCaseSheet(id, c) {
   });
 }
 
+// ============================================================================
+// Appearance
+// ============================================================================
+// Stored in localStorage rather than the crew profile on purpose: it's a
+// property of the device and the eyes using it, not the person. Someone
+// borrowing the booth iPad shouldn't inherit whoever last signed in.
+const APPEARANCE_KEY = "advAppearance";
+
+const THEMES = [
+  { id: "",           label: "Dark",       swatch: "#0A0D12", ink: "#EDEFF3" },
+  { id: "light",      label: "Light",      swatch: "#F4F6F8", ink: "#131A21" },
+  { id: "mono",       label: "Mono dark",  swatch: "#0B0B0C", ink: "#F2F2F3" },
+  { id: "mono-light", label: "Mono light", swatch: "#F5F5F6", ink: "#16161A" },
+];
+const ACCENTS = [
+  { id: "",       label: "Blue",   hex: "#4A8FC0" },
+  { id: "teal",   label: "Teal",   hex: "#2FA39B" },
+  { id: "violet", label: "Violet", hex: "#8B72D9" },
+  { id: "green",  label: "Green",  hex: "#2E9E63" },
+  { id: "amber",  label: "Amber",  hex: "#D2892B" },
+  { id: "slate",  label: "Slate",  hex: "#6B7A89" },
+];
+const FONTS = [
+  { id: "",        label: "System",  css: '-apple-system, "Segoe UI", Roboto, sans-serif' },
+  { id: "rounded", label: "Rounded", css: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif' },
+  { id: "serif",   label: "Serif",   css: 'Georgia, "Times New Roman", serif' },
+  { id: "mono",    label: "Mono",    css: 'ui-monospace, Menlo, Consolas, monospace' },
+];
+const SIZES = [
+  { id: "s",  label: "S" },
+  { id: "",   label: "M" },
+  { id: "l",  label: "L" },
+  { id: "xl", label: "XL" },
+];
+
+function loadAppearance() {
+  try { return JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}"); }
+  catch (e) { return {}; }
+}
+
+function applyAppearance(a) {
+  const r = document.documentElement;
+  const set = (attr, val) => val ? r.setAttribute(attr, val) : r.removeAttribute(attr);
+  set("data-theme", a.theme);
+  set("data-accent", a.accent);
+  set("data-font", a.font);
+  set("data-fs", a.fs);
+  // Keeps the phone's status bar in step with the page.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute("content",
+      getComputedStyle(r).getPropertyValue("--bg").trim() || "#0A0D12");
+  }
+  try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(a)); }
+  catch (e) { /* private mode — it just won't persist */ }
+}
+
+function openAppearance() {
+  let a = loadAppearance();
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+
+  const draw = () => {
+    overlay.innerHTML = `
+      <div class="modal-card ap-card">
+        <div class="modal-title">Appearance</div>
+        <div class="footnote" style="margin:0 0 16px;">
+          Applies to this device only, and sticks between visits.
+        </div>
+
+        <div class="ap-label">Theme</div>
+        <div class="ap-grid">
+          ${THEMES.map((t) => `
+            <button class="ap-theme ${(a.theme || "") === t.id ? "on" : ""}" data-theme="${t.id}">
+              <span class="ap-swatch" style="background:${t.swatch}; color:${t.ink}">Aa</span>
+              ${escapeHtml(t.label)}
+            </button>`).join("")}
+        </div>
+
+        <div class="ap-label">Accent</div>
+        <div class="ap-row">
+          ${ACCENTS.map((c) => `
+            <button class="ap-dot ${(a.accent || "") === c.id ? "on" : ""}"
+              data-accent="${c.id}" title="${escapeAttr(c.label)}"
+              style="background:${c.hex}"></button>`).join("")}
+        </div>
+
+        <div class="ap-label">Font</div>
+        <div class="ap-row ap-wrap">
+          ${FONTS.map((f) => `
+            <button class="ap-chip ${(a.font || "") === f.id ? "on" : ""}"
+              data-font="${f.id}" style="font-family:${f.css}">${escapeHtml(f.label)}</button>`).join("")}
+        </div>
+
+        <div class="ap-label">Text size</div>
+        <div class="ap-row">
+          ${SIZES.map((z) => `
+            <button class="ap-chip ap-size ${(a.fs || "") === z.id ? "on" : ""}"
+              data-fs="${z.id}">${escapeHtml(z.label)}</button>`).join("")}
+        </div>
+
+        <div class="ap-preview">
+          <div class="ap-prev-title">Preview</div>
+          <div class="ap-prev-row"><span>Camera 3</span><b>Patrick (Pat)</b><i>4:00 PM</i></div>
+          <button class="primary-btn" style="margin-top:10px;" disabled>Sample button</button>
+        </div>
+
+        <button class="shift-btn shift-btn-ghost" id="apReset"
+          style="width:100%; margin-top:14px; padding:11px 0;">Reset to default</button>
+        <button class="primary-btn" id="apDone" style="margin-top:10px;">Done</button>
+      </div>`;
+
+    overlay.querySelectorAll("[data-theme]").forEach((el) => {
+      el.onclick = () => { a.theme = el.dataset.theme; applyAppearance(a); draw(); };
+    });
+    overlay.querySelectorAll("[data-accent]").forEach((el) => {
+      el.onclick = () => { a.accent = el.dataset.accent; applyAppearance(a); draw(); };
+    });
+    overlay.querySelectorAll("[data-font]").forEach((el) => {
+      el.onclick = () => { a.font = el.dataset.font; applyAppearance(a); draw(); };
+    });
+    overlay.querySelectorAll("[data-fs]").forEach((el) => {
+      el.onclick = () => { a.fs = el.dataset.fs; applyAppearance(a); draw(); };
+    });
+    overlay.querySelector("#apReset").onclick = () => { a = {}; applyAppearance(a); draw(); };
+    overlay.querySelector("#apDone").onclick = close;
+  };
+
+  function close() { overlay.remove(); document.body.style.overflow = ""; }
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  draw();
+}
+
 async function renderCablesView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading cables…</div>`;
@@ -3352,7 +3710,7 @@ async function renderCablesView() {
     const v = snap.val();
     if (!v && isAdmin()) {
       const seed = {};
-      CABLE_SEED.forEach((c) => { seed[c.id] = { label: c.label, status: "good" }; });
+      CABLE_SEED.forEach((c) => { seed[c.id] = { label: c.label, colour: c.colour, use: c.use || null, status: "good" }; });
       db.ref("cables").set(seed).catch(() => {});
       return;
     }
@@ -3395,17 +3753,22 @@ function renderCablesHtml(cables) {
   // Bad first. Someone opening this at 5pm needs the problems, not the list.
   const rows = Object.entries(cables)
     .map(([id, c]) => ({ id, ...c, status: c.status || "good" }))
-    .sort((a, b) => (CABLE_STATE[a.status] || CABLE_STATE.good).rank -
-                    (CABLE_STATE[b.status] || CABLE_STATE.good).rank ||
-                    a.id.localeCompare(b.id));
+    .sort((a, b) => {
+      const rank = (x) => (CABLE_STATE[x.status] || CABLE_STATE.good).rank;
+      const band = (x) => {
+        const i = ["Blue", "Red", "Green", "Yellow", "Spare"].indexOf(x.colour);
+        return i < 0 ? 99 : i;
+      };
+      return rank(a) - rank(b) || band(a) - band(b) || a.id.localeCompare(b.id);
+    });
 
   const bad = rows.filter((r) => r.status !== "good").length;
 
   return `
     <div class="gear-head" style="margin-top:26px;">Cables</div>
     <div class="footnote" style="margin-bottom:10px;">
-      Every cable has a number taped on both ends. Tap one to change its status.
-      Everyone sees it straight away.
+      Every reel has a coloured band matching its camera. Tap one to change its
+      status. Everyone sees it straight away.
     </div>
     ${bad ? `<div class="cab-alert">${bad} cable${bad === 1 ? "" : "s"} not in service — do not use ${bad === 1 ? "it" : "them"}</div>` : ""}
     ${rows.length === 0 ? `<div class="footnote">No cables yet.${admin ? " Add one below." : ""}</div>` : ""}
@@ -3413,9 +3776,10 @@ function renderCablesHtml(cables) {
       const st = CABLE_STATE[r.status] || CABLE_STATE.good;
       return `
       <div class="cab-row ${st.cls}" data-cab="${escapeAttr(r.id)}">
-        <div class="cab-num">${escapeHtml(r.id)}</div>
+        <div class="cab-band" style="background:${CABLE_BAND[r.colour] || "#8A96A3"}"></div>
         <div class="cab-main">
-          <div class="cab-label">${escapeHtml(r.label || "SMPTE")}</div>
+          <div class="cab-label">${escapeHtml(r.colour || "")} ${escapeHtml(r.label || "SMPTE")}</div>
+          ${r.use ? `<div class="cab-use">${escapeHtml(r.use)}</div>` : ""}
           <div class="cab-state">${escapeHtml(st.label)}</div>
           ${r.note ? `<div class="cab-note">${escapeHtml(r.note)}</div>` : ""}
           ${r.by ? `<div class="cab-by">${escapeHtml(r.by)}${r.at ? " · " + escapeHtml(shortWhen(r.at)) : ""}</div>` : ""}
@@ -3479,14 +3843,16 @@ function openCableSheet(id, cable) {
 }
 
 async function addCable() {
-  const id = prompt("Cable number, as taped on the barrels (e.g. 06)");
+  const id = prompt("Short id for this cable (e.g. blu-100)");
   if (id === null) return;
   const key = id.trim();
   if (!key) return;
   if (/[.#$/\[\]]/.test(key)) { alert("No . # $ / [ ] in a cable number."); return; }
-  const label = prompt("What is it? (e.g. SMPTE 100 ft)") || "SMPTE";
+  const label = prompt("Length? (e.g. 100 ft)") || "SMPTE";
+  const colour = prompt("Band colour? Blue, Red, Green, Yellow or Spare") || "Spare";
   try {
-    await db.ref(`cables/${key}`).update({ label: label.trim(), status: "good" });
+    await db.ref(`cables/${key}`).update({
+      label: label.trim(), colour: colour.trim(), status: "good" });
   } catch (e) {
     alert("Couldn't add that: " + (e.message || "unknown error")
       + "\n\nIf this says permission denied, the database rules need a \"cables\" section.");

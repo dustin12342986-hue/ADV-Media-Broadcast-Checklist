@@ -68,9 +68,12 @@ WHAT'S IN A KIT
 - LEMO/SMPTE alignment tool
 - Fiber inspection scope
 
-THERE IS A VIDEO. If someone is cleaning a connector for the first time, point them
-at the SMPTE / LEMO cleaning video in the video library — the plug and socket differ and
-it's easier to watch once than to read.
+THERE ARE VIDEOS for all of this in the video library — cleaning a connector,
+connecting and disconnecting, over-under coiling, and URSA menu setup. Point people at
+the right one rather than walking them through a physical procedure in text.
+
+COILING: every run gets coiled OVER-UNDER. Coiling the same direction every loop builds
+twist into the jacket; twist is what kinks a run and eventually breaks the fibre.
 
 CLEANING A SOCKET (PUW, EDW, PEW, PBW style — the receptacle end)
 1. Gently remove the first/front cap to expose the fibers.
@@ -129,6 +132,23 @@ SAFETY
 Never look into the end of a fiber or into a socket that may be live. The
 light is invisible and can damage your eye. Check with a scope or a power
 meter, not with your eye.
+
+--------------------------------------------------
+ADV RUNS AT THE CISD STADIUM
+--------------------------------------------------
+Blue   Camera 1  10 ft, press box opening. The only run NOT on a reel.
+Red    Camera 2  100 ft to the north end zone JBT (about 75 ft away).
+                 NOTE: while the north end zone JBT is out of service, Camera 2
+                 runs 200 ft the long way to the VISITOR SIDE JBT instead. A new
+                 box is on order. Ask which run is in use before answering.
+Green  Camera 3  100 ft, up from the JBT into VIP.
+Yellow Camera 4  365 ft on a reel, home sideline — the sideline camera moves.
+
+Red and Green each have a second 100 ft as a backup. There is one further 100 ft
+spare, and five 98 ft runs kept for special events and extensions.
+
+Every reel carries a coloured band matching its camera. The band is the identity;
+crew read the band, not a number.
 
 --------------------------------------------------
 SMPTE TROUBLESHOOTING, IN ORDER
@@ -207,10 +227,21 @@ CAMERA CONTROL / CCU
 - Control rides on the PROGRAM RETURN feed. If the return feed to the camera
   isn't connected, control won't work even though the camera's output looks
   perfect at the switcher.
+- FIRMWARE: update cameras, both converters and the switcher TOGETHER, in the shop,
+  never on a show day. There is a firmware video in the library.
 - Mismatched firmware between camera, converters and switcher causes control
   and tally faults that look like hardware failures. Blackmagic Camera Setup /
   Camera Utility handles updates. Update the whole chain together.
 - Tally not lighting: same chain as control — ID number, return feed, firmware.
+- ONE CAMERA LOOKS FLAT OR WASHED OUT next to the others: check the monitoring LUT
+  before shading. It is usually a LUT setting rather than the camera. There is a LUT
+  video in the library.
+- CAMERAS DON'T MATCH: that's a shading/calibration job, not a fault. There is a
+  calibration video and a shading video in the library. Four cameras that don't match
+  is visible on every cut, so it is worth doing properly at build rather than chasing
+  during the show.
+- Note on the shading video: Blackmagic label it LEGACY. The workflow is still correct
+  but menu paths may have moved in current firmware — say so when offering it.
 
 --------------------------------------------------
 ANSWERING RULES FOR THIS SECTION

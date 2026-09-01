@@ -1,0 +1,132 @@
+{
+  "rules": {
+    "profiles": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "publicProfiles": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "checklists": {
+      ".read": true,
+      ".write": true
+    },
+    "help": {
+      ".read": true,
+      ".write": true
+    },
+    "clock": {
+      ".read": true,
+      ".write": true
+    },
+    "invoices": {
+      ".read": true,
+      ".write": true
+    },
+    "liveRoster": {
+      ".read": true,
+      ".write": true
+    },
+    "shiftLog": {
+      ".read": true,
+      ".write": true
+    },
+    "equipmentInventory": {
+      ".read": true,
+      ".write": true
+    },
+    "equipmentCheckouts": {
+      ".read": true,
+      ".write": true
+    },
+    "equipmentRequests": {
+      ".read": true,
+      ".write": true
+    },
+    "equipmentLog": {
+      ".read": true,
+      ".write": true
+    },
+    "clockLocations": {
+      ".write": true,
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "clockArchive": {
+      ".write": true,
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "invoiceArchive": {
+      ".write": true,
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "approvedUsers": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+      }
+    },
+    "pendingApprovals": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+      }
+    },
+    "qbApprovals": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "confirmations": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      ".write": "auth != null"
+    },
+    "equipmentReports": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      ".write": "auth != null"
+    },
+    "pushSubscriptions": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "laborRequests": {
+      ".read": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "clientEvents": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "gameSettings": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "runOfShow": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "showSettings": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+    },
+    "cables": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "cases": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}
