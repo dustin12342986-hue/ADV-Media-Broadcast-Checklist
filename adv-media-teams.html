@@ -154,14 +154,28 @@
 // program, on a phone, in a dark booth, is a bad thing to leave unlabelled —
 // "remember to turn it off" is the kind of rule that fails on the one night it
 // matters.
-const MONITOR_DEMO = true;
+  // Real feed is live, so the demo is off. It stays in the code because it is
+  // useful when a feed is down and you need to see the layout.
+  const MONITOR_DEMO = false;
   // Cloudflare Worker route fed by tricaster-bridge.js on the bridge PC:
   const TRICASTER_STATE_URL = "";
   // HLS feeds from MediaMTX (use the Cloudflare Tunnel URLs so they work
   // over HTTPS from anywhere). Leave one blank to hide its toggle button.
+  // Live 1 Sep 2026. TriCaster pushes RTMP to MediaMTX on the XPression PC
+  // (10.248.210.57:1935/program); MediaMTX serves HLS on :8888; a Cloudflare
+  // Tunnel puts HTTPS in front of it.
+  //
+  // HTTPS is not optional here — this app is served over HTTPS from GitHub
+  // Pages, and a browser refuses to load a plain HTTP video into an HTTPS
+  // page. That is the whole reason the tunnel exists.
+  //
+  // WARNING: this is a QUICK tunnel. The address changes every time
+  // cloudflared restarts, and Cloudflare gives no uptime guarantee for them.
+  // Before relying on it for a show, make a named tunnel on a Cloudflare
+  // account so the address is permanent, and update this line.
   const MONITOR_FEEDS = {
-    program:   "",   // e.g. https://your-tunnel/program/index.m3u8
-    multiview: "",   // e.g. https://your-tunnel/multiview/index.m3u8
+    program:   "https://assembly-brian-workout-momentum.trycloudflare.com/program/index.m3u8",
+    multiview: "",   // second TriCaster output or an NDI relay, not set up yet
   };
 </script>
 
@@ -1367,7 +1381,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v40 · audio via checklist only";
+const APP_BUILD = "build 2026-09-01 · v41 · live program feed";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
