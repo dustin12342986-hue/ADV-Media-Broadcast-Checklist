@@ -1381,7 +1381,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v41 · live program feed";
+const APP_BUILD = "build 2026-09-01 · v42 · monitor playback fix";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -5662,14 +5662,34 @@ function rosMonRestartVideo() {
 
   const url = MONITOR_FEEDS[rosMonFeed];
   if (!url) return;
+  // The demo path called play() and the live path did not, so a real feed
+  // loaded and then sat there showing black. autoplay on the element is not
+  // enough once a source is swapped in by script.
+  const kick = () => {
+    const p = video.play();
+    if (p && p.catch) {
+      p.catch(() => {
+        // Autoplay blocked. The video is loaded and fine — it just needs a
+        // tap, so say that rather than leaving a black rectangle.
+        if (note) note.textContent = "Tap the picture to start the feed.";
+        video.setAttribute("controls", "");
+        video.onclick = () => video.play().catch(() => {});
+      });
+    }
+  };
+
   const start = () => {
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
+      video.load();
+      video.addEventListener("loadedmetadata", kick, { once: true });
+      kick();
       if (note) note.textContent = "Monitor feed connected.";
     } else if (window.Hls && window.Hls.isSupported()) {
       rosMonHls = new window.Hls({ liveSyncDurationCount: 2 });
       rosMonHls.loadSource(url);
       rosMonHls.attachMedia(video);
+      rosMonHls.on(window.Hls.Events.MANIFEST_PARSED, kick);
       rosMonHls.on(window.Hls.Events.ERROR, (_, d) => {
         if (d.fatal && note) note.textContent = "Monitor feed not reachable from this network.";
       });
