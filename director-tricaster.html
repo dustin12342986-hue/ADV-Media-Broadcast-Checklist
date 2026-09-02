@@ -87,6 +87,12 @@
 
   .cap { font-size:12.5px; color:var(--text-faint); margin:2px 0 18px; font-style:italic; }
 
+  .lp-link {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    text-decoration: none; border-radius: 11px; padding: 13px 26px;
+    font-size: 15px; font-weight: 800;
+  }
+
   .footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--border);
     text-align:center; color:var(--text-faint); font-size:12px; font-style:italic; }
 </style>
@@ -113,6 +119,7 @@
     <a href="#ftb">FTB and getting out of trouble</a>
     <a href="#ours">Our setup</a>
     <a href="#videos">Videos</a>
+    <a href="#livepanel">LivePanel on the TriCaster</a>
     <a href="#manual">The actual manual</a>
   </div>
 
@@ -305,20 +312,46 @@
     reaches Discord and how extra feeds get out without spending an encoder.
   </p>
 
+  <h2 id="livepanel">LivePanel on the TriCaster</h2>
+  <p>
+    The TriCaster serves its own web page on the stadium network. Open it from any phone,
+    tablet or office machine on site. It carries the built-in <strong>training and
+    documentation for the exact software version installed</strong> — under Resources —
+    which is more reliable than anything on the open web.
+  </p>
+  <p style="text-align:center; margin:16px 0;">
+    <a class="lp-link" href="http://10.248.210.55/" target="_blank" rel="noopener">
+      Open LivePanel</a>
+  </p>
+  <div class="callout warn">
+    <strong>LivePanel is control, not viewing.</strong> It can switch sources, change
+    audio and fire macros on a live switcher. Read the training in it whenever you like;
+    do not touch Switcher or Audiomixer during a show unless you are the one directing.
+  </div>
+  <ul class="check">
+    <li>Only works on the stadium network. It will not open from home.</li>
+    <li>If it does not load, the TriCaster's address may have changed — it is assigned by
+      the district and is not guaranteed to stay the same.</li>
+  </ul>
+
   <h2 id="manual">The actual manual</h2>
   <p>
-    When this page does not answer it, the manufacturer's guide will. It is long, and the
-    contents page is the fastest way in — Chapter 9 covers the switcher, transitions and
-    overlays.
+    When this page does not answer it, the manufacturer's guide will. It covers our exact
+    machine — TriCaster 1 Pro and 2 Elite. <strong>Chapter 9</strong> is the switcher,
+    transitions and overlays. <strong>Appendix E</strong> lists every keyboard shortcut.
   </p>
   <ul class="check">
     <li><a href="https://downloads.newtek.com/LiveProductionSystems/TC2Elite/TC2.pdf"
-           target="_blank" rel="noopener">TriCaster Elite &amp; Pro user guide (PDF)</a></li>
-    <li><a href="https://support.newtek.com/hc/en-us/articles/222170947-MAIN-CONTROLS"
-           target="_blank" rel="noopener">Main controls and transition delegates</a></li>
-    <li><a href="https://support.newtek.com/hc/en-us/articles/222751647-Performing-Transitions"
-           target="_blank" rel="noopener">Performing transitions</a></li>
+           target="_blank" rel="noopener">TriCaster Elite &amp; Pro user guide (PDF)</a>
+        — 300+ pages, but the contents page gets you straight there</li>
   </ul>
+  <div class="callout">
+    <strong>There is also training built into the machine.</strong> On the TriCaster,
+    open the Notifications pane, then Web Browser. That is where LivePanel lives, and
+    alongside it the video training and documentation for the exact software version
+    installed. It is more reliable than anything on the open web, because it matches the
+    build in front of you.
+  </div>
 
   <div class="footer">ADV Media Limited Company</div>
 </div>
