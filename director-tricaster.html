@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADV Media — Director · TriCaster</title>
+<meta name="theme-color" content="#4A8FC0" />
+<!-- Shared appearance. Must load before this page's own styles. -->
+<script src="adv-theme.js"></script>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 18px 80px; }
+
+  .banner { text-align:center; padding:36px 0 24px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+  .banner h1 { font-family:Georgia,serif; font-size:29px; margin:0; letter-spacing:-0.4px; }
+  .banner p { color:var(--text-muted); font-size:13.5px; margin:8px 0 0; }
+
+  .toc { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:26px; }
+  .toc-title { font-size:11.5px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px; }
+  .toc a { display:block; color:var(--blue); text-decoration:none; font-size:14px; padding:4px 0; font-weight:600; }
+
+  h2 { font-size:20px; margin:34px 0 6px; scroll-margin-top:16px; padding-top:20px; border-top:1px solid var(--border); }
+  h2:first-of-type { border-top:none; padding-top:0; }
+  p { font-size:14.5px; color:var(--text-muted); margin:8px 0; }
+  strong { color:var(--text); }
+
+  /* One card per camera position, banded in that camera's colour so the
+     card matches the tally and the roster. */
+  .pos { background:var(--panel); border:1px solid var(--border); border-left:5px solid var(--c);
+    border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .pos-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:2px; }
+  .pos-name { font-size:17px; font-weight:800; }
+  .pos-color { font-size:10px; font-weight:900; letter-spacing:1px; text-transform:uppercase;
+    color:var(--c); border:1px solid var(--c); border-radius:4px; padding:2px 7px; }
+  .pos-where { font-size:13px; color:var(--text-muted); margin-bottom:12px; }
+  .pos ul { margin:0; padding-left:20px; }
+  .pos li { font-size:14px; color:var(--text-muted); margin:5px 0; }
+  .pos li strong { color:var(--text); }
+  .run { display:inline-block; background:var(--panel2); border:1px solid var(--border);
+    border-radius:5px; padding:1px 7px; font-size:12.5px; font-weight:800;
+    font-family:ui-monospace,Menlo,monospace; color:var(--text); }
+
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); }
+  td { color:var(--text-muted); }
+  td:first-child { color:var(--text); font-weight:600; white-space:nowrap; width:1%; }
+
+  .callout { border-radius:12px; padding:14px 16px; margin:16px 0; font-size:14px;
+    background:var(--panel); border:1px solid var(--border); }
+  .callout.important { background:#1F1810; border-color:var(--amber); color:#FFD699; }
+  .callout.warn { background:#2A1512; border-color:var(--red); color:#F2B8B1; }
+  .callout.good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+  .callout strong { color:inherit; }
+
+  ol.steps { counter-reset:s; list-style:none; padding:0; margin:12px 0; }
+  ol.steps li { counter-increment:s; position:relative; padding:9px 0 9px 40px;
+    font-size:14.5px; color:var(--text-muted); border-bottom:1px solid var(--border); }
+  ol.steps li::before { content:counter(s); position:absolute; left:2px; top:8px;
+    width:26px; height:26px; border-radius:50%; background:var(--red); color:#fff;
+    font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  ol.steps li strong { color:var(--text); }
+  h3 { font-size:16px; margin:22px 0 4px; }
+
+  .check { list-style:none; padding:0; margin:12px 0; }
+  .check li { position:relative; padding:8px 0 8px 30px; font-size:14.5px;
+    border-bottom:1px solid var(--border); color:var(--text-muted); }
+  .check li::before { content:"☐"; position:absolute; left:4px; top:7px; font-size:16px; color:var(--text-faint); }
+  .check li strong { color:var(--text); }
+
+  .flag { background:#1F1810; border:1px solid var(--amber); color:#FFD699;
+    border-radius:6px; padding:1px 7px; font-size:11px; font-weight:800; letter-spacing:0.4px; }
+
+  .map {
+    display:block; width:100%; height:auto; border-radius:12px;
+    border:1px solid var(--border); margin:14px 0 6px; background:#000;
+  }
+  video.map { aspect-ratio:1/1; object-fit:cover; }
+  .cap a { color:var(--blue); }
+
+  /* 16:9 wrapper so the embed scales on a phone instead of overflowing. */
+  .vid { position:relative; width:100%; padding-top:56.25%; margin:14px 0 6px;
+    border-radius:12px; overflow:hidden; border:1px solid var(--border); background:#000; }
+  .vid iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+
+  .cap { font-size:12.5px; color:var(--text-faint); margin:2px 0 18px; font-style:italic; }
+
+  .footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--border);
+    text-align:center; color:var(--text-faint); font-size:12px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header-row">
+    <img class="brand-logo" src="adv-logo.png" alt="" onerror="this.style.display='none'">
+    <div>
+      <h1>Director</h1>
+      <p>TriCaster · CISD Multi-Purpose Stadium</p>
+    </div>
+  </div>
+
+  <div class="toc">
+    <a href="#first">Before you touch anything</a>
+    <a href="#rows">The two rows</a>
+    <a href="#take">Take, Auto and the T-bar</a>
+    <a href="#dsk">DSK layers</a>
+    <a href="#delegate">Delegates — the one that catches people</a>
+    <a href="#me">M/E buses</a>
+    <a href="#media">DDR and media players</a>
+    <a href="#macros">Macros</a>
+    <a href="#ftb">FTB and getting out of trouble</a>
+    <a href="#ours">Our setup</a>
+    <a href="#videos">Videos</a>
+    <a href="#manual">The actual manual</a>
+  </div>
+
+  <h2 id="first">Before you touch anything</h2>
+  <div class="callout important">
+    <strong>All four cameras have to be up on the CCUs or the switcher will not come
+    up at all.</strong> This rig has no partial failure — it is a whole show or nothing.
+    One bad cable takes everything. Check the signal-up gate on the Today tab before
+    doors, not at kickoff.
+  </div>
+  <p>
+    The switcher is the last thing in the chain. If a camera is missing here, the problem
+    is almost never the switcher — it is a cable, a converter, or a camera that has not
+    been brought up. Say what is missing on comms rather than hunting through menus.
+  </p>
+
+  <h2 id="rows">The two rows</h2>
+  <p>
+    Two rows of buttons run the show. <strong>Program</strong> is what is going out right
+    now. <strong>Preview</strong> is what goes out next. You set up on Preview and then
+    move it to Program.
+  </p>
+  <ul class="check">
+    <li><strong>Program (top row)</strong> — live. Pressing a button here cuts straight to
+      air with no warning to anyone.</li>
+    <li><strong>Preview (second row)</strong> — safe. Nothing here is on air. Set your
+      next shot up and look at it before you take it.</li>
+  </ul>
+  <div class="callout">
+    <strong>Work on Preview.</strong> The habit that separates a calm show from a messy
+    one is never touching the Program row during a play. Preview, look, take.
+  </div>
+
+  <h2 id="take">Take, Auto and the T-bar</h2>
+  <ul class="check">
+    <li><strong>Take</strong> — a hard cut. Instant. This is most of football.</li>
+    <li><strong>Auto</strong> — runs the selected transition over its set duration.
+      Dissolves between wide shots, into replays, out of a video.</li>
+    <li><strong>T-bar</strong> — you drive the transition by hand. Useful when you want to
+      hold halfway or match a moment.</li>
+  </ul>
+  <p>
+    Cut on action, dissolve on a pause. During live play, cut. Between plays and into
+    graphics, dissolve. A dissolve mid-tackle looks like a mistake; a cut into a slow
+    stadium wide does too.
+  </p>
+
+  <h2 id="dsk">DSK layers</h2>
+  <p>
+    DSK stands for downstream key — a layer sitting on top of Program. Scorebug, lower
+    thirds, sponsor bugs. There are four, DSK 1 to DSK 4.
+  </p>
+  <ul class="check">
+    <li>Each DSK has its own <strong>Take</strong> and <strong>Auto</strong> so you can
+      bring a graphic on without touching the picture underneath.</li>
+    <li>DSKs sit downstream of everything, so they stay up through a camera cut. That is
+      the point of them.</li>
+    <li>A progress bar under each DSK group shows whether that layer is on, off, or
+      mid-transition.</li>
+  </ul>
+
+  <h2 id="delegate">Delegates — the one that catches people</h2>
+  <div class="callout warn">
+    <strong>If Take or Auto seems to do the wrong thing, check your delegates first.</strong>
+    This is the single most common source of "the switcher is broken".
+  </div>
+  <p>
+    The main Take, Auto and T-bar act on whichever layers are <em>delegated</em> to them —
+    the background, or one or more DSKs, or several at once. Click a layer's monitor to
+    delegate it, or use the BKGD and DSK buttons in the Transition Delegate group on the
+    panel.
+  </p>
+  <p>
+    So if you press Auto and the camera does not change but a graphic disappears, the
+    T-bar was delegated to a DSK and not to the background. Nothing is wrong; it did
+    exactly what it was told.
+  </p>
+  <p>
+    Look Ahead Preview respects your delegate selection, so what you see is what the next
+    take will produce.
+  </p>
+
+  <h2 id="me">M/E buses</h2>
+  <p>
+    An M/E is a small switcher inside the switcher. Build a shot there — a split screen, a
+    picture in picture, a camera with an effect — and then select that whole M/E as a
+    single source on Program or Preview.
+  </p>
+  <p>
+    This machine has four M/E rows plus PREVIZ. PREVIZ lets you build and check a layout
+    without it being visible anywhere, which is the right place to prepare something
+    mid-show.
+  </p>
+
+  <h2 id="media">DDR and media players</h2>
+  <ul class="check">
+    <li><strong>DDR 1 and DDR 2</strong> — video playback. Hype videos, sponsor spots,
+      the Texas Way video, drone shots.</li>
+    <li><strong>GFX</strong> — graphics pages.</li>
+    <li>Media plays from the point the playhead is at. <strong>Reset it before doors</strong>
+      or the first roll starts halfway through.</li>
+    <li>A DDR can be set to stop or loop at the end. Getting this wrong is how a sponsor
+      spot plays twice.</li>
+  </ul>
+  <div class="callout">
+    Watch the countdown under the player. The run of show gives you the duration; the
+    countdown tells you the truth.
+  </div>
+
+  <h2 id="macros">Macros</h2>
+  <p>
+    A macro fires a sequence with one button — take a camera, bring up a DSK, roll a DDR,
+    all together. The panel has a <strong>HIT MACRO</strong> key.
+  </p>
+  <p>
+    Macros are worth building for anything you do the same way every week: the open, the
+    anthem, going to break. They remove the chance of doing step two before step one at
+    the moment you are being talked to on comms.
+  </p>
+
+  <h2 id="ftb">FTB and getting out of trouble</h2>
+  <ul class="check">
+    <li><strong>FTB</strong> — fade to black. The safe exit when something is wrong on air.
+      Use it rather than cutting around looking for a clean shot.</li>
+    <li><strong>Undo</strong> exists on the switcher and covers most accidental changes.</li>
+    <li>If a source shows black, check the camera and the cable before the switcher. See
+      the note at the top of this page.</li>
+  </ul>
+
+  <h2 id="ours">Our setup</h2>
+  <ul class="check">
+    <li>Four cameras plus a spare. Camera 1 blue, 2 red, 3 green, 4 yellow — the same
+      colours as the tally, the roster, the checklists and the stadium maps.</li>
+    <li><strong>XPN</strong> on the switcher is the XPression graphics machine.</li>
+    <li><strong>Encoder 1</strong> goes to YouTube. <strong>Encoder 2</strong> feeds the
+      stadium monitor that crew and offices watch on their phones.</li>
+    <li>The monitor feed carries whatever encoder 2 is pointed at, and its audio. Changing
+      that source changes what everyone sees.</li>
+  </ul>
+  <div class="callout important">
+    <strong>Camera names on the multiview are people, not positions.</strong> They go stale
+    the moment someone swaps. Naming them by position and colour instead would match every
+    other document in this system — worth doing before someone calls for a name that is not
+    there tonight.
+  </div>
+
+  <h2 id="videos">Videos</h2>
+  <p>
+    Three worth watching once, before your first show rather than during it. Every link
+    here has been opened and checked.
+  </p>
+
+  <h3>Switching basics — cuts, dissolves, graphics</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/PZK06o5BPn8"
+            title="The Switcher — Studio Basics, NewTek TriCaster Step-by-Step"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    A studio walkthrough of previewing and switching sources, adding graphics and rolling
+    video. Start here if you have never sat at one.
+  </p>
+
+  <h3>Live production switcher — the official training chapter</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/-K4-5sWXdoA"
+            title="TriCaster TC1 Get Started Training Chapter 5 — Live Production Switcher"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <div class="callout">
+    Filmed on a TC1. Ours is a later machine with more M/E rows, so a few panels look
+    different — but the switcher logic, the rows and the delegates are the same.
+  </div>
+
+  <h3>NDI outputs</h3>
+  <div class="vid">
+    <iframe src="https://www.youtube.com/embed/DP-MGhnQ5CY"
+            title="Tuesday Tutorial — Using TriCaster 2 Elite NDI outputs"
+            loading="lazy" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+  </div>
+  <p class="cap">
+    How the mixes and NDI outputs work. Relevant to us because that is how the multiview
+    reaches Discord and how extra feeds get out without spending an encoder.
+  </p>
+
+  <h2 id="manual">The actual manual</h2>
+  <p>
+    When this page does not answer it, the manufacturer's guide will. It is long, and the
+    contents page is the fastest way in — Chapter 9 covers the switcher, transitions and
+    overlays.
+  </p>
+  <ul class="check">
+    <li><a href="https://downloads.newtek.com/LiveProductionSystems/TC2Elite/TC2.pdf"
+           target="_blank" rel="noopener">TriCaster Elite &amp; Pro user guide (PDF)</a></li>
+    <li><a href="https://support.newtek.com/hc/en-us/articles/222170947-MAIN-CONTROLS"
+           target="_blank" rel="noopener">Main controls and transition delegates</a></li>
+    <li><a href="https://support.newtek.com/hc/en-us/articles/222751647-Performing-Transitions"
+           target="_blank" rel="noopener">Performing transitions</a></li>
+  </ul>
+
+  <div class="footer">ADV Media Limited Company</div>
+</div>
+</body>
+</html>
