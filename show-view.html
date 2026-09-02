@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0D12">
+<title>ADV Media — Show View</title>
+<link rel="apple-touch-icon" href="adv-logo.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!--
+  ===========================================================================
+  CLIENT SHOW VIEW
+  ===========================================================================
+
+  A read-only window for a district administrator or client. Two things only:
+  where the show is right now, and the monitor feed.
+
+  WHAT IS DELIBERATELY NOT HERE
+
+    Crew names            who is working is not a client's business
+    Announcer read copy   a script in progress reads badly out of context
+    Crew notes            "confirm the coin toss time with the Producer"
+    Any control           this cannot advance, edit, or claim producer
+    Sign-in               clients do not have crew accounts
+
+  It reads Firebase over plain REST rather than loading the SDK, so the file
+  stays small and loads fast on a phone in a stadium. `runOfShow` is already
+  world-readable in the rules; nothing here needs write access.
+
+  THE FEED
+
+  Points at the same /monitor path as the crew app. Which source that carries
+  is chosen at the switcher. Worth thinking about before handing this out:
+  a multiview shows a client every camera that is not ready yet. A clean
+  program feed is usually the better thing to give them.
+  ===========================================================================
+-->
+
+<script src="adv-theme.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font); font-size: 16px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 14px 40px; }
+
+  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .head img { height: 34px; width: auto; }
+  .head h1 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -0.2px; }
+  .sub { font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; }
+
+  select {
+    width: 100%; padding: 12px; font-size: 16px; font-family: inherit;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 11px; margin-bottom: 14px;
+  }
+
+  .vid {
+    position: relative; width: 100%; padding-top: 56.25%;
+    background: #000; border-radius: 13px; overflow: hidden;
+    border: 1px solid var(--border); margin-bottom: 6px;
+  }
+  .vid video { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vid-note {
+    font-size: 11.5px; color: var(--text-faint); margin-bottom: 18px;
+    text-align: center;
+  }
+
+  .now {
+    background: var(--panel); border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: 13px; padding: 15px; margin-bottom: 10px;
+  }
+  .tag {
+    font-size: 9.5px; font-weight: 900; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .now-time { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; font-weight: 700; }
+  .now-event { font-size: 21px; font-weight: 800; line-height: 1.2; margin-top: 2px; }
+  .now-screen { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+  .now-screen b { color: var(--text); font-weight: 700; }
+
+  .next {
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 15px; margin-bottom: 18px;
+  }
+  .next .tag { color: var(--text-faint); }
+  .next-event { font-size: 15px; font-weight: 700; margin-top: 3px; }
+
+  .sec { font-size: 10px; font-weight: 900; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--text-faint); margin: 18px 0 7px; }
+  .row {
+    display: flex; gap: 11px; padding: 9px 2px;
+    border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .row.done { opacity: 0.4; }
+  .row.live { background: var(--info-bg); border-radius: 8px; padding: 9px 10px; }
+  .row-time {
+    flex: 0 0 62px; font-size: 12px; color: var(--text-muted);
+    font-weight: 700; font-variant-numeric: tabular-nums; padding-top: 2px;
+  }
+  .row-event { flex: 1; min-width: 0; }
+  .row-screen { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
+  .empty { color: var(--text-muted); font-size: 14px; padding: 20px 0; text-align: center; }
+  .foot { margin-top: 26px; font-size: 11px; color: var(--text-faint); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <img class="brand-logo" src="adv-logo.png" alt="" onerror="this.style.display='none'">
+    <h1>Show View</h1>
+  </div>
+  <div class="sub">Where the show is right now.</div>
+
+  <select id="gameSel"></select>
+
+  <div class="vid">
+    <video id="mon" playsinline muted autoplay controls poster=""></video>
+  </div>
+  <div class="vid-note" id="monNote">Connecting to the monitor feed…</div>
+
+  <div id="body"><div class="empty">Loading…</div></div>
+
+  <div class="foot">ADV Media Limited Company</div>
+</div>
+
+<script>
+const GAMES = [
+  { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma",
+    gameTime: "6:00 PM", call: "4:00 PM", roleCalls: { "Audio A2/Utility": "3:00 PM" } },
+  { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo", gameTime: "7:00 PM" },
+  { id: "2026-09-03", day: "Thu", date: "9/3", opp: "CHS vs Lamar (Arlington)" },
+  { id: "2026-09-04", day: "Fri", date: "9/4", opp: "NCHS vs Southlake Carroll" },
+  { id: "2026-09-11", day: "Fri", date: "9/11", opp: "NCHS vs Summer Creek" },
+  { id: "2026-09-12", day: "Sat", date: "9/12", opp: "Tx. Wesleyan vs Texas College" },
+  { id: "2026-09-18", day: "Fri", date: "9/18", opp: "CHS vs Skyline" },
+  { id: "2026-09-25", day: "Fri", date: "9/25", opp: "NCHS vs Crowley" },
+  { id: "2026-09-26", day: "Sat", date: "9/26", opp: "Tx. Wesleyan vs Nelson University" },
+  { id: "2026-10-09", day: "Fri", date: "10/9", opp: "CHS vs Red Oak" },
+  { id: "2026-10-16", day: "Fri", date: "10/16", opp: "NCHS vs Lake Ridge" },
+  { id: "2026-10-17", day: "Sat", date: "10/17", opp: "Tx. Wesleyan vs Mary Hardin-Baylor" },
+  { id: "2026-10-23", day: "Fri", date: "10/23", opp: "CHS vs Mansfield" },
+  { id: "2026-10-30", day: "Fri", date: "10/30", opp: "CHS vs Waxahachie" },
+  { id: "2026-10-31", day: "Sat", date: "10/31", opp: "Tx. Wesleyan vs Oklahoma Panhandle State" },
+  { id: "2026-11-05", day: "Thu", date: "11/5", opp: "NCHS vs Red Oak" },
+];
+
+const DB = "https://crowley-football-default-rtdb.firebaseio.com";
+const MONITOR = "https://assembly-brian-workout-momentum.trycloudflare.com/monitor/index.m3u8";
+
+// Client view shows the technical grid, never the announcer copy. `read` and
+// `notes` are read from Firebase like everything else and simply not rendered.
+const SHOW_FIELDS = ["time", "event", "screen", "ribbon"];
+
+function localDateId() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+       + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g,
+    (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+let gameId = null;
+let cues = [];
+let current = 0;
+
+const sel = document.getElementById("gameSel");
+GAMES.forEach((g) => {
+  const o = document.createElement("option");
+  o.value = g.id;
+  o.textContent = `${g.day} ${g.date} — ${g.opp}`;
+  sel.appendChild(o);
+});
+
+const today = localDateId();
+const todayGame = GAMES.find((g) => g.id === today);
+gameId = todayGame ? todayGame.id : (GAMES.find((g) => g.id >= today) || GAMES[0]).id;
+sel.value = gameId;
+sel.onchange = () => { gameId = sel.value; cues = []; poll(); };
+
+async function poll() {
+  try {
+    const res = await fetch(`${DB}/runOfShow/${gameId}.json`, { cache: "no-store" });
+    const data = await res.json();
+    cues = (data && data.cues) || [];
+    current = (data && typeof data.current === "number") ? data.current : 0;
+  } catch (e) {
+    cues = [];
+  }
+  draw();
+}
+
+function draw() {
+  const root = document.getElementById("body");
+  if (!cues.length) {
+    root.innerHTML = `<div class="empty">The run of show for this game hasn't been published yet.</div>`;
+    return;
+  }
+
+  const cur = cues[current] || cues[0];
+  const nxt = cues[current + 1];
+
+  let html = `
+    <div class="now">
+      <span class="tag">On now</span>
+      ${cur.time ? `<div class="now-time">${esc(cur.time)}${cur.dur ? " · " + esc(cur.dur) : ""}</div>` : ""}
+      <div class="now-event">${esc(cur.event || "")}</div>
+      ${cur.screen ? `<div class="now-screen">Screen: <b>${esc(cur.screen)}</b></div>` : ""}
+      ${cur.ribbon ? `<div class="now-screen">Ribbon: <b>${esc(cur.ribbon)}</b></div>` : ""}
+    </div>`;
+
+  if (nxt) {
+    html += `
+      <div class="next">
+        <span class="tag">Coming up</span>
+        <div class="next-event">${esc(nxt.event || "")}${nxt.time ? ` <span style="color:var(--text-faint);font-weight:600;">${esc(nxt.time)}</span>` : ""}</div>
+      </div>`;
+  }
+
+  let section = null;
+  cues.forEach((c, i) => {
+    if (c.section && c.section !== section) {
+      section = c.section;
+      html += `<div class="sec">${esc(section)}</div>`;
+    }
+    const cls = i < current ? "done" : i === current ? "live" : "";
+    html += `
+      <div class="row ${cls}">
+        <span class="row-time">${esc(c.time || "")}</span>
+        <span class="row-event">${esc(c.event || "")}
+          ${c.screen ? `<span class="row-screen">${esc(c.screen)}</span>` : ""}
+        </span>
+      </div>`;
+  });
+
+  root.innerHTML = html;
+}
+
+// ---- Monitor ---------------------------------------------------------------
+const video = document.getElementById("mon");
+const note = document.getElementById("monNote");
+
+function startVideo() {
+  const kick = () => {
+    const p = video.play();
+    if (p && p.catch) p.catch(() => { note.textContent = "Tap the picture to start."; });
+  };
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = MONITOR;
+    video.addEventListener("loadedmetadata", kick, { once: true });
+    kick();
+    note.textContent = "Live from the control room.";
+  } else if (window.Hls && window.Hls.isSupported()) {
+    const hls = new window.Hls({ liveSyncDurationCount: 2 });
+    hls.loadSource(MONITOR);
+    hls.attachMedia(video);
+    hls.on(window.Hls.Events.MANIFEST_PARSED, kick);
+    hls.on(window.Hls.Events.ERROR, (_, d) => {
+      if (d.fatal) note.textContent = "The monitor feed isn't running right now.";
+    });
+    note.textContent = "Live from the control room.";
+  } else {
+    note.textContent = "This browser can't play the monitor feed.";
+  }
+}
+
+if (video.canPlayType("application/vnd.apple.mpegurl")) {
+  startVideo();
+} else {
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+  s.onload = startVideo;
+  s.onerror = () => { note.textContent = "Couldn't load the video player."; };
+  document.head.appendChild(s);
+}
+
+poll();
+setInterval(poll, 4000);
+</script>
+</body>
+</html>
