@@ -49,6 +49,16 @@
 
   .head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
   .head img { height: 34px; width: auto; }
+  .head .adv-school-logo { height: 38px; margin-left: auto; }
+  .light-btn {
+    margin-left: auto; flex: 0 0 auto; background: var(--panel2);
+    border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 999px; padding: 6px 13px; font-family: inherit;
+    font-size: 11.5px; font-weight: 700; cursor: pointer;
+  }
+  /* With a crest present the button loses its auto margin, so the crest sits
+     opposite the ADV mark and the button tucks in beside it. */
+  .head .adv-school-logo ~ .light-btn { margin-left: 10px; }
   .head h1 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -0.2px; }
   .sub { font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; }
 
@@ -114,6 +124,7 @@
   <div class="head">
     <img class="brand-logo" src="adv-logo.png" alt="" onerror="this.style.display='none'">
     <h1>Show View</h1>
+    <button id="lightBtn" class="light-btn">Light</button>
   </div>
   <div class="sub">Where the show is right now.</div>
 
@@ -150,6 +161,59 @@ const GAMES = [
   { id: "2026-11-05", day: "Thu", date: "11/5", opp: "NCHS vs Red Oak" },
 ];
 
+// ---- Branding --------------------------------------------------------------
+// The school is decided by the fixture, not by whoever is holding the phone.
+// A district administrator opening a Crowley game sees Crowley purple and the
+// Crowley crest. There is nothing to choose and nothing to get wrong.
+//
+// The only thing a viewer controls is light or dark, because that is about the
+// room they are standing in — bright stands or a dark press box — not about
+// branding.
+//
+// NCHS is tested before CHS: "NCHS vs Aledo" contains "CHS".
+function schoolFor(game) {
+  const o = (game && game.opp) || "";
+  if (/^NCHS/i.test(o)) return { id: "nchs",  name: "North Crowley",  logo: "school-nchs.png" };
+  if (/^CHS/i.test(o))  return { id: "chs",   name: "Crowley",        logo: "school-chs.png" };
+  if (/wesleyan/i.test(o)) return { id: "txwes", name: "Texas Wesleyan", logo: "school-txwes.png" };
+  return null;
+}
+
+const LIGHT_KEY = "advShowViewLight";
+
+function applyBranding(game) {
+  const school = schoolFor(game);
+  const light = localStorage.getItem(LIGHT_KEY) === "1";
+  const root = document.documentElement;
+
+  if (school) {
+    root.setAttribute("data-theme", school.id + (light ? "-light" : ""));
+  } else {
+    root.setAttribute("data-theme", light ? "light" : "");
+  }
+
+  const host = document.querySelector(".head");
+  let crest = host.querySelector(".adv-school-logo");
+  if (school) {
+    if (!crest) {
+      crest = document.createElement("img");
+      crest.className = "adv-school-logo";
+      crest.alt = "";
+      const btn = host.querySelector("#lightBtn");
+      host.insertBefore(crest, btn || null);
+    }
+    if (crest.getAttribute("src") !== school.logo) crest.setAttribute("src", school.logo);
+  } else if (crest) {
+    crest.remove();
+  }
+
+  const btn = document.getElementById("lightBtn");
+  if (btn) btn.textContent = light ? "Dark" : "Light";
+
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", getComputedStyle(root).getPropertyValue("--bg").trim());
+}
+
 const DB = "https://crowley-football-default-rtdb.firebaseio.com";
 const MONITOR = "https://assembly-brian-workout-momentum.trycloudflare.com/monitor/index.m3u8";
 
@@ -184,7 +248,20 @@ const today = localDateId();
 const todayGame = GAMES.find((g) => g.id === today);
 gameId = todayGame ? todayGame.id : (GAMES.find((g) => g.id >= today) || GAMES[0]).id;
 sel.value = gameId;
-sel.onchange = () => { gameId = sel.value; cues = []; poll(); };
+sel.onchange = () => {
+  gameId = sel.value;
+  cues = [];
+  applyBranding(GAMES.find((g) => g.id === gameId));
+  poll();
+};
+
+applyBranding(GAMES.find((g) => g.id === gameId));
+
+document.getElementById("lightBtn").onclick = () => {
+  const now = localStorage.getItem(LIGHT_KEY) === "1";
+  try { localStorage.setItem(LIGHT_KEY, now ? "0" : "1"); } catch (e) {}
+  applyBranding(GAMES.find((g) => g.id === gameId));
+};
 
 async function poll() {
   try {
