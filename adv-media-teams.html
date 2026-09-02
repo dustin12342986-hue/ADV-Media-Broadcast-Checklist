@@ -174,8 +174,18 @@
   // Before relying on it for a show, make a named tunnel on a Cloudflare
   // account so the address is permanent, and update this line.
   const MONITOR_FEEDS = {
-    program:   "https://assembly-brian-workout-momentum.trycloudflare.com/program/index.m3u8",
-    multiview: "",   // second TriCaster output or an NDI relay, not set up yet
+    // ONE PATH, DELIBERATELY CALLED "monitor".
+    //
+    // The path name is just a label MediaMTX routes on — it has nothing to do
+    // with what is being sent. So encoder 2 publishes to /monitor and whatever
+    // source is chosen at the switcher (program, multiview, a camera, preview,
+    // clean) arrives here. Swap the source at the desk and the app follows
+    // with no edit and no re-upload.
+    //
+    // Naming it "program" or "multiview" was the mistake — it tied the app to
+    // one choice and meant a re-upload every time that choice changed.
+    program:   "https://assembly-brian-workout-momentum.trycloudflare.com/monitor/index.m3u8",
+    multiview: "",
   };
 </script>
 
@@ -1381,7 +1391,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v42 · monitor playback fix";
+const APP_BUILD = "build 2026-09-01 · v44 · monitor path";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -5460,7 +5470,16 @@ let rosMonPollTimer = null;
 let rosMonHls = null;
 let rosMonDemoTimer = null;
 let rosMonMax = false;
-let rosMonFeed = localStorage.getItem("rosMonFeed") || "program";
+// The saved preference is validated against what is actually configured.
+// Encoder 2 moved from program to multiview, so anyone whose phone had
+// remembered "program" would otherwise open the monitor onto a blank URL and
+// see nothing, with no clue why.
+let rosMonFeed = (() => {
+  const saved = localStorage.getItem("rosMonFeed");
+  const live = ["program", "multiview"].filter((f) => MONITOR_FEEDS[f]);
+  if (!live.length) return saved || "program";          // demo mode
+  return live.includes(saved) ? saved : live[0];
+})();
 
 const ROS_MON_VIEWS = ["today", "runofshow"];
 
@@ -5468,6 +5487,9 @@ function rosMonIsDemo() {
   return MONITOR_DEMO && !MONITOR_FEEDS.program && !MONITOR_FEEDS.multiview;
 }
 
+// With a single "monitor" path there is nothing to toggle between, so the
+// PGM/MV buttons are hidden rather than left as two buttons that do the same
+// thing. They come back automatically if a second feed is ever configured.
 function rosMonFeeds() {
   return rosMonIsDemo()
     ? ["program", "multiview"]
