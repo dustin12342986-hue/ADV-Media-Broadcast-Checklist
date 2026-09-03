@@ -429,7 +429,8 @@
   }
   .shift-row:first-of-type { border-top: none; }
   .shift-role { flex: 0 0 90px; font-size: 12px; color: var(--text-muted); font-weight: 700; }
-  /* Camera colour, as it reads on the floor — cable, tally, tape. */
+  /* Camera colour as it reads on the CCU, the switcher marker and the cable
+     band. Not the tally — those are all red on this rig. */
   .cam-dot {
     display: inline-block; width: 9px; height: 9px; border-radius: 50%;
     margin-right: 6px; vertical-align: baseline;
@@ -3600,7 +3601,7 @@ function openCallTimeEditor(gameId) {
 }
 
 // Where each camera physically sits, and its colour. The colour is how the
-// camera is identified on the floor — cable, tally, gaff tape — so it belongs
+// camera is identified — CCU, switcher marker, cable band — so it belongs
 // next to the role wherever an operator reads their assignment.
 // Camera 4 has no fixed position yet; it still has a colour.
 const CAMERA_POSITIONS = {
@@ -3679,7 +3680,8 @@ const CABLE_SEED = [
   { id: "ext-5",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
 ];
 
-// Same palette as the tally, the roster and the maps.
+// Same palette as the CCUs, the switcher markers, the roster and the maps.
+// NOT the tally lights — every tally on this rig is red.
 const CABLE_BAND = {
   "Blue":   "#4A8FC0",
   "Red":    "#D65A4E",
