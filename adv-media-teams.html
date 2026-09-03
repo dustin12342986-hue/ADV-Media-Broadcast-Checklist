@@ -1428,7 +1428,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v53 · run of show editor";
+const APP_BUILD = "build 2026-09-01 · v54 · weather hold code";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4932,6 +4932,12 @@ function wireBeltpackCopy() {
 // Greg Williams — districts differ, and theirs is the one that counts.
 const HOLD_MINUTES = 30;
 
+// Starting or ending a weather hold needs this code. Restarting the clock on a
+// new strike does not — during a storm that has to be one tap, and the cost of
+// an accidental restart is 30 minutes of caution rather than people back in
+// the stands too early.
+const HOLD_CODE = "911";
+
 function holdResumeAt(hold) {
   if (!hold || !hold.lastStrike) return null;
   const t = new Date(hold.lastStrike);
@@ -5030,7 +5036,18 @@ function wireShowTools(gameId, game) {
 
   const start = document.getElementById("holdStart");
   if (start) start.onclick = async () => {
-    if (!confirm(`Start a weather hold? Everyone's phone will show a ${HOLD_MINUTES} minute countdown.`)) return;
+    // A code, not just a confirm. Starting a hold puts a countdown on every
+    // phone on the crew and is the kind of thing that gets pressed by accident
+    // or by someone poking at the app. Typing four digits is a deliberate act.
+    const code = prompt(
+      "Starting a weather hold puts a " + HOLD_MINUTES + " minute countdown on every crew phone.\n\n"
+      + "Enter the emergency code to continue."
+    );
+    if (code === null) return;
+    if (code.trim() !== HOLD_CODE) {
+      alert("That code isn't right. The hold has not been started.");
+      return;
+    }
     await db.ref(`weatherHold/${gameId}`).set({
       active: true, lastStrike: new Date().toISOString(),
       by: who(), at: new Date().toISOString(),
@@ -5045,7 +5062,15 @@ function wireShowTools(gameId, game) {
   };
   const end = document.getElementById("holdEnd");
   if (end) end.onclick = async () => {
-    if (confirm("End the weather hold?")) await db.ref(`weatherHold/${gameId}`).remove();
+    // Ending a hold early is the more dangerous mistake of the two — it tells
+    // a stadium it is safe to come back. Same code.
+    const code = prompt("Enter the emergency code to end the weather hold.");
+    if (code === null) return;
+    if (code.trim() !== HOLD_CODE) {
+      alert("That code isn't right. The hold is still running.");
+      return;
+    }
+    await db.ref(`weatherHold/${gameId}`).remove();
   };
 
   document.querySelectorAll("[data-inckind]").forEach((el) => {
