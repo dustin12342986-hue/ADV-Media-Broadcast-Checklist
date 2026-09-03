@@ -2145,7 +2145,7 @@ async function renderConfirmCard(profile) {
       <div class="log-reason" style="margin-bottom:6px;">Live traffic to the venue:</div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
         ${TRAFFIC_ORIGINS.map((t) => `
-          <a class="nav-link-btn" href="${trafficLink(t.origin)}" target="_blank" rel="noopener" style="flex:1; min-width:130px;">
+          <a class="nav-link-btn" href="${trafficLink(t.origin)}" style="flex:1; min-width:130px;">
             🚗 ${escapeHtml(t.label)}
           </a>
         `).join("")}
@@ -2519,7 +2519,7 @@ async function renderAdminLocations() {
             </div>
             ${inOutStr ? `<div class="log-reason">${inOutStr}</div>` : ""}
             <div class="log-reason">
-              <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--blue);">View on map</a>
+              <a href="${mapsUrl}" style="color:var(--blue);">View on map</a>
               ${accuracyStr ? ` · accuracy ${accuracyStr}` : ""}
             </div>
           </div>
@@ -3849,7 +3849,7 @@ function renderDocsSection(gameId, docs) {
         : rows.map((d) => {
             const t = DOC_TYPES[d.type] || DOC_TYPES.other;
             return `
-            <a class="doc-row" href="${escapeAttr(d.url || "#")}" target="_blank" rel="noopener">
+            <a class="doc-row" href="${escapeAttr(d.url || "#")}">
               <span class="doc-tag" style="background:${t.colour}">${escapeHtml(t.short)}</span>
               <span class="doc-main">
                 <span class="doc-name">${escapeHtml(d.name || "Untitled")}</span>
@@ -6057,7 +6057,7 @@ function rosRender() {
       </select>
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
       <button class="ghost-pill" id="rosFullToggle" title="Full screen">${rosFull ? "Exit" : "⛶"}</button>
-      <a class="ghost-pill" href="producer-guide.html" target="_blank" rel="noopener"
+      <a class="ghost-pill" href="producer-guide.html"
          style="text-decoration:none;">Guide</a>
     </div>
     <div id="rosDocs"></div>

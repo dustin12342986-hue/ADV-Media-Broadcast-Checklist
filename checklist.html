@@ -753,7 +753,7 @@ function renderChecklistBody(rec, items, position) {
 
   if (position.guide) {
     html += `
-      <a class="guide-link" href="${escapeAttr(position.guide.href)}" target="_blank" rel="noopener">
+      <a class="guide-link" href="${escapeAttr(position.guide.href)}">
         <span class="guide-link-tag">CHECK THIS FIRST</span>
         <span class="guide-link-label">${escapeHtml(position.guide.label)}</span>
       </a>`;

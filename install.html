@@ -86,6 +86,19 @@
     border-radius:10px; padding:12px 14px; font-size:13px; margin-top:14px;
   }
   .good { background:#10201A; border-color:var(--green); color:#A8E0C4; }
+
+  /* Back button. Every page gets one, because with links no longer opening
+     new tabs there is nothing else to get you out of a page on a phone. */
+  .adv-back {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--panel2, #1A222B); border: 1px solid var(--border, #26313D);
+    color: var(--text-muted, #8A96A3); text-decoration: none;
+    border-radius: 999px; padding: 8px 15px 8px 12px;
+    font-size: 13px; font-weight: 700; font-family: inherit;
+    margin: 14px 0 0; cursor: pointer;
+  }
+  .adv-back:active { transform: translateY(1px); }
+
   .footer { text-align:center; color:var(--text-faint); font-size:12px; margin-top:28px; }
   .footer a { color:var(--blue); }
   .link-box {
@@ -96,7 +109,9 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap"><a class="adv-back" id="advBack" href="home.html">← Back</a>
+
+  
 
   <div class="banner">
     <img class="app-icon" src="icon-192.png" alt="ADV Media Teams" />
@@ -269,6 +284,22 @@
   }
 
   render();
+</script>
+
+<script>
+  // history.back() when there is somewhere to go back to, otherwise the hub.
+  // A dead back button is worse than none — someone taps it, nothing happens,
+  // and they assume the page is broken.
+  (function () {
+    var b = document.getElementById("advBack");
+    if (!b) return;
+    var cameFromUs = document.referrer && document.referrer.indexOf(location.host) !== -1;
+    if (window.history.length > 1 && cameFromUs) {
+      b.addEventListener("click", function (e) { e.preventDefault(); history.back(); });
+    } else {
+      b.setAttribute("href", "home.html");
+    }
+  })();
 </script>
 </body>
 </html>
