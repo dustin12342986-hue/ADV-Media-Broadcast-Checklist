@@ -1392,7 +1392,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v46 · real cable runs";
+const APP_BUILD = "build 2026-09-01 · v47 · confirm feedback fix";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2123,7 +2123,14 @@ async function renderConfirmCard(profile) {
   try {
     const snap = await db.ref(`confirmations/${dateId}/${roleKey}`).once("value");
     already = !!(snap.val() && snap.val().confirmed);
-  } catch (e) { /* fall through and show the card */ }
+  } catch (e) {
+    // Read denied — the rules only let admins read this node. Fall back to
+    // what this device recorded when it confirmed, so a crew member who
+    // reopens the app is not asked to confirm something they already did.
+    try {
+      already = localStorage.getItem(`advConfirmed:${dateId}:${roleKey}`) === "1";
+    } catch (e2) { /* leave it false and show the card */ }
+  }
 
   const g = sched.game;
   const label = g ? `${g.day} ${g.date} — ${g.opp}` : dateId;
@@ -2167,7 +2174,20 @@ async function renderConfirmCard(profile) {
         confirmedAt: new Date().toISOString(),
         confirmedBy: currentUser.uid,
       });
-      renderConfirmCard(profile);
+      // Show the confirmed state directly rather than re-reading.
+      //
+      // Re-reading was the bug people reported as "it flashes and goes back to
+      // blue": crew can WRITE confirmations but the rules only let admins READ
+      // them, so the read-back threw, the catch set already=false, and the
+      // button was redrawn. The write had worked the whole time — the crew
+      // member just never saw it.
+      host.innerHTML = `
+        <div class="setup-warning" style="display:block; margin-bottom:16px; background:var(--good-bg); border-color:var(--green); color:var(--good-ink);">
+          ✓ You're confirmed for ${escapeHtml(label)}. See you there.
+        </div>`;
+      // Remembered on the device so it still reads as confirmed after a
+      // reload, even if this crew member cannot read the node back.
+      try { localStorage.setItem(`advConfirmed:${dateId}:${roleKey}`, "1"); } catch (e) {}
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "I'll be there — Confirm";
