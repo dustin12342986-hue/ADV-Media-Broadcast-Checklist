@@ -1391,7 +1391,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v44 · monitor path";
+const APP_BUILD = "build 2026-09-01 · v45 · audio + confirmations";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2246,7 +2246,14 @@ function rosterRowsFor(gameId, gameRoster) {
   return rows;
 }
 
-async function textTomorrowsCrew() {
+// mode "call"   — the full crew call: times, weather, directions, what to bring
+// mode "remind" — a short nudge to whoever has not confirmed yet
+//
+// The reminder deliberately skips anyone who has already confirmed. Texting
+// someone to do a thing they have already done is how people start ignoring
+// the texts.
+async function textTomorrowsCrew(mode) {
+  mode = mode || "call";
   const dateId = tomorrowId();
   const game = GAMES.find((g) => g.id === dateId);
   if (!game) {
@@ -2264,9 +2271,22 @@ async function textTomorrowsCrew() {
   const snap = await db.ref("profiles").once("value");
   const profiles = Object.values(snap.val() || {});
 
+  let people = assigned;
+  if (mode === "remind") {
+    const cSnap = await db.ref(`confirmations/${dateId}`).once("value");
+    const confirmed = cSnap.val() || {};
+    const isConfirmed = (name) =>
+      Object.values(confirmed).some((c) => c && c.name && namesMatch(c.name, name) && c.confirmed);
+    people = assigned.filter((r) => !isConfirmed(r.name));
+    if (people.length === 0) {
+      alert("Everyone has already confirmed for tomorrow. Nothing to send.");
+      return;
+    }
+  }
+
   const numbers = [];
   const missing = [];
-  assigned.forEach(({ role: pos, name }) => {
+  people.forEach(({ role: pos, name }) => {
     const p = profiles.find((pr) => pr.legalName && namesMatch(name, pr.legalName, pr.crewHandle));
     const num = p && normalizePhoneForSms(p.phone);
     if (num) { if (!numbers.includes(num)) numbers.push(num); }
@@ -2296,7 +2316,7 @@ async function textTomorrowsCrew() {
   // Plain text — no markdown, since this lands in Messages. Blank lines and
   // a leading bullet are the only formatting that survives everywhere.
   // `null` marks a line that may not apply; "" is a deliberate spacer.
-  const body = [
+  const fullBody = [
     "ADV MEDIA — CREW CALL",
     `${game.day} ${game.date} · ${game.opp}`,
     "",
@@ -2320,6 +2340,18 @@ async function textTomorrowsCrew() {
     `Please confirm in the ADV Media Teams app so we know you're locked in:`,
     `  ${appLink()}`,
   ].filter((l) => l !== null).join("\n").replace(/\n{3,}/g, "\n\n");
+
+  // A reminder is short on purpose. The full details already went out; this
+  // is one instruction and a link.
+  const body = mode === "remind"
+    ? [
+        "ADV MEDIA",
+        `${game.day} ${game.date} · ${game.opp}`,
+        "",
+        "Please confirm in the app for tomorrow's shift.",
+        `  ${appLink()}`,
+      ].join("\n")
+    : fullBody;
 
   if (missing.length) {
     if (!confirm(`No phone number on file for:\n\n${missing.join("\n")}\n\nText the other ${numbers.length}?`)) return;
@@ -2352,7 +2384,9 @@ async function renderConfirmations() {
     }
 
     inner.innerHTML = `
-      <button class="primary-btn" id="textCrewBtn" style="margin-bottom:14px;">📱 Text Tomorrow's Crew</button>
+      <button class="primary-btn" id="textCrewBtn" style="margin-bottom:8px;">📱 Text Tomorrow's Crew</button>
+      <button class="shift-btn shift-btn-ghost" id="remindCrewBtn"
+        style="width:100%; margin-bottom:14px; padding:12px 0;">Remind whoever hasn't confirmed</button>
       <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
       ${upcoming.map((game) => {
         const all = visibleRosterRows(rosterRowsFor(game.id, liveRoster[game.id]));
@@ -2388,6 +2422,9 @@ async function renderConfirmations() {
         `;
       }).join("")}
     `;
+    const rb = document.getElementById("remindCrewBtn");
+    if (rb) rb.onclick = () => textTomorrowsCrew("remind");
+
     const tb = document.getElementById("textCrewBtn");
     if (tb) tb.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
   } catch (e) {
@@ -4457,13 +4494,15 @@ function wireSignalGate(gameId) {
 // has walked into a show dead at least once, and a comms failure is quieter
 // than a camera failure — you find out when someone doesn't answer.
 const COMMS_ITEMS = [
-  { id: "a2",    label: "A2 pack" },
-  { id: "eic",   label: "EIC pack" },
-  { id: "pm",    label: "PM pack" },
-  { id: "sp1",   label: "Spare 1" },
-  { id: "sp2",   label: "Spare 2" },
-  { id: "ref",   label: "Ref mic + PTT" },
-  { id: "dj",    label: "DJ line" },
+  { id: "djcomm", label: "DJ wired comm" },
+  { id: "djaudio",label: "DJ audio feed" },
+  { id: "a2",     label: "A2 pack" },
+  { id: "eic",    label: "EIC pack" },
+  { id: "pm",     label: "PM pack" },
+  { id: "sp1",    label: "Spare 1" },
+  { id: "sp2",    label: "Spare 2" },
+  { id: "ref",    label: "Ref mic + PTT" },
+  { id: "band",   label: "Band director comm (TXWES)" },
 ];
 
 function renderCommsCheck(gameId, state) {
@@ -4475,7 +4514,7 @@ function renderCommsCheck(gameId, state) {
         <span class="sig-title">Comms check</span>
         <span class="sig-count">${done.length} of ${COMMS_ITEMS.length}</span>
       </div>
-      <div class="sig-sub">${all ? "Everything checked." : "Battery in, heard both ways."}</div>
+      <div class="sig-sub">${all ? "Everything checked." : "DJ comm first, then DJ audio. Battery in, heard both ways."}</div>
       <div class="comms-grid">
         ${COMMS_ITEMS.map((c) => {
           const rec = state && state[c.id];
@@ -4596,28 +4635,42 @@ let unsubAudio = null;
 // The football patch as it actually is. Static because it is the same every
 // week; TXWES adds to it rather than changing it.
 const AUDIO_PATCH = [
-  { group: "Wireless", items: [
-    { what: "Ref mic", detail: "Lav pack 1 with PTT. A2 mics the referee FIRST, before anything else." },
-    { what: "Handheld 1", detail: "National anthem" },
-    { what: "Handheld 2", detail: "Announcers" },
-    { what: "Handheld 3", detail: "Special events / presentations" },
+  { group: "Handhelds", items: [
+    { what: "Handheld 1", detail: "Referee's lavalier mic pack." },
+    { what: "Handheld 2", detail: "In-stadium host." },
+    { what: "Handheld 3", detail: "National anthem and pre-game band. Lives in the A2 bag with spare batteries — it is also a backup." },
+    { what: "Handheld 4", detail: "Same as 3. Backup, stays in the A2 bag with spare batteries." },
   ]},
-  { group: "Wired", items: [
-    { what: "DJ line", detail: "Down home radio D to the low south end zone D. Female XLR to D, house A male to the JBT." },
-    { what: "Shotguns (TXWES only)", detail: "Mics 3 and 4, home side JBT." },
+  { group: "DJ", items: [
+    { what: "XLRs — three total", detail: "One female for his console. One female and one male for his comm pack." },
+    { what: "Patch order", detail: "DJ comm line FIRST, DJ audio feed second." },
+    { what: "Comm circuit", detail: "Second XLR comm line down from the DJ → female comm input into the JBT low south end zone home radio → JBT into the DJ comm pack → out of the DJ comm pack into House B." },
   ]},
-  { group: "Comms", items: [
-    { what: "Wireless packs", detail: "A2, EIC, PM fixed. Two spares." },
-    { what: "DJ", detail: "Wired." },
-    { what: "Band (TXWES only)", detail: "Wired comm down home radio D." },
+  { group: "Band (TXWES)", items: [
+    { what: "Band director comm", detail: "Home sideline: JBT comm out of House C into the band director's comm pack. Without this the band director's comm does not work." },
+    { what: "Wired comm", detail: "Runs down to home radio." },
+  ]},
+  { group: "Drop line bundle", items: [
+    { what: "VIP to low south end zone JBT", detail: "One yellow power cable, one XLR snake with male ends at the bottom, and one 100 ft SMPTE from the video lead." },
+    { what: "Do not over-tape it", detail: "Bundle it as a single run. It has to strike cleanly after every event." },
   ]},
 ];
 
 const AUDIO_HANDOFFS = [
-  { title: "Ref mic first", body: "A2 finds the referee and mics him up before anything else on the list. He walks away and you lose him." },
-  { title: "Coin toss", body: "A2 confirms the coin toss time with the Producer, tells the referee that time, and tests the ref mic back to A1 before the referee walks away." },
-  { title: "Anthem", body: "Handheld 1. Check it live before doors, not at 6:57." },
+  { title: "First 15 minutes — A2 to the field",
+    body: "Rolling cart with the referee mic and spare battery, the DJ wired comm and headset, the audio snake, and the yellow power cable. A2 does all the on-field patching." },
+  { title: "Ref mic first",
+    body: "Find the referee and mic him up before anything else on the list. He walks away and you lose him." },
+  { title: "Coin toss",
+    body: "A2 confirms the coin toss time with the Producer, tells the referee that time, and tests the ref mic back to A1 before the referee walks away." },
+  { title: "Then A2 becomes Camera 4 grip",
+    body: "Once pre-game audio is done, A2 moves to grip Camera 4 for the rest of the game. Anything audio that needs doing after that has to be handed over or done before the switch." },
+  { title: "Post-game QC hour",
+    body: "In the final hour after the game, once gear is checked back in: A1 inspects every audio cable and piece of gear, Camera Lead inspects the camera cables. Anything bad is separated immediately and reported in the app." },
+  { title: "Strike",
+    body: "A2 handles strike. Early arrivals may clear out before final strike if their tasks are done." },
 ];
+
 
 async function renderAudioView() {
   const inner = document.getElementById("innerRoot");
