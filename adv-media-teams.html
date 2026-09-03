@@ -1083,6 +1083,31 @@
 
   .ros-editing { cursor: default; }  .ros-edit-head { display: flex; align-items: center; gap: 10px; }
   .ros-edit-main { flex: 1; min-width: 0; cursor: pointer; }
+  /* Section headers in edit mode. A 39-cue show is unreadable as a flat list,
+     and there was no way to see or change the structure. */
+  .ros-edit-sec {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0 6px; padding: 0 2px 5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ros-edit-sec-name {
+    flex: 1; min-width: 0; font-size: 11px; font-weight: 900; letter-spacing: 0.9px;
+    text-transform: uppercase; color: var(--accent);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Rename has to be able to shrink, or a long section name pushes it off the
+     right edge of the phone where it cannot be tapped. */
+  .ros-edit-sec .ros-tool {
+    flex: 0 0 auto; width: auto; padding: 4px 10px; font-size: 11px;
+  }
+  .ros-insert {
+    display: block; width: 100%; margin-top: 6px; padding: 6px 0;
+    background: none; border: 1px dashed var(--border);
+    color: var(--text-faint); border-radius: 8px;
+    font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .ros-insert:active { border-color: var(--accent); color: var(--accent); }
+
   .ros-edit-tools { flex: 0 0 auto; display: flex; gap: 5px; }
   .ros-tool {
     width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
@@ -1403,7 +1428,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v52 · monitor restored";
+const APP_BUILD = "build 2026-09-01 · v53 · run of show editor";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -6270,6 +6295,12 @@ function rosRender() {
   inner.querySelectorAll("[data-editcue]").forEach((el) => {
     el.onclick = () => rosOpenCueEditor(Number(el.dataset.editcue));
   });
+  inner.querySelectorAll("[data-insert]").forEach((el) => {
+    el.onclick = () => rosOpenCueEditor(-1, Number(el.dataset.insert));
+  });
+  inner.querySelectorAll("[data-renamesec]").forEach((el) => {
+    el.onclick = () => rosRenameSection(el.dataset.renamesec);
+  });
   inner.querySelectorAll("[data-move]").forEach((el) => {
     el.onclick = () => rosMove(Number(el.dataset.move), Number(el.dataset.dir));
   });
@@ -6344,25 +6375,54 @@ function rosShowListHtml(cues, cur) {
 }
 
 function rosEditListHtml(cues) {
-  return cues.map((c, i) => `
-    <div class="ros-cue ros-editing">
-      <div class="ros-edit-head">
-        <div class="ros-edit-main" data-editcue="${i}">
-          <div class="ros-cue-top">
-            <div class="ros-time">${escapeHtml(c.time || "—")}</div>
-            ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
+  // Grouped by section, with a header per section. Without this a 39-cue show
+  // is a flat wall and there is no way to see or change the structure.
+  let html = "";
+  let section = null;
+
+  cues.forEach((c, i) => {
+    const sec = c.section || "";
+    if (sec !== section) {
+      section = sec;
+      html += `
+        <div class="ros-edit-sec">
+          <span class="ros-edit-sec-name">${escapeHtml(section || "(no section)")}</span>
+          <button class="ros-tool" data-renamesec="${escapeAttr(section)}" title="Rename this section">Rename</button>
+        </div>`;
+    }
+    html += `
+      <div class="ros-cue ros-editing">
+        <div class="ros-edit-head">
+          <div class="ros-edit-main" data-editcue="${i}">
+            <div class="ros-cue-top">
+              <div class="ros-time">${escapeHtml(c.time || "—")}</div>
+              ${c.dur ? `<div class="ros-dur">${escapeHtml(c.dur)}</div>` : ""}
+            </div>
+            <div class="ros-event">${escapeHtml(c.event || "(untitled cue)")}</div>
+            ${c.read ? `<div class="ros-field-val" style="font-size:11px; margin-top:3px; opacity:.7;">${escapeHtml(c.read.split("\n")[0].slice(0, 60))}…</div>` : ""}
           </div>
-          <div class="ros-event">${escapeHtml(c.event || "(untitled cue)")}</div>
-          ${c.section ? `<div class="ros-field-val" style="font-size:11px; margin-top:3px;">${escapeHtml(c.section)}</div>` : ""}
+          <div class="ros-edit-tools">
+            <button class="ros-tool" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+            <button class="ros-tool" data-move="${i}" data-dir="1" ${i === cues.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+            <button class="ros-tool ros-tool-del" data-delcue="${i}" title="Delete">✕</button>
+          </div>
         </div>
-        <div class="ros-edit-tools">
-          <button class="ros-tool" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
-          <button class="ros-tool" data-move="${i}" data-dir="1" ${i === cues.length - 1 ? "disabled" : ""}>↓</button>
-          <button class="ros-tool ros-tool-del" data-delcue="${i}">✕</button>
-        </div>
-      </div>
-    </div>
-  `).join("");
+        <button class="ros-insert" data-insert="${i}" title="Insert a cue here">+ insert below</button>
+      </div>`;
+  });
+
+  return html;
+}
+
+// Rename a section everywhere it appears, rather than opening thirty cues to
+// change the same word thirty times.
+async function rosRenameSection(oldName) {
+  const next = prompt("Rename this section", oldName || "");
+  if (next === null) return;
+  const name = next.trim();
+  const cues = rosState.cues.map((c) =>
+    (c.section || "") === (oldName || "") ? Object.assign({}, c, { section: name }) : c);
+  await rosSaveCues(cues, rosState.current);
 }
 
 // Keep the live cue on screen without yanking the page around if it's
@@ -6403,10 +6463,15 @@ function rosDeleteCue(i) {
 }
 
 // index -1 adds a new cue at the end.
-function rosOpenCueEditor(index) {
+function rosOpenCueEditor(index, insertAfter) {
   const adding = index < 0;
+  // A new cue inherits the section of the cue it is being inserted after, so
+  // adding to Pregame does not drop it into whatever section is last.
+  const neighbour = adding && typeof insertAfter === "number"
+    ? rosState.cues[insertAfter]
+    : rosState.cues[rosState.cues.length - 1];
   const c = adding
-    ? { section: (rosState.cues[rosState.cues.length - 1] || {}).section || "", time: "", dur: "", event: "", screen: "", ribbon: "", audio: "", notes: "" }
+    ? { section: (neighbour || {}).section || "", time: "", dur: "", event: "", screen: "", ribbon: "", audio: "", notes: "" }
     : Object.assign({}, rosState.cues[index]);
 
   const field = (id, label, val, ph) => `
@@ -6459,7 +6524,14 @@ function rosOpenCueEditor(index) {
       return;
     }
     const cues = rosState.cues.slice();
-    if (adding) cues.push(updated); else cues[index] = updated;
+    if (adding) {
+      // Insert where it was asked for, not at the end. Appending meant a new
+      // pregame cue had to be walked up the list one tap at a time.
+      if (typeof insertAfter === "number") cues.splice(insertAfter + 1, 0, updated);
+      else cues.push(updated);
+    } else {
+      cues[index] = updated;
+    }
     close();
     rosSaveCues(cues);
   };
