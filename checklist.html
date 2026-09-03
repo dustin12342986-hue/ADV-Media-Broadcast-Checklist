@@ -180,6 +180,15 @@
   }
   .guide-link-label { flex: 1; color: #8FC6F0; font-size: 13.5px; font-weight: 800; }
 
+  /* Quality check is a separate job from packing up — it happens in the hour
+     after the game with both leads, so it reads as its own block. */
+  .qc-head {
+    font-size: 10.5px; font-weight: 900; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--amber);
+    padding: 14px 0 6px; margin-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
   .checklist-box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
   .checklist-item {
     display: flex; gap: 10px; align-items: flex-start; padding: 13px 14px; cursor: pointer;
@@ -274,7 +283,16 @@ const GAMES = [
 ];
 
 const POSITIONS = {
-  "camera-lead": { guide: { href: "camera-lead-football-setup.html", label: "Camera Lead Football Setup" }, label: "Camera Lead", readyLabel: "All cameras built, signal is up",
+  "camera-lead": { qc: [
+      "Wait until all equipment is checked back in — this is the final hour, with A1",
+      "Inspect every camera cable end to end",
+      "Inspect every SMPTE run: ends clean, caps and bags on, no damage to the jacket",
+      "Separate anything bad or damaged immediately — do not put it back on the shelf",
+      "Bad cables leave the building with ADV the same day for repair",
+      "Check each camera returned in the exact configuration it went out in, against the inventory list",
+      "File an equipment report in the app for every damaged or malfunctioning item",
+      "Green zip tie with today's date on each verified case — that is the QC pass mark"
+    ], guide: { href: "camera-lead-football-setup.html", label: "Camera Lead Football Setup" }, label: "Camera Lead", readyLabel: "All cameras built, signal is up",
     pre: ["Check out all camera bodies, lenses, tripods/heads, cables, batteries, cases",
       "Inspect each unit for damage; confirm batteries charged, media formatted",
       "Confirm cable runs/connections to control room",
@@ -287,9 +305,7 @@ const POSITIONS = {
       "Disconnect camera HD-SDIs from the fiber converter before packing — they rub and get damaged inside the case",
       "Lens cap on, securely",
       "Canned air through the camera body and side port compartment. NEVER on the SMPTE fiber connectors",
-      "Every camera returns in the exact configuration it went out in, matched against the inventory list",
-      "Post-game QC hour with A1: you inspect all camera cables, separate anything bad immediately",
-      "Once verified, green zip tie with today's date on it — that is the QC pass mark"] },
+      "Every camera returns in the exact configuration it went out in, matched against the inventory list"] },
   "camera-1": { guide: { href: "cameras-football-setup.html", label: "Cameras Football Setup" }, label: "Camera 1 (Blue)", readyLabel: "Camera 1 is built, signal is up",
     pre: ["Confirm you are on Camera 1 (Blue) — High 50 — in the press box opening",
       "Case check: converter, muffed headset, weather gear, sandbag, power supply, focus and zoom handles",
@@ -384,7 +400,15 @@ const POSITIONS = {
       "Confirm all cameras color balanced and ready for Director"],
     post: ["Monitor and adjust cameras as light changes",
       "Confirm final camera picture match with Director before wrap"] },
-  "audio-a1": { guide: { href: "adv-media-teams.html#audio", label: "Audio portal — wireless, comms, cues, patch" }, label: "Audio (A1)", readyLabel: "Booth is up and ready to roll",
+  "audio-a1": { qc: [
+      "Wait until all equipment is checked back in — this is the final hour, with the Camera Lead",
+      "Inspect every audio cable end to end",
+      "Check all three DJ XLRs and the comm line",
+      "Check the ref mic pack, all four handhelds and their batteries",
+      "Confirm handhelds 3 and 4 are back in the A2 bag with spare batteries",
+      "Separate anything bad or damaged immediately — do not put it back in the bag",
+      "File an equipment report in the app for every damaged or malfunctioning item"
+    ], guide: { href: "adv-media-teams.html#audio", label: "Audio portal — wireless, comms, cues, patch" }, label: "Audio (A1)", readyLabel: "Booth is up and ready to roll",
     pre: ["Follow booth checklist",
       "Test all mics (announcers, sideline, field)",
       "Confirm intercom/headset channels live",
@@ -404,9 +428,7 @@ const POSITIONS = {
       "Check in with PM for additional duties"],
     post: ["Collect all field mics, comms gear, cables; return to correct bag",
       "Confirm completion with PM",
-      "Once pre-game audio is done, hand over or finish anything audio — you move to Camera 4 grip for the rest of the game",
-      "Post-game QC hour: A1 inspects all audio cables and gear, separate anything bad immediately",
-      "File an equipment report in the app for anything damaged or not working"] },
+      "Once pre-game audio is done, hand over or finish anything audio — you move to Camera 4 grip for the rest of the game"] },
   "utility": { label: "Utility", readyLabel: "Ready to roll",
     pre: ["Check in with PM to receive duty assignment",
       "Assist Camera Lead and/or A2 with setup as directed"],
@@ -622,7 +644,13 @@ function tallyLight(status, size) {
 function renderMyChecklist() {
   const root = document.getElementById("viewRoot");
   const position = POSITIONS[state.posKey];
-  const items = position[state.phase];
+  // Quality check items hang off the end of the post-shift list rather than
+  // being a third phase. That keeps the saved checked[] indices contiguous, so
+  // adding QC to a position does not invalidate records already in Firebase.
+  const base = position[state.phase] || [];
+  const qc = (state.phase === "post" && position.qc) ? position.qc : [];
+  const items = base.concat(qc);
+  state.qcStart = qc.length ? base.length : -1;
 
   root.innerHTML = `
     <div class="field-block">
@@ -735,6 +763,9 @@ function renderChecklistBody(rec, items, position) {
 
   html += `<div class="checklist-box">`;
   items.forEach((text, idx) => {
+    if (state.qcStart >= 0 && idx === state.qcStart) {
+      html += `<div class="qc-head">Quality check</div>`;
+    }
     html += `
       <div class="checklist-item ${rec.checked[idx] ? "checked" : ""}" data-idx="${idx}">
         <span class="icon">${rec.checked[idx] ? icon("check", "var(--green)", 19) : icon("circle", "var(--text-faint)", 19)}</span>
