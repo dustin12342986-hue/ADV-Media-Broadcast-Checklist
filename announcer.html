@@ -358,10 +358,70 @@ const ACCESS_KEY = "advAnnouncerOk";
 // "1" = view only, "2" = view plus script.
 let accessLevel = 2;   // this page is the script page — always
 
-async function sha256(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
+// SHA-256 without crypto.subtle.
+//
+// crypto.subtle only exists in a secure context — https or localhost. These
+// pages are served over plain http from the stadium PC, so it is unavailable
+// and the gate could not hash anything. This is a small pure-JS fallback.
+function sha256js(ascii) {
+  function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+  var mm = Math.pow, MAX = mm(2, 32), i, j,
+      result = "", words = [], asciiBitLength = ascii.length * 8,
+      hash = sha256js.h = sha256js.h || [], k = sha256js.k = sha256js.k || [],
+      primeCounter = k.length, isComposite = {};
+  for (var candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+      hash[primeCounter] = (mm(candidate, 0.5) * MAX) | 0;
+      k[primeCounter++] = (mm(candidate, 1 / 3) * MAX) | 0;
+    }
+  }
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\x00";
+  for (i = 0; i < ascii.length; i++) {
+    j = ascii.charCodeAt(i);
+    if (j >> 8) return;
+    words[i >> 2] |= j << ((3 - i) % 4) * 8;
+  }
+  words[words.length] = (asciiBitLength / MAX) | 0;
+  words[words.length] = asciiBitLength;
+  for (j = 0; j < words.length;) {
+    var w = words.slice(j, j += 16), oldHash = hash;
+    hash = hash.slice(0, 8);
+    for (i = 0; i < 64; i++) {
+      var w15 = w[i - 15], w2 = w[i - 2],
+          a = hash[0], e = hash[4],
+          temp1 = hash[7] + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25))
+                  + ((e & hash[5]) ^ (~e & hash[6])) + k[i]
+                  + (w[i] = (i < 16) ? w[i] : (
+                      w[i - 16] + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3))
+                      + w[i - 7] + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0),
+          temp2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22))
+                  + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+    for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+  }
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j + 1; j--) {
+      var b = (hash[i] >> (j * 8)) & 255;
+      result += ((b < 16) ? 0 : "") + b.toString(16);
+    }
+  }
+  return result;
 }
+
+async function sha256(text) {
+  if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+    try {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
+    } catch (e) { /* fall through to the JS implementation */ }
+  }
+  return sha256js(text);
+}
+
 
 function unlock() {
   const sub = document.getElementById("subLine");
@@ -382,7 +442,7 @@ async function tryCode() {
   } catch (e) {
     // crypto.subtle needs a secure context. On GitHub Pages it is https, so
     // this only bites when testing over plain http.
-    err.textContent = "This page needs to be opened over https.";
+    err.textContent = "Couldn't check that code. Try again.";
     return;
   }
   // Announcer code only. The general code opens show-view.html, not this.
