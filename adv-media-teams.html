@@ -747,8 +747,8 @@
     border-left: 5px solid var(--border);
     border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
   }
-  /* The coloured band on the reel, reproduced. Reading a band is faster than
-     reading a number in bad light, which is why the cables ship with them. */
+  /* Camera colour on the run. Reading a colour is faster than reading a
+     number in bad light. */
   .cab-band {
     flex: 0 0 auto; width: 14px; align-self: stretch; min-height: 46px;
     border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,0.22);
@@ -1392,7 +1392,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v45 · audio + confirmations";
+const APP_BUILD = "build 2026-09-01 · v46 · real cable runs";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3661,17 +3661,20 @@ const CABLE_STATE = {
 };
 
 // Seeds the list the first time, from the runs the football package calls for.
-// The runs, as they actually pair up with cameras.
+// The runs as they actually are. Lengths are what is physically at the
+// stadium, not what was ordered — Camera 3 is usually made up from a 50 and a
+// 25 rather than a single 100.
 //
-// Blue is the only one not on a reel — Camera 1 sits in the press box opening
-// and the run is 10 ft, so a reel would be in the way rather than useful.
+// NO REELS YET. Everything here is loose cable, so the handling rules matter
+// more, not less: ends capped, bagged, and never on the ground.
 const CABLE_SEED = [
-  { id: "blu-10",   label: "10 ft",  colour: "Blue",   use: "Camera 1 — no reel" },
-  { id: "red-100",  label: "100 ft", colour: "Red",    use: "Camera 2" },
-  { id: "grn-100",  label: "100 ft", colour: "Green",  use: "Camera 3" },
-  { id: "yel-365",  label: "365 ft", colour: "Yellow", use: "Camera 4" },
-  { id: "red-100b", label: "100 ft", colour: "Red",    use: "Camera 2 backup" },
-  { id: "grn-100b", label: "100 ft", colour: "Green",  use: "Camera 3 backup" },
+  { id: "blu-10a",  label: "10 ft",  colour: "Blue",   use: "Camera 1 — two 10 ft joined" },
+  { id: "blu-10b",  label: "10 ft",  colour: "Blue",   use: "Camera 1 — second of the pair" },
+  { id: "red-loom", label: "Long loom", colour: "Red", use: "Camera 2 — the long loom" },
+  { id: "grn-50",   label: "50 ft",  colour: "Green",  use: "Camera 3 — with the 25 usually makes it" },
+  { id: "grn-25",   label: "25 ft",  colour: "Green",  use: "Camera 3 — with the 50" },
+  { id: "grn-100",  label: "100 ft", colour: "Green",  use: "Camera 3 — single run alternative" },
+  { id: "yel-100",  label: "100 ft", colour: "Yellow", use: "Camera 4 — yellow tape" },
   { id: "spr-100",  label: "100 ft", colour: "Spare",  use: "Spare" },
   { id: "ext-1",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
   { id: "ext-2",    label: "98 ft",  colour: "Spare",  use: "Special event / extension" },
@@ -4278,8 +4281,8 @@ function renderCablesHtml(cables) {
   return `
     <div class="gear-head" style="margin-top:26px;">Cables</div>
     <div class="footnote" style="margin-bottom:10px;">
-      Every reel has a coloured band matching its camera. Tap one to change its
-      status. Everyone sees it straight away.
+      Each run is marked for its camera. Tap one to change its status.
+      Everyone sees it straight away.
     </div>
     ${bad ? `<div class="cab-alert">${bad} cable${bad === 1 ? "" : "s"} not in service — do not use ${bad === 1 ? "it" : "them"}</div>` : ""}
     ${rows.length === 0 ? `<div class="footnote">No cables yet.${admin ? " Add one below." : ""}</div>` : ""}

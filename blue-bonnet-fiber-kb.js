@@ -112,8 +112,9 @@ STRIKING A RUN — the order matters
 THE ENDS NEVER TOUCH THE GROUND. Not wet turf, not dry concrete, not for a second while
 someone coils. Grit does the same damage as water, it just takes another show to appear.
 
-USE REELS for every camera run. A reel keeps the ends off the ground by design rather than
-by everyone remembering, which is the only version of this rule that survives a wet night.
+THERE ARE NO REELS YET. Everything is loose cable, so the rule above depends entirely on
+people remembering it. If someone asks where to put an end down: a case lid, a bag,
+anything except the ground.
 
 IF AN END GETS WET OR DROPPED: do not plug it in to test it. Tag the cable, tell the EIC
 or A1, use a spare. Mating a contaminated end pushes the contamination into the other
@@ -136,19 +137,18 @@ meter, not with your eye.
 --------------------------------------------------
 ADV RUNS AT THE CISD STADIUM
 --------------------------------------------------
-Blue   Camera 1  10 ft, press box opening. The only run NOT on a reel.
-Red    Camera 2  100 ft to the north end zone JBT (about 75 ft away).
-                 NOTE: while the north end zone JBT is out of service, Camera 2
-                 runs 200 ft the long way to the VISITOR SIDE JBT instead. A new
-                 box is on order. Ask which run is in use before answering.
-Green  Camera 3  100 ft, up from the JBT into VIP.
-Yellow Camera 4  365 ft on a reel, home sideline — the sideline camera moves.
+Blue   Camera 1  TWO 10 ft SMPTE joined, up to the press box opening.
+Red    Camera 2  The long loom of SMPTE. Ask which JBT before answering anything about
+                 the run — that has changed and may change again.
+Green  Camera 3  100 ft up from the JBT into VIP. Usually made up from a 50 and a 25
+                 rather than a single 100.
+Yellow Camera 4  100 ft, marked with yellow tape.
 
-Red and Green each have a second 100 ft as a backup. There is one further 100 ft
-spare, and five 98 ft runs kept for special events and extensions.
+Red and Green have spare runs. There is one further 100 ft spare and five 98 ft runs kept
+for special events and extensions.
 
-Every reel carries a coloured band matching its camera. The band is the identity;
-crew read the band, not a number.
+Runs are marked for their camera — Camera 4's is yellow tape. Crew identify a run by its
+marking, not by a number.
 
 --------------------------------------------------
 SMPTE TROUBLESHOOTING, IN ORDER
