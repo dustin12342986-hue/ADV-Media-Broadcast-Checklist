@@ -398,7 +398,9 @@ async function tryCode() {
 }
 
 const DB = "https://crowley-football-default-rtdb.firebaseio.com";
-const MONITOR = "https://assembly-brian-workout-momentum.trycloudflare.com/monitor/index.m3u8";
+// Must be https — see the note in adv-media-teams.html. A local http
+// address is blocked as mixed content on an https page.
+const MONITOR = "https://poison-farms-scsi-towers.trycloudflare.com/monitor/index.m3u8";
 
 // Client view shows the technical grid, never the announcer copy. `read` and
 // `notes` are read from Firebase like everything else and simply not rendered.
