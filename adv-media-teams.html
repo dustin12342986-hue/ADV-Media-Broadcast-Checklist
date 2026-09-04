@@ -1132,8 +1132,10 @@
   .reason-option input { width: 18px; height: 18px; }
 
   .inv-status { font-size: 12.5px; font-weight: 800; margin-top: 6px; }
-  .inv-pending { color: var(--amber); }
-  .inv-approved { color: var(--green); }
+  /* Grey the whole way until QuickBooks confirms. Anything more encouraging
+     than grey reads as "paid", and that is the thing people plan around. */
+  .inv-waiting { color: var(--text-muted); }
+  .inv-paid { color: var(--green); }
   .inv-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
 
   .log-entry {
@@ -1430,7 +1432,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v57 · Southlake from grid";
+const APP_BUILD = "build 2026-09-01 · v58 · invoice status colours";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1794,19 +1796,24 @@ async function renderMyInvoices() {
             </div>
             <div class="log-entry-body">${escapeHtml(inv.position || "")} — ${escapeHtml(gameLabel)}</div>
             ${(() => {
+              // Grey until the Bill exists in QuickBooks, green once it does.
+              // Approved and actually-in-QuickBooks are different things, and
+              // green is what people read as "this is being paid" — so it is
+              // held back until the Bill is really there.
               const ap = (approvals[inv.gameId] || {})[inv.key];
-              if (!ap) {
-                return `<div class="inv-status inv-pending">Submitted — waiting on approval</div>`;
+              const paid = !!(ap && ap.quickbooksBillCreated);
+
+              if (paid) {
+                const w = ap.approvedAt ? new Date(ap.approvedAt) : null;
+                const when = w && !isNaN(w) ? w.toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+                return `<div class="inv-status inv-paid">\u2713 Confirmed in QuickBooks${when ? " \u00b7 " + escapeHtml(when) : ""}</div>`
+                  + (ap.quickbooksBillId ? `<div class="inv-sub">Bill #${escapeHtml(String(ap.quickbooksBillId))}</div>` : "");
               }
-              const when = new Date(ap.approvedAt);
-              const w = isNaN(when) ? "" : when.toLocaleDateString([], { month: "short", day: "numeric" });
-              // Approved and paid-into-QuickBooks are different things. If the
-              // Bill failed, the office still has it by email — say so rather
-              // than implying it vanished.
-              return `<div class="inv-status inv-approved">✓ Approved${w ? " " + escapeHtml(w) : ""}${ap.approvedByName ? " by " + escapeHtml(ap.approvedByName) : ""}</div>`
-                + (ap.quickbooksBillCreated
-                    ? `<div class="inv-sub">In QuickBooks${ap.quickbooksBillId ? " · Bill #" + escapeHtml(String(ap.quickbooksBillId)) : ""}</div>`
-                    : `<div class="inv-sub">Being entered by the office</div>`);
+
+              if (ap) {
+                return `<div class="inv-status inv-waiting">Approved \u2014 being entered in QuickBooks</div>`;
+              }
+              return `<div class="inv-status inv-waiting">Submitted \u2014 waiting on approval</div>`;
             })()}
             ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
             <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-game="${inv.gameId}" data-key="${inv.key}">Delete</button>
