@@ -997,6 +997,8 @@
   .d-screen { --dept: #A87BD4; }
   .d-ribbon { --dept: #3FBFB0; }
   .d-audio  { --dept: #46B36B; }
+  .d-position .ros-field-label { color: #E6CE3A; }
+  .d-position { border-left-color: #E6CE3A; }
   .d-note   { --dept: #E0A63C; }
   .d-note .ros-field-val { color: var(--amber); font-weight: 600; }
 
@@ -1428,7 +1430,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v54 · weather hold code";
+const APP_BUILD = "build 2026-09-01 · v57 · Southlake from grid";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -6352,6 +6354,7 @@ const ROS_DEPTS = [
   { key: "screen", label: "Screen",    cls: "d-screen" },
   { key: "ribbon", label: "Ribbon",    cls: "d-ribbon" },
   { key: "audio",  label: "Audio",     cls: "d-audio" },
+  { key: "position", label: "Position", cls: "d-position" },
   { key: "notes",  label: "Note",      cls: "d-note" },
 ];
 
@@ -6384,6 +6387,7 @@ function rosShowListHtml(cues, cur) {
         ${rosFieldHtml("Screen", c.screen, "d-screen")}
         ${rosFieldHtml("Ribbon", c.ribbon, "d-ribbon")}
         ${rosFieldHtml("Audio", c.audio, "d-audio")}
+        ${rosFieldHtml("Position", c.position, "d-position")}
         ${rosFieldHtml("Note", c.notes, "d-note")}
       </div>
       ${i < cues.length - 1 ? (
@@ -6496,7 +6500,7 @@ function rosOpenCueEditor(index, insertAfter) {
     ? rosState.cues[insertAfter]
     : rosState.cues[rosState.cues.length - 1];
   const c = adding
-    ? { section: (neighbour || {}).section || "", time: "", dur: "", event: "", screen: "", ribbon: "", audio: "", notes: "" }
+    ? { section: (neighbour || {}).section || "", time: "", dur: "", event: "", screen: "", ribbon: "", audio: "", position: "", notes: "" }
     : Object.assign({}, rosState.cues[index]);
 
   const field = (id, label, val, ph) => `
@@ -6525,6 +6529,7 @@ function rosOpenCueEditor(index, insertAfter) {
       ${field("cuScreen", "Big Screen", c.screen, "")}
       ${field("cuRibbon", "Ribbon", c.ribbon, "")}
       ${field("cuAudio", "Audio", c.audio, "")}
+      ${field("cuPosition", "Position", c.position, "Camera 4, Replay, Shader…")}
       ${field("cuNotes", "Notes", c.notes, "")}
       <button class="primary-btn" id="cuSave">${adding ? "Add Cue" : "Save Cue"}</button>
       <button class="shift-btn shift-btn-ghost" id="cuCancel"
@@ -6542,7 +6547,10 @@ function rosOpenCueEditor(index, insertAfter) {
     const updated = {
       section: v("cuSection"), time: v("cuTime"), dur: v("cuDur"),
       event: v("cuEvent"), read: v("cuRead"), screen: v("cuScreen"),
-      ribbon: v("cuRibbon"), audio: v("cuAudio"), notes: v("cuNotes"),
+      ribbon: v("cuRibbon"), audio: v("cuAudio"),
+      // Which position has to do something on this cue. Shown as its own
+      // coloured line so an operator can find their cues in a 40-cue show.
+      position: v("cuPosition"), notes: v("cuNotes"),
     };
     if (!updated.event && !updated.time) {
       alert("Give the cue a time or an event — otherwise there's nothing to call.");
@@ -6742,17 +6750,19 @@ const RUN_OF_SHOW = {
           { time: "6:35 PM", dur: "2:04", event: "The Texas Way VIDEO", screen: "The Texas Way (2:04)", ribbon: "Versus", audio: "Texas Way" },
           { time: "6:40 PM", dur: "2:00", event: "Intro CHS Cheerleaders", screen: "Individual Photos", ribbon: "CHS logo", audio: "Announcer" },
           { time: "6:42 PM", dur: "1:30", event: "Visiting band alma mater", screen: "Live Action", ribbon: "Versus", audio: "LHS Band" },
+          { time: "6:43 PM", event: "Video #4 — Crowley Pride", screen: "Crowley Pride", audio: "Video" },
           { time: "6:44 PM", dur: "1:30", event: "Home band alma mater", screen: "Live Action", ribbon: "Versus", audio: "NCHS Band Alma Mater" },
           { time: "6:46 PM", dur: "2:00", event: "CHS offensive starters", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
           { time: "6:48 PM", dur: "2:00", event: "CHS defensive starters", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
+          { time: "6:50 PM", event: "Video #3 — On the Rise", screen: "On the Rise (:51)", audio: "Video" },
           { time: "6:50 PM", dur: "1:00", event: "CHS coaching staff introductions", screen: "Individual Pictures", ribbon: "CHS logo", audio: "Announcer", notes: "See script" },
-          { time: "", event: "Video — School Board welcome", screen: "Welcome from CISD School Board (1:01)", ribbon: "Excellence Every Day", audio: "Video", notes: "No start time on the sheet — sits between the coaching staff intro and the referees." },
           { time: "6:51 PM", dur: "0:30", event: "Introduction of referees", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer" },
           { time: "6:51:30 PM", dur: "2:30", event: "Coin toss", screen: "Live Action", ribbon: "Versus", audio: "Announcer" },
           { time: "6:54 PM", dur: "1:00", event: "Lamar takes the field", screen: "Live Action", ribbon: "Versus", audio: "Announcer" },
           { time: "6:55 PM", event: "CHS hype video", screen: "Video", ribbon: "CHS logo", audio: "Video", notes: "Duration shown as ??? on the sheet — confirm the runtime." },
           { time: "6:56 PM", dur: "0:30", event: "CHS takes field", screen: "Live Action", ribbon: "CHS logo", audio: "NCHS Band Fight Song", notes: "NCHS runs out on the field." },
           { time: "6:57 PM", dur: "0:30", event: "Introduction of JROTC Color Guard", screen: "Live Action", ribbon: "US Flag", audio: "Announcer" },
+          { time: "6:58 PM", event: "Video — School Board welcome", screen: "Welcome from CISD School Board (1:01)", ribbon: "Excellence Every Day", audio: "Video" },
           { time: "6:58 PM", dur: "2:00", event: "National Anthem", screen: "US Flag / Live Action", ribbon: "US Flag", audio: "CHS Band" },
           { time: "7:00 PM", event: "Kickoff — hype music", screen: "Live Action", ribbon: "Versus", audio: "Make some noise!", notes: "Get fans excited for kickoff." },
         ],
@@ -6767,6 +6777,7 @@ const RUN_OF_SHOW = {
       {
         name: "End of 1st Quarter",
         cues: [
+          { time: "End of 1st", event: "On-field cam — live action on the 35", screen: "Live Action", position: "Camera 4", notes: "Field camera to the 35 yard line." },
           { time: "End of 1st", event: "Announcement #2", screen: "CHS Home Schedule", ribbon: "Excellence Every Day", audio: "Video" },
         ],
       },
@@ -6780,6 +6791,7 @@ const RUN_OF_SHOW = {
       {
         name: "End of 2nd Quarter",
         cues: [
+          { time: "End of 2nd", dur: "0:44", event: "Video — CHS Academic Excellence", screen: "CHS Academic Excellence (:44)", audio: "Video" },
           { time: "End of 2nd", event: "Video", screen: "New CHS short (1:08)", ribbon: "Excellence Every Day", audio: "Video" },
         ],
       },
@@ -6799,6 +6811,7 @@ const RUN_OF_SHOW = {
       {
         name: "End of 3rd Quarter",
         cues: [
+          { time: "End of 3rd", event: "Video — Indoor Events", screen: "Indoor Events", audio: "Video" },
           { time: "End of 3rd", event: "Call your ride", screen: "Live Video", ribbon: "Call Your Ride", audio: "Announcer", notes: "KIDS CALL YOUR RIDE!" },
         ],
       },
@@ -6806,6 +6819,7 @@ const RUN_OF_SHOW = {
         name: "4th Quarter",
         cues: [
           { time: "", event: "Dance Cam #4", screen: "Dance Cam Frame + Live Action", ribbon: "Follow Social Media", audio: "DJ & Announcer", notes: "Swag Surfin'" },
+          { time: "2:00 warning", event: "Video — State of the District", screen: "State of the District (1:07)", audio: "Video" },
           { time: "First stoppage after 6:00", event: "Announcement — Call your ride", screen: "Live Video", ribbon: "Call Your Ride", audio: "Announcer", notes: "KIDS CALL YOUR RIDE!" },
         ],
       },
@@ -6821,6 +6835,156 @@ const RUN_OF_SHOW = {
           { time: "If needed", event: "Fire evacuation", audio: "Announcer", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane.", notes: "Repeat once more." },
           { time: "If needed", event: "Severe weather", audio: "Announcer", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
           { time: "If needed", event: "Lightning", audio: "Announcer", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
+        ],
+      },
+    ],
+  },
+
+  // Built from Run_of_Show-NC_vs__Southlake_Carroll.xlsx — the technical grid
+  // is the authority for times, screen, ribbon and audio. Read copy is merged
+  // in from DRAFT_PA_script_-_Southlake.docx where the two describe the same
+  // cue.
+  //
+  // WHERE THEY DISAGREE, THE SPREADSHEET WINS. They disagree a fair amount:
+  //   - Welcome is 6:30 on the grid, 6:31 in the script. Grid used.
+  //   - School Board Welcome is 6:59, AFTER the anthem, not before.
+  //   - Hype video is 1:08 on the grid, 1:35 in the script.
+  //   - The quarter content is largely different. The script's CTEF block,
+  //     dance cams and several videos are not on the grid at all.
+  //
+  // Anything in the script but not the grid has been left out rather than
+  // guessed at — flag it to Comms rather than calling a cue that is not there.
+  "2026-09-04": {
+    header: "North Crowley vs Southlake Carroll",
+    sub: "Friday, September 4, 2026 · 7:00 PM kickoff · CISD Multi-Purpose Stadium",
+    sections: [
+      {
+        name: "In Game Notes",
+        cues: [
+          { time: "Standing", event: "Timeout read", audio: "Announcer",
+            read: "Timeout ______. This timeout is sponsored by BJ's Wholesale Club, Home of the Save." },
+        ],
+      },
+      {
+        name: "Pregame",
+        cues: [
+          { time: "3:15 PM", dur: "2:00:00", event: "House Music", screen: "Welcome", ribbon: "Excellence Every Day", audio: "House Music" },
+          { time: "5:15 PM", dur: "45:00", event: "North Crowley Mix", screen: "Teams Graphic", ribbon: "CHS logo", audio: "See Crowley Music" },
+          { time: "5:45 PM", dur: "15:00", event: "Test video / audio", notes: "Test pass before content starts." },
+          { time: "6:00 PM", dur: "30:00", event: "CISD Communications pregame graphics", screen: "Graphics", ribbon: "Versus", audio: "North Crowley Mix" },
+          { time: "6:30 PM", dur: "1:00", event: "Welcome / on-field recognition — Greg Williams",
+            screen: "Graphic 1 — Welcome / Live Action", ribbon: "Versus", audio: "Announcer",
+            position: "Camera 4",
+            notes: "Presenters come to the field: Courtney Spakes (Huntington Bank) and Love Joy Schroeder (Dave Campbell's).",
+            read: "On behalf of the Crowley ISD Board of Trustees, Superintendent of Schools Dr. Michael McFarland, and Executive Director of Athletics Greg Williams, we would like to welcome you to CISD Multi-Purpose Stadium.\n\nWe have a special recognition tonight. Dave Campbell's Texas Football has teamed up with Huntington Bank to spotlight Friday Night Lights across Texas with the Capital of Texas High School Football. As part of tonight's celebration, Coach Greg Williams is being honored with the Athletic Director Spotlight Award! Down on the field to present Coach Williams are Courtney Spakes, Branch Manager at Huntington Bank and Love Joy Schroeder with Dave Campbell's. A big thank-you to Huntington Bank for making this award possible and head on over to TexasFootball.com to nominate your school for the Capital of Texas High School Football!\n\nLet's give Coach Williams one more round of applause!" },
+          { time: "6:31 PM", dur: "2:00", event: "UIL Guidelines", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer", notes: "Inside the folder." },
+          { time: "6:33 PM", dur: "1:00", event: "Introduction of administrations", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer",
+            read: "Crowley Independent School District Administration\nSuperintendent of Schools — Dr. Michael McFarland\nNorth Crowley HS Principal — Dr. Mario Layne\nExecutive Director of Athletics — Greg Williams\nHead Football Coach — Demarcus Harris\n\nSouthlake Carroll Independent School District Administration\nSuperintendent of Schools — Dr. Jeremy Glenn\nExecutive Director of Athletics — Jennifer Suitor\nSouthlake Carroll Principal — Shatina Lewis (Senior HS) & Patrick Holiday (HS)\nHead Football Coach — Lee Munn" },
+          { time: "6:34 PM", dur: "2:04", event: "Video — The Texas Way", screen: "The Texas Way (2:04)", ribbon: "Versus", audio: "Texas Way" },
+          { time: "6:37 PM", dur: "2:00", event: "Intro NCHS cheerleaders", screen: "Individual Photos", ribbon: "NCHS logo", audio: "Announcer",
+            read: "At this time, we want to recognize and introduce the 2026 North Crowley Panthers Varsity Cheerleading team.\n\nManager Aubrey McCollums\nManager Princess Mitchell\nManager Tiauna Norwood\nSophomore Tailynn Grover\nSophomore Imery Lewis\nSophomore Carsynn Mims\nSophomore Zariyah Norwood\nSophomore Charde Perry\nSophomore Brielle Simmons\nSophomore Bria Smith\nJunior Sierra Custard\nJunior Reagan Feist\nJunior Nikyla Henderson\nJunior Serenity Jones\nJunior Christian Nelson\nJunior Amari Purvey\nJunior Nakya Sammuel\nJunior Janyiah Strange\nJunior Suriyah Stubbs\nJunior Aryanna Warren\nSenior Kaylyn Crawford\nSenior Desiree Jackson\nSenior Gabriella Johnson\nSenior Aniyah Neely\nSenior Kamila Reyes\nSenior Lieutenant Reagan Wilson\nSenior Co-Captain MaKayla Kelly\nSenior Co-Captain Janylah Pollard\nSenior Co-Captain Kennedy Williams\n\nThe fabulous 2026-27 North Crowley Panther Varsity Cheerleaders are under the direction of Coach Sarrah Gordon." },
+          { time: "6:39 PM", dur: "1:30", event: "Southlake band alma mater", screen: "Live Action", ribbon: "Versus", audio: "CHS Band",
+            read: "We will now have Southlake Carroll's alma mater performed by the Carroll Dragon band. (band plays)" },
+          { time: "6:41 PM", dur: "1:30", event: "NCHS band alma mater", screen: "Live Action", ribbon: "Versus", audio: "NCHS Band Alma Mater",
+            read: "We will now have North Crowley's alma mater performed by The Mighty Panther band! (band plays)" },
+          { time: "6:43 PM", dur: "1:06", event: "Video — My Crowley Pride, Sinclairs", screen: "Video #4", ribbon: "Crowley Pride Unified", audio: "Video" },
+          { time: "6:45 PM", dur: "2:00", event: "NCHS offensive starters", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "QB  #15  Sr.    Jacob Torres\nRB  #23  Sr.    Kiante Ingram\nWR  #2   Jr.    Demarion Mays\nWR  #12  Jr.    Kade Smith\nWR  #1   Sr.    Pryce Demerson\nWR  #5   Sr.    Jeremy Cooper\nLT  #52  Soph.  King Irving\nLG  #53  Sr.    Tyree Fleming\nC   #51  Sr.    Tre Tate\nRG  #54  Soph.  Chase Wilkins\nRT  #50  Sr.    Gabe Brooks" },
+          { time: "6:47 PM", dur: "2:00", event: "NCHS defensive starters", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "CB  #38  Soph.  Keith Walker\nCB  #28  Sr.    Hayden Hunt\nDE  #8   Sr.    Antonio Smith\nDE  #32  Sr.    Kyron Crosby\nDT  #56  Soph.  Isaiah McGilvery\nDT  #45  Sr.    Derrick Gleason\nLB  #6   Jr.    Brock Lacey\nLB  #22  Sr.    Titan Bonner\nLB  #0   Sr.    Avery Dodson\nFS  #14  Sr.    Zion Miller\nFS  #7   Sr.    Elijah Houston" },
+          { time: "6:49 PM", dur: "1:00", event: "NCHS coaching staff introductions", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "Duce Fears\nHector Garcia\nJulius Howard\nAstin Greer\nTJ Delbon\nTobi Adeboyejo\nDnarius Green\nShaun Freeman\nRandal Carraway\nBryce Bailey\nZach Calhoun\nJonkil Skipper\nIsaac Sandoval\nJeremy Hodge\nZack Kelly\nKevin Park\nJoseph Judie\n\nAnd the Head Coach for your North Crowley Panthers is Demarcus Harris" },
+          { time: "6:50 PM", dur: "0:51", event: "Video — On the Rise", screen: "Video #3", ribbon: "Excellence Every Day", audio: "Video" },
+          { time: "6:51 PM", dur: "0:30", event: "Introduction of referees", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer", notes: "See referee card." },
+          { time: "6:51:30 PM", dur: "2:30", event: "Coin toss", screen: "Live Action", ribbon: "Versus", audio: "Announcer", position: "Camera 4" },
+          { time: "6:54 PM", dur: "0:30", event: "Southlake takes the field", screen: "Live Action", ribbon: "Versus", audio: "Announcer",
+            read: "Ladies and gentlemen, let's welcome the Dragons of Carroll High School" },
+          { time: "6:54:30 PM", dur: "1:08", event: "Video — NCHS hype video", screen: "Video #20", ribbon: "2024 State Champions", audio: "Video",
+            notes: "Plays while players are in the tunnel. When it ends the band starts the fight song and players run out." },
+          { time: "6:56 PM", dur: "0:30", event: "NCHS takes field", screen: "Live Action", ribbon: "NCHS logo", audio: "NCHS Band Fight Song", notes: "NCHS runs out on the field." },
+          { time: "6:56:30 PM", dur: "0:30", event: "Introduction of JROTC Color Guard", screen: "Live Action", ribbon: "US Flag", audio: "Announcer",
+            read: "Ladies and gentlemen, we ask that you please stand and remove your hats as the Crowley ISD Corp of Cadets presents the colors for tonight's game.\n\nAmerican Guard — Cadet Sergeant First Class Jamiah Williams\nAmerican Flag — Cadet Command Sergeant Major Elijah McCrell\nTexas Flag — Cadet Captain Ayonna Tedford\nTexas Guard — Cadet Sergeant Serenity Foster\n\nSergeant First Class Gregory Peavy: Army Instructor\nSergeant First Class Jonpierre Meyer: Army Instructor" },
+          { time: "6:57 PM", dur: "2:00", event: "National Anthem", screen: "US Flag / Live Action", ribbon: "US Flag", audio: "NCHS Band",
+            read: "Fans — At this time, we ask that you please stand … and remove your hats… in honor of America … as the North Crowley Mighty Panther Band… under the direction of Chris Sample… performs the National Anthem." },
+          { time: "6:59 PM", dur: "1:01", event: "Video — School Board welcome", screen: "Video #1", ribbon: "Excellence Every Day", audio: "Video" },
+          { time: "7:00 PM", event: "Kickoff", screen: "Live Action", ribbon: "Versus" },
+        ],
+      },
+      {
+        name: "1st Quarter",
+        cues: [
+          { time: "1st qtr", event: "Announcement — Principal welcome", screen: "Graphic #5", ribbon: "NCHS Logo", audio: "Announcer", notes: "Script",
+            read: "North Crowley High School Principal Dr. Mario Layne welcomes everyone to tonight's game. As we celebrate the excellence on display, we ask all fans to support our student-athletes with great sportsmanship and respect for players, coaches, officials and fellow fans." },
+          { time: "", event: "Announcement — Home schedule", screen: "Graphic #17", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "Pack the stands and show your Crowley Pride Unified as the North Crowley Panthers take on another exciting season of football. Join us as we welcome our visiting teams and compete with excellence every day." },
+        ],
+      },
+      {
+        name: "End of 1st Quarter",
+        cues: [
+          { time: "End of 1st", dur: "1:21", event: "Video — CTE Promo", screen: "Video #10", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "2nd Quarter",
+        cues: [
+          { time: "2nd qtr", event: "Announcement — Graduation at Dickies", screen: "Graphic #7", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "Caps, Gowns and Cowtown! Graduation for the Class of 2027 is heading to Dickies Arena on Sunday, May 23. CHS graduates at 4 p.m., and NCHS at 8 p.m. Senior families, watch for more details about ticket quantities, arrival times and more. And get ready to celebrate with Crowley Pride Unified!" },
+          { time: "", event: "Announcement — Homecoming 2026", screen: "Graphic #30", ribbon: "NCHS logo", audio: "Announcer", notes: "Script — not in the PA script, get the copy from Comms." },
+          { time: "2:00 warning", dur: "0:41", event: "Video — Capua MyCrowleyPride", screen: "Video #13", ribbon: "Crowley Pride Unified", audio: "Video" },
+        ],
+      },
+      {
+        name: "End of 2nd Quarter",
+        cues: [
+          { time: "End of 2nd", dur: "1:40", event: "Video — Bond Update", screen: "Video #5", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "Halftime",
+        cues: [
+          { time: "Halftime", event: "Halftime show", screen: "Live Action", audio: "Bands" },
+          { time: "After CHS band", dur: "3:40", event: "Video — School Hype", screen: "Video #22", ribbon: "NCHS logo", audio: "Video" },
+        ],
+      },
+      {
+        name: "3rd Quarter",
+        cues: [
+          { time: "3rd qtr", event: "Announcement — NCHS vs Crowley", screen: "Graphic #27", ribbon: "NCHS logo", audio: "Announcer", notes: "Script — not in the PA script, get the copy from Comms." },
+          { time: "", event: "Announcement — Online store", screen: "Graphic #6", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "Panther fans… The Spirit Store is now open on the home side concourse. Drop in to pick up North Crowley gear! You'll find shirts, hoodies, hats, blankets and more!" },
+        ],
+      },
+      {
+        name: "End of 3rd Quarter",
+        cues: [
+          { time: "End of 3rd", dur: "0:30", event: "Video — Indoor Event Center", screen: "Video #7", ribbon: "Crowley Pride Unified", audio: "Video" },
+        ],
+      },
+      {
+        name: "4th Quarter",
+        cues: [
+          { time: "4th qtr", event: "Announcement — Call your ride", screen: "Graphic #20 / Live Video", ribbon: "Call Your Ride", audio: "Announcer" },
+          { time: "Towards the end", event: "Announcement — Stay off the field", screen: "Live Video", ribbon: "NCHS logo", audio: "Announcer", notes: "Script — not in the PA script, get the copy from Comms." },
+          { time: "2:00 warning", dur: "1:07", event: "Video — State of the District", screen: "Video #15", ribbon: "NCHS logo", audio: "Video" },
+        ],
+      },
+      {
+        name: "Postgame",
+        cues: [
+          { time: "Postgame", event: "Announcement — Next game, stay off the field", screen: "Panthers Win!", ribbon: "NCHS Logo", audio: "Announcer", notes: "Script",
+            read: "On behalf of Crowley ISD… thank you for your attendance and support at tonight's game. We kindly ask you to exit the stadium and be safe travelling home. We'll see you next week." },
+        ],
+      },
+      {
+        name: "Emergency Response",
+        cues: [
+          { time: "If needed", event: "Fire evacuation", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane." },
+          { time: "If needed", event: "Severe weather", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately." },
+          { time: "If needed", event: "Lightning", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately." },
         ],
       },
     ],
@@ -8032,7 +8196,7 @@ initFirebaseAndBoot();
       if (time) cue.time = time;
       const dur = tidyDur(get("dur"));
       if (dur && dur !== "???") cue.dur = dur;
-      ["read", "screen", "ribbon", "audio", "notes"].forEach((f) => {
+      ["read", "screen", "ribbon", "audio", "position", "notes"].forEach((f) => {
         const v = get(f);
         if (v) cue[f] = v;
       });
