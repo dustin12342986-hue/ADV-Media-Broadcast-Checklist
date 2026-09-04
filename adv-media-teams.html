@@ -1432,7 +1432,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v58 · invoice status colours";
+const APP_BUILD = "build 2026-09-01 · v59 · AI script import";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4183,6 +4183,124 @@ async function refreshSheet(gameId, url) {
   }
 }
 
+// ---- Build a cue list with Claude -----------------------------------------
+// The regex parser handles a tidy spreadsheet well and a prose PA script
+// badly — scripts vary in wording, numbering and where the times sit, and a
+// parser that guesses produces a cue list that looks right and is not.
+//
+// This sends the document text to the same Anthropic proxy the Blue Bonnet
+// widget uses and asks for the cue list back as JSON. It still goes through
+// the same preview, so nothing is saved without being looked at.
+const ROS_AI_PROXY = "https://bluebonnetproxy.dustin12342986.workers.dev";
+
+const ROS_AI_SYSTEM = `You turn a broadcast PA script or run of show into a cue list.
+
+Return ONLY a JSON array. No preamble, no markdown fences, no explanation.
+
+Each element is an object with these keys, all optional except event:
+  section   the block it belongs to: Pregame, 1st Quarter, End of 1st Quarter,
+            2nd Quarter, Halftime, 3rd Quarter, 4th Quarter, Postgame,
+            Emergency Response. Carry the section down until it changes.
+  time      "6:31 PM" for a clock time, or the marker used in the document
+            such as "1st qtr", "End of 2nd", "2:00 warning".
+  dur       "2:04" mm:ss, or "1:00:00" if genuinely over an hour.
+  event     what happens. Required. Short.
+  read      the announcer's word-for-word copy, if the document has any.
+            Keep it verbatim. Use \n between lines of a list.
+  screen    what is on the big screen.
+  ribbon    what is on the ribbon board.
+  audio     the audio source: Announcer, Video, Band, House Music.
+  position  a crew position only if the document names one.
+  notes     production notes for crew. Never put announcer copy here.
+
+RULES
+- Do not invent cues. If it is not in the document it does not go in.
+- Do not invent read copy. If a cue has no script, leave read out.
+- Keep read copy exactly as written. Do not tidy or rewrite it.
+- If something is ambiguous or contradicts itself, put a short note in notes
+  rather than guessing.
+- Emergency evacuation text goes in read, on cues in an Emergency Response
+  section.`;
+
+function rosAskHow(filename, parsedCount) {
+  return new Promise((resolve) => {
+    const o = document.createElement("div");
+    o.className = "modal-overlay";
+    o.innerHTML = `
+      <div class="modal-card" style="max-width:360px;">
+        <div class="modal-title">How should this be read?</div>
+        <div class="modal-subtitle">${escapeHtml(filename)}</div>
+        <button class="doc-pick" data-how="ai">
+          <span class="doc-tag" style="background:var(--accent)">CLAUDE</span>
+          <span>
+            <span class="doc-pick-label">Generate with Claude</span>
+            <span class="doc-pick-blurb">Handles prose scripts. Slower, usually better.</span>
+          </span>
+        </button>
+        <button class="doc-pick" data-how="parser">
+          <span class="doc-tag" style="background:var(--text-faint)">DIRECT</span>
+          <span>
+            <span class="doc-pick-label">Read it directly</span>
+            <span class="doc-pick-blurb">Instant, literal. Found ${parsedCount} cue${parsedCount === 1 ? "" : "s"}.</span>
+          </span>
+        </button>
+        <button class="shift-btn shift-btn-ghost" id="howCancel"
+          style="width:100%; margin-top:12px; padding:11px 0;">Cancel</button>
+      </div>`;
+    document.body.appendChild(o);
+    document.body.style.overflow = "hidden";
+    const done = (v) => { o.remove(); document.body.style.overflow = ""; resolve(v); };
+    o.querySelectorAll("[data-how]").forEach((btn) => { btn.onclick = () => done(btn.dataset.how); });
+    o.querySelector("#howCancel").onclick = () => done(null);
+    o.onclick = (e) => { if (e.target === o) done(null); };
+  });
+}
+
+async function rosBuildWithAI(gameId, text, filename) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:340px; text-align:center;">
+      <div class="modal-title">Reading the script</div>
+      <div class="modal-subtitle">${escapeHtml(filename)}</div>
+      <div class="footnote" style="margin-top:14px;">This takes a few seconds. Nothing is saved until you check it.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const shut = () => { overlay.remove(); document.body.style.overflow = ""; };
+
+  try {
+    const res = await fetch(ROS_AI_PROXY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        max_tokens: 8000,
+        system: ROS_AI_SYSTEM,
+        messages: [{ role: "user", content: text.slice(0, 120000) }],
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) {
+      throw new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
+    }
+    let out = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+    // Strip fences if they come back anyway.
+    out = out.replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim();
+    const first = out.indexOf("[");
+    const last = out.lastIndexOf("]");
+    if (first === -1 || last === -1) throw new Error("Didn't get a cue list back.");
+    const cues = JSON.parse(out.slice(first, last + 1));
+    if (!Array.isArray(cues) || !cues.length) throw new Error("The cue list came back empty.");
+
+    shut();
+    await showImportPreview(gameId, filename + " — read by Claude", { cues, warnings: [] });
+  } catch (e) {
+    shut();
+    alert("Couldn't build the cue list: " + (e.message || "unknown error")
+      + "\n\nYou can still use Build from the document, which reads it without AI.");
+  }
+}
+
 async function offerScriptImport(gameId, file) {
   const name = (file.name || "").toLowerCase();
   let parsed;
@@ -4199,6 +4317,20 @@ async function offerScriptImport(gameId, file) {
   } catch (e) {
     alert(e.message || "Couldn't read that file.");
     return;
+  }
+
+  // Two ways to read it. The parser is exact and literal; Claude handles prose
+  // scripts the parser cannot. Spreadsheets go straight through — the parser
+  // is better at a clean grid and costs nothing.
+  const isGrid = name.endsWith(".xlsx") || name.endsWith(".csv");
+  if (!isGrid) {
+    const how = await rosAskHow(file.name, parsed.cues.length);
+    if (how === null) return;
+    if (how === "ai") {
+      const raw = await readScriptFile(file);
+      await rosBuildWithAI(gameId, raw, file.name);
+      return;
+    }
   }
 
   if (parsed.warnings.length && !parsed.cues.length) {
