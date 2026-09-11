@@ -1432,7 +1432,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v59 · AI script import";
+const APP_BUILD = "build 2026-09-01 · v61 · Summer Creek run of show";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -6974,6 +6974,176 @@ const RUN_OF_SHOW = {
           { time: "If needed", event: "Fire evacuation", audio: "Announcer", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane.", notes: "Repeat once more." },
           { time: "If needed", event: "Severe weather", audio: "Announcer", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
           { time: "If needed", event: "Lightning", audio: "Announcer", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
+        ],
+      },
+    ],
+  },
+
+  // Built from Run_of_Show-NC_vs__Summer_Creek.pdf (the grid) with read copy
+  // merged in from Script_vs__Summer_Creek.pdf.
+  //
+  // THE GRID WINS ON TIMING. Two things to settle before doors:
+  //   - The anthem: the grid says NCHS Band, the script says the North Crowley
+  //     CHOIR performs it. Both are on the cue. Confirm which.
+  //   - The Homecoming Ceremony is a 20 minute block with no script — it is
+  //     coming from Serena Watkins.
+  "2026-09-11": {
+    header: "North Crowley vs Summer Creek",
+    sub: "Friday, September 11, 2026 \u00b7 7:00 PM kickoff \u00b7 CISD Multi-Purpose Stadium",
+    sections: [
+      {
+        name: "In Game Notes",
+        cues: [
+          { time: "Standing", event: "Timeout read", audio: "Announcer",
+            read: "Timeout ______. This timeout is sponsored by BJ's Wholesale Club, Home of the Save." },
+          { time: "Standing", event: "Graphic #36 \u2014 NCHS SNAP fundraiser", screen: "Graphic #36", audio: "Announcer",
+            notes: "Greg Williams wants this read 2-3 times tonight.",
+            read: "Fans - we need your support! The Panthers football program is more than halfway from their team goal with only 7 days remaining in the team's SNAP fundraiser. Scan the QR code on the videoboard and make your donation to help make this season a higher-quality experience for all participants!" },
+        ],
+      },
+      {
+        name: "Pregame",
+        cues: [
+          { time: "3:15 PM", dur: "2:00:00", event: "House Music", screen: "Welcome", ribbon: "Excellence Every Day", audio: "House Music" },
+          { time: "5:15 PM", dur: "45:00", event: "North Crowley Mix", screen: "Teams Graphic", ribbon: "CHS logo", audio: "See Crowley Music" },
+          { time: "5:45 PM", dur: "15:00", event: "Test video / audio" },
+          { time: "6:00 PM", dur: "15:00", event: "CISD Communications pregame graphics rotation", screen: "Graphics", ribbon: "Versus", audio: "North Crowley Mix" },
+          { time: "6:15 PM", dur: "2:00", event: "Welcome / UIL Guidelines", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer",
+            notes: "UIL statement is inside the folder.",
+            read: "On behalf of the Crowley ISD Board of Trustees, Superintendent of Schools Dr. Michael McFarland, and Executive Director of Athletics Greg Williams, we would like to welcome you to CISD Multi-Purpose Stadium.\n\n(Read the UIL Pregame Statement \u2014 inside the folder.)" },
+          { time: "6:17 PM", dur: "1:00", event: "Introduction of administrations", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer",
+            read: "Crowley Independent School District Administration\nSuperintendent of Schools \u2014 Dr. Michael McFarland\nNorth Crowley HS Principal \u2014 Dr. Mario Layne\nExecutive Director of Athletics \u2014 Greg Williams\nHead Football Coach \u2014 Demarcus Harris\n\nHumble Independent School District Administration\nSuperintendent of Schools \u2014 Dr. Roger Brown\nInterim Athletic Director \u2014 Eric Matthews\nSummer Creek Principal \u2014 Dr. Matthew Mahony\nHead Football Coach \u2014 Kenny Harrison" },
+          { time: "6:18 PM", dur: "2:04", event: "Video \u2014 The Texas Way", screen: "The Texas Way (2:04)", ribbon: "Versus", audio: "Texas Way" },
+          { time: "6:20 PM", dur: "20:00", event: "Homecoming Ceremony", screen: "Live Action", ribbon: "NCHS logo", audio: "Announcer",
+            position: "Camera 4",
+            notes: "20 minute block. Script coming from Serena Watkins \u2014 chase it before doors. Field camera needed." },
+          { time: "6:41 PM", dur: "1:30", event: "Summer Creek band alma mater", screen: "Live Action", ribbon: "Versus", audio: "SCHS Band",
+            read: "We will now have the Bulldog's alma mater performed by the Summer Creek Marching Band. (band plays)" },
+          { time: "6:42:30 PM", dur: "1:30", event: "NCHS band alma mater", screen: "Live Action", ribbon: "Versus", audio: "NCHS Band Alma Mater",
+            read: "We will now have North Crowley's alma mater performed by The Mighty Panther band! (band plays)" },
+          { time: "6:44 PM", dur: "2:00", event: "NCHS offensive starters", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "QB  #15  Sr.    Jacob Torres\nRB  #23  Sr.    Kiante Ingram\nWR  #2   Jr.    Demarion Mays\nWR  #12  Jr.    Kade Smith\nWR  #1   Sr.    Pryce Demerson\nWR  #5   Sr.    Jeremy Cooper\nLT  #52  Soph.  King Irving\nLG  #53  Sr.    Tyree Fleming\nC   #51  Sr.    Tre Tate\nRG  #54  Soph.  Chase Wilkins\nRT  #50  Sr.    Gabe Brooks" },
+          { time: "6:46 PM", dur: "2:00", event: "NCHS defensive starters", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "CB  #38  Soph.  Keith Walker\nCB  #28  Sr.    Hayden Hunt\nDE  #8   Sr.    Antonio Smith\nDE  #32  Sr.    Kyron Crosby\nDT  #56  Soph.  Isaiah McGilvery\nDT  #45  Sr.    Derrick Gleason\nLB  #6   Jr.    Brock Lacey\nLB  #22  Sr.    Titan Bonner\nLB  #0   Sr.    Avery Dodson\nFS  #14  Sr.    Zion Miller\nFS  #7   Sr.    Elijah Houston" },
+          { time: "6:48 PM", dur: "1:00", event: "NCHS coaching staff introductions", screen: "Individual Pictures", ribbon: "NCHS logo", audio: "Announcer", notes: "See script",
+            read: "Duce Fears\nHector Garcia\nJulius Howard\nAstin Greer\nTJ Delbon\nTobi Adeboyejo\nDnarius Green\nShaun Freeman\nRandal Carraway\nBryce Bailey\nZach Calhoun\nJonkil Skipper\nIsaac Sandoval\nJeremy Hodge\nZack Kelly\nKevin Park\nJoseph Judie\n\nAnd the Head Coach for your North Crowley Panthers is Demarcus Harris" },
+          { time: "6:49 PM", dur: "0:51", event: "Video \u2014 On the Rise", screen: "Video #3", ribbon: "Excellence Every Day", audio: "Video" },
+          { time: "6:50 PM", dur: "0:30", event: "Introduction of referees", screen: "Teams Graphic", ribbon: "Versus", audio: "Announcer", notes: "See referee card." },
+          { time: "6:50:30 PM", dur: "2:30", event: "Coin toss", screen: "Live Action", ribbon: "Versus", audio: "Announcer", position: "Camera 4" },
+          { time: "6:53 PM", dur: "0:30", event: "Summer Creek takes the field", screen: "Live Action", ribbon: "Versus", audio: "Announcer",
+            read: "Ladies and gentlemen, let's welcome the Bulldogs of Summer Creek High School" },
+          { time: "6:54 PM", dur: "1:08", event: "Video \u2014 NCHS hype video", screen: "Video #20", ribbon: "2024 State Champions", audio: "Video",
+            notes: "Plays while players are in the tunnel. When it ends the band starts the fight song and players run out." },
+          { time: "6:55 PM", dur: "0:30", event: "NCHS takes field", screen: "Live Action", ribbon: "NCHS logo", audio: "NCHS Band Fight Song", notes: "NCHS runs out on the field." },
+          { time: "6:56 PM", dur: "1:00", event: "JROTC Color Guard \u2014 MOMENT OF SILENCE",
+            screen: "Live Action", ribbon: "Sept. 11 Moment of Silence", audio: "Announcer",
+            notes: "25th anniversary of September 11. The moment of silence read comes AFTER they reach the 50 and present the colors. 10 seconds of silence.",
+            read: "Ladies and gentlemen, we ask that you please stand and remove your hats as the Crowley ISD Corp of Cadets presents the colors for tonight's game.\n\nAmerican Guard \u2014 Cadet Sergeant First Class Jamiah Williams\nAmerican Flag \u2014 Cadet Lieutenant Colonel Brooklyn Marshall\nTexas Flag \u2014 Cadet Captain Ayonna Tedford\nTexas Guard \u2014 Cadet Colonel Enrique Morales\n\nSergeant First Class Gregory Peavy: Army Instructor\nSergeant First Class Jonpierre Meyer: Army Instructor\n\nONCE THEY REACH THE 50 YARD LINE AND PRESENT THE COLORS:\n\nAs we gather tonight on the 25th anniversary of the attacks on September 11th, we ask everyone to join us in a brief moment of silence in remembrance of the victims, their families and all those whose lives were forever changed that day.\n\nPlease join us now in a moment of silence. (10 seconds of silence)\n\nThank you!" },
+          { time: "6:57 PM", dur: "2:00", event: "National Anthem", screen: "US Flag / Live Action", ribbon: "US Flag", audio: "NCHS Band",
+            notes: "CONFLICT: the grid says NCHS Band, the script says the North Crowley CHOIR performs it. Confirm which before doors.",
+            read: "At this time\u2026 the North Crowley Choir will perform the National Anthem." },
+          { time: "6:59 PM", dur: "1:01", event: "Video \u2014 School Board welcome", screen: "Video #1", ribbon: "Excellence Every Day", audio: "Video" },
+          { time: "7:00 PM", event: "Kickoff", screen: "Live Action", ribbon: "Versus" },
+        ],
+      },
+      {
+        name: "1st Quarter",
+        cues: [
+          { time: "1st qtr", event: "Announcement #5 \u2014 Principal welcome", screen: "Graphic #5", ribbon: "NCHS Logo", audio: "Announcer", notes: "Script",
+            read: "North Crowley High School Principal Dr. Mario Layne welcomes everyone to tonight's game. As we celebrate the excellence on display, we ask all fans to support our student-athletes with great sportsmanship and respect for players, coaches, officials and fellow fans." },
+          { time: "", event: "Announcement #27 \u2014 NCHS vs CHS", screen: "Graphic #27", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "The countdown is ON \u2014 we're exactly two weeks away from the crosstown showdown between the North Crowley Panthers and your Crowley Eagles on Friday, September 25th. Kickoff is set for 7 p.m. right here at Crowley ISD Multi-Purpose Stadium. Tickets go on sale Monday, Sept. 21st, so mark your calendars and secure your seats early! It will be a great evening to be loud and show your Crowley Pride!" },
+        ],
+      },
+      {
+        name: "End of 1st Quarter",
+        cues: [
+          { time: "End of 1st", dur: "1:00", event: "Video #2 \u2014 NCHS Academic Highlights", screen: "Video #2", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "2nd Quarter",
+        cues: [
+          { time: "2nd qtr", event: "Announcement #7 \u2014 Graduation at Dickies Arena", screen: "Graphic #7", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "Caps, Gowns and Cowtown! Graduation for the Class of 2027 is heading to Dickies Arena on Sunday, May 23. CHS graduates at 4 p.m., and NCHS at 8 p.m. Senior families, watch for more details about ticket quantities, arrival times and more. And get ready to celebrate with Crowley Pride Unified!" },
+          { time: "", event: "Announcement \u2014 NCHS Silver Stars officers", screen: "Photos", ribbon: "NCHS logo", audio: "Announcer", notes: "Script \u2014 photos needed for each name.",
+            read: "At this time, we want to recognize and introduce the 2026 North Crowley Silver Stars dance team officers.\n\nStarting with the Social Officers:\nIliaysia Harris\nCarelys Sonera-Reyes\nAniya Jordan\nAnd Social President \u2014 Taylor Brooks\n\nNow the Silver Stars Dance Officers are\nJr. Lieutenant \u2014 Madison Jones\nSr. Lieutenant \u2014 Lyric Curry\nSr. Lieutenant \u2014 Andrew Cooper\nAnd your 2026-2027 Silver Stars Captain \u2014 Miah Jones\n\nThe Silver Stars are led under the direction of Coach D'andre Brock." },
+          { time: "2:00 warning", dur: "1:06", event: "Video #4 \u2014 Sinclairs MyCrowleyPride", screen: "Video #4", ribbon: "Crowley Pride Unified", audio: "Video" },
+        ],
+      },
+      {
+        name: "End of 2nd Quarter",
+        cues: [
+          { time: "End of 2nd", dur: "1:40", event: "Video #5 \u2014 Bond Update", screen: "Video #5", ribbon: "Excellence Every Day", audio: "Video" },
+        ],
+      },
+      {
+        name: "Halftime",
+        cues: [
+          { time: "Halftime", event: "Halftime show", screen: "Live Action", audio: "Bands" },
+          { time: "End of half", dur: "3:40", event: "Video #22 \u2014 School Hype", screen: "Video #22", ribbon: "NCHS logo", audio: "Video", notes: "After the CHS band." },
+        ],
+      },
+      {
+        name: "3rd Quarter",
+        cues: [
+          { time: "3rd qtr", event: "Announcement #34 \u2014 Duncanville teaser", screen: "Graphic #28", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "North Crowley Nation \u2014 Next Friday night, the Panthers hit the road for one of the biggest matchups of the season as we take on Duncanville at their place! Kickoff is set for 7 p.m., and we need to see plenty of North Crowley fans in the stands! Tickets go on sale Monday, so make your plans now to come support the Panthers on the road!" },
+          { time: "", event: "Announcement #29 \u2014 Voter registration drive", screen: "Graphic #29", ribbon: "NCHS logo", audio: "Announcer", notes: "Script",
+            read: "Get ready to make your voice heard, CISD! Voter registration is coming directly to your campus this month. Mark your calendars for National Voter Registration Day on September 15th, plus campus drives happening September 28th through 30th! You can also get registered at the big CHS vs. NCHS rivalry game on September 25th. Be on the lookout for registration tables at your school, and special thanks to the Fort Worth Alphas, March To The Polls, and our Student Voter Empowerment Clubs for powering our youth vote!" },
+        ],
+      },
+      {
+        name: "End of 3rd Quarter",
+        cues: [
+          { time: "End of 3rd", dur: "1:16", event: "Video #7 and Video #9 \u2014 Indoor Event Center", screen: "Video #7 (:30) + Video #9 (:48)", ribbon: "Crowley Pride Unified", audio: "Video",
+            notes: "Play both back to back during the quarter break." },
+        ],
+      },
+      {
+        name: "4th Quarter",
+        cues: [
+          { time: "4th qtr", event: "Announcement #20 \u2014 Call your ride", screen: "Graphic #20 / Live Video", ribbon: "Call Your Ride", audio: "Announcer" },
+          { time: "Towards the end", event: "Announcement \u2014 Stay off the field", screen: "Live Video", ribbon: "NCHS logo", audio: "Announcer", notes: "Script" },
+          { time: "2:00 warning", dur: "1:07", event: "Video #15 \u2014 State of the District", screen: "Video #15", ribbon: "NCHS logo", audio: "Video" },
+        ],
+      },
+      {
+        name: "Postgame",
+        cues: [
+          { time: "Postgame", event: "Announcement \u2014 Next game, stay off the field", screen: "Panthers Win!", ribbon: "NCHS Logo", audio: "Announcer", notes: "Script",
+            read: "On behalf of Crowley ISD\u2026 thank you for your attendance and support at tonight's game. We kindly ask you to stay off the playing field, exit the stadium and be safe travelling home. North Crowley's next home game will be against the Crowley Eagles on Friday, Sept. 25th \u2026 but don't forget to travel to Duncanville next week! Go Panthers!" },
+        ],
+      },
+      {
+        name: "Filler \u2014 if time allows",
+        cues: [
+          { time: "Priority 1", dur: "0:41", event: "Video #13 \u2014 Capua MyCrowleyPride", screen: "Video #13", audio: "Video" },
+          { time: "Priority 2", dur: "0:35", event: "Video #14 \u2014 Cook MyCrowleyPride", screen: "Video #14", audio: "Video" },
+          { time: "Priority 3", dur: "0:39", event: "Video #11 \u2014 Future Ready", screen: "Video #11", audio: "Video" },
+          { time: "Priority 4", dur: "0:32", event: "Video #16 \u2014 Paul Quinn Promo", screen: "Video #16", audio: "Video" },
+          { time: "Priority 5", dur: "1:21", event: "Video #10 \u2014 CTE Promo", screen: "Video #10", audio: "Video" },
+          { time: "Priority 6", dur: "1:23", event: "Video #6 \u2014 Book Machines", screen: "Video #6", audio: "Video" },
+          { time: "Priority 7", dur: "2:07", event: "Video #17 \u2014 Teacher Recruitment", screen: "Video #17", audio: "Video" },
+          { time: "Graphic", event: "Graphic #35 \u2014 Hispanic Heritage Month", screen: "Graphic #35", audio: "Announcer",
+            read: "Diversity is our superpower in Crowley ISD and we'll celebrate the rich history, culture and contributions of Hispanic and Latino Americans throughout National Hispanic Heritage Month! We're excited to announce Saturday, Oct. 17th as the date for this year's annual Hispanic Heritage Quiz Bowl! Admission is free and the event will take place at North Crowley High School. It's a great opportunity for you to cheer on our students as they compete academically in Crowley ISD!" },
+          { time: "Graphic", event: "Graphic #3 \u2014 District Ratings", screen: "Graphic #3", audio: "Announcer",
+            read: "Crowley ISD is on the rise! We're celebrating an A in Financial Integrity, a B in Academics, and an 11-point academic gain in just two years. These results reflect the dedication of our students, educators and families as we continue advancing Vision 2030 and our North Star goal of achieving A and B ratings across Crowley ISD schools with Excellence Every Day!" },
+          { time: "Graphic", event: "Graphic #8 \u2014 Follow on social media", screen: "Graphic #8", audio: "Announcer",
+            read: "Stay up-to-date on all of the great things happening in Crowley ISD on social media! You can follow the district and campuses on Facebook, Instagram, YouTube and more. And don't forget to use the hashtag #CrowleyPrideUnified when you share your photos from tonight's game!" },
+          { time: "Graphic", event: "Graphic #16 \u2014 Spirit Store", screen: "Graphic #16", audio: "Announcer",
+            read: "The Spirit Store is now open on the home side concourse. Drop in to pick up North Crowley gear! You'll find shirts, hoodies, hats, blankets and more!" },
+        ],
+      },
+      {
+        name: "Emergency Response",
+        cues: [
+          { time: "If needed", event: "Fire evacuation", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane." },
+          { time: "If needed", event: "Severe weather", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately." },
+          { time: "If needed", event: "Lightning", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately." },
         ],
       },
     ],
