@@ -251,17 +251,10 @@ const GAMES = [
 //
 // A weather delay is the only thing that changes the number, and the office
 // prices that rather than the crew member.
-const EVENT_RATES = {
-  "EIC": 300,
-  "PM": 300,
-  "Director": 300,
-  "Producer": 300,
-  "Camera Lead": 275,
-};
-const EVENT_RATE_DEFAULT = 250;
-function rateForPosition(pos) {
-  return EVENT_RATES[pos] || EVENT_RATE_DEFAULT;
-}
+// No pay rates live in this file. It has no login, so anything it can read is
+// readable by anyone with the link, and crew pay is not something to leave
+// open. Rates are set in the app under Admin, and each person sees only their
+// own under My Invoices.
 
 const POSITION_LABELS = [
   "EIC", "PM", "Director", "Producer", "Shader", "Clips", "Replay",
@@ -610,9 +603,11 @@ function renderInvoiceUI(entries) {
         </select>
       </div>
       <div class="field-block">
-        <div class="label">Flat rate</div>
-        <div id="invRateReadout" class="rate-readout">$250</div>
-        <div class="field-hint">Set by your position.</div>
+        <div class="label">Rate</div>
+        <div class="field-hint" style="margin-top:8px;">
+          Your rate is on your invoice in the ADV Media Teams app, under My
+          Invoices. It isn't shown here.
+        </div>
       </div>
     </div>
 
@@ -663,11 +658,7 @@ function renderInvoiceUI(entries) {
   const rainBlock = document.getElementById("invRainBlock");
   const rainWhen = document.getElementById("invRainWhen");
 
-  function paintRate() {
-    rateReadout.textContent = "$" + rateForPosition(posEl.value);
-  }
-  paintRate();
-  posEl.onchange = (e) => { state.position = e.target.value; paintRate(); };
+  posEl.onchange = (e) => { state.position = e.target.value; };
 
   rainCheck.onchange = () => {
     rainBlock.style.display = rainCheck.checked ? "" : "none";
@@ -681,7 +672,9 @@ function renderInvoiceUI(entries) {
 
     // The rate is derived from the position, never typed. That is the whole
     // point of the change: there is nothing here for anyone to work out.
-    const flat = rateForPosition(position);
+    // No rate is calculated here. The timeclock has no login, so anything it
+    // could read, anyone with the link could read — including what other crew
+    // are paid. The office applies the rate when the invoice is approved.
     const delay = rainCheck.checked;
     const delayHoursEl = document.getElementById("invRainHours");
     const dh = delay ? parseFloat(delayHoursEl.value) : 0;
@@ -699,9 +692,7 @@ function renderInvoiceUI(entries) {
 
     const hours = "Flat rate";
     const rate = "";
-    // Total stays the flat rate even with a delay. The office adjusts it;
-    // a crew member guessing at the number is what this replaces.
-    const total = String(flat);
+    const total = "";
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting…";
@@ -714,8 +705,8 @@ function renderInvoiceUI(entries) {
     // beside it, not folded into it, so nobody can quietly turn a flat event
     // into a bigger number.
     const breakdown = delay
-      ? `$${flat} flat rate (${position}) + ${delayHours} hr weather delay (${rainWhen.value.trim()})`
-      : `$${flat} flat rate (${position})`;
+      ? `Flat rate (${position}) + ${delayHours} hr weather delay (${rainWhen.value.trim()})`
+      : `Flat rate (${position})`;
 
     const payload = {
       name, position, hours, rate, total,

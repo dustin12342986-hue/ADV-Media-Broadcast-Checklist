@@ -1131,6 +1131,10 @@
   .reason-option:first-of-type { border-top: none; }
   .reason-option input { width: 18px; height: 18px; }
 
+  .inv-rate {
+    font-size: 13px; font-weight: 800; color: var(--text); margin-top: 4px;
+  }
+
   .inv-status { font-size: 12.5px; font-weight: 800; margin-top: 6px; }
   /* Grey the whole way until QuickBooks confirms. Anything more encouraging
      than grey reads as "paid", and that is the thing people plan around. */
@@ -1432,7 +1436,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v62 · TXWES vs Texas College";
+const APP_BUILD = "build 2026-09-01 · v64 · private crew rates";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1446,6 +1450,7 @@ const ADMIN_GROUPS = [
   ]},
   { label: "Operations", items: [
     { view: "callTimes", label: "Call Times" },
+    { view: "crewRates", label: "Crew Rates" },
     { view: "confirmations", label: "Confirmations" },
     { view: "equipmentAdmin", label: "Equipment Reports" },
     { view: "checkout", label: "Equipment Checkout" },
@@ -1648,6 +1653,11 @@ function renderMainApp() {
     return;
   }
 
+  if (mainState.view === "crewRates" && admin) {
+    renderCrewRatesAdmin();
+    return;
+  }
+
   if (mainState.view === "callTimes" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderCallTimesAdmin();
@@ -1764,6 +1774,14 @@ async function renderMyInvoices() {
       const aSnap = await db.ref("qbApprovals").once("value");
       approvals = aSnap.val() || {};
     } catch (e) { /* not readable — invoices still list, just without status */ }
+
+    // Your own rates, and only your own. The rules refuse anyone else's, so a
+    // crew member cannot see what another crew member is paid.
+    let myRates = {};
+    try {
+      const mSnap = await db.ref(`crewRates/${currentUser.uid}`).once("value");
+      myRates = mSnap.val() || {};
+    } catch (e) { /* no entry, or not readable — fall back to the standard */ }
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
       for (const [key, inv] of Object.entries(pushes)) {
@@ -1795,6 +1813,15 @@ async function renderMyInvoices() {
               <span class="log-when">${whenStr}</span>
             </div>
             <div class="log-entry-body">${escapeHtml(inv.position || "")} — ${escapeHtml(gameLabel)}</div>
+            ${(() => {
+              // The rate is shown here and nowhere else. The timeclock does not
+              // know it, and this only ever loads the signed-in person's own.
+              const pos = inv.position || "";
+              const mine = myRates[rateKeyOf(pos)];
+              const amount = (mine != null && mine > 0) ? mine : standardRateFor(pos);
+              if (!pos) return "";
+              return `<div class="inv-rate">$${escapeHtml(String(amount))} \u00b7 ${escapeHtml(pos)}</div>`;
+            })()}
             ${(() => {
               // Grey until the Bill exists in QuickBooks, green once it does.
               // Approved and actually-in-QuickBooks are different things, and
@@ -3564,6 +3591,125 @@ function toTimeInput(v) {
 // Every position that can have its own call — the shift-board roles plus the
 // two that aren't tradeable.
 const CALL_TIME_ROLES = ["EIC", "PM"].concat(TRADEABLE_ROLES);
+
+// Cleared rates, per person per position.
+//
+// The standard rate is what a position pays. Someone still learning a seat is
+// on a lower cleared rate until they are up to speed, and that is per seat —
+// the same operator can be cleared on Camera 2 and still learning Replay.
+//
+// Only the exceptions live here. Anyone without an entry gets the standard
+// rate, which is most of the crew, so this page stays short.
+const STANDARD_RATES = {
+  "EIC": 300, "PM": 300, "Director": 300, "Producer": 300,
+  "Camera Lead": 275,
+};
+const STANDARD_RATE_DEFAULT = 250;
+const RATE_POSITIONS = [
+  "EIC", "PM", "Director", "Producer", "Shader", "Clips", "Replay",
+  "Camera Lead", "Camera Operator", "Audio A1", "A2", "Utility",
+];
+function standardRateFor(pos) { return STANDARD_RATES[pos] || STANDARD_RATE_DEFAULT; }
+function rateKeyOf(text) { return String(text || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "_"); }
+
+async function renderCrewRatesAdmin() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+
+  let rates = {};
+  let people = [];
+  try {
+    const [rSnap, pSnap] = await Promise.all([
+      db.ref("crewRates").once("value"),
+      db.ref("profiles").once("value"),
+    ]);
+    rates = rSnap.val() || {};
+    people = Object.entries(pSnap.val() || {})
+      .filter(([, p]) => p && p.legalName)
+      .map(([uid, p]) => ({ uid, name: p.legalName }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) {
+    inner.innerHTML = `<div class="error-msg">Couldn't load rates: ${escapeHtml(e.message || "unknown error")}</div>`;
+    return;
+  }
+
+  const standardList = RATE_POSITIONS
+    .map((p) => `${escapeHtml(p)} $${standardRateFor(p)}`).join(" · ");
+
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:14px;">
+      Standard rates are what a position pays. Set a rate here only for someone
+      who isn't on the standard rate for that seat yet — everyone else is
+      covered automatically.
+    </div>
+    <div class="log-reason" style="margin-bottom:16px;">${standardList}</div>
+
+    ${people.map(({ uid, name }) => {
+      const mine = rates[uid] || {};
+      const set = RATE_POSITIONS.filter((p) => mine[rateKeyOf(p)]);
+      return `
+        <div class="shift-game-card">
+          <div class="shift-game-header">${escapeHtml(name)}</div>
+          <div class="log-reason" style="margin:-4px 0 8px;">
+            ${set.length
+              ? set.map((p) => `${escapeHtml(p)} $${escapeHtml(String(mine[rateKeyOf(p)]))}`).join(" · ")
+              : "Standard rates"}
+          </div>
+          <button class="shift-btn shift-btn-ghost" data-editrate="${escapeAttr(uid)}"
+            data-ratename="${escapeAttr(name)}" style="width:100%; padding:10px 0;">Set rates</button>
+        </div>`;
+    }).join("")}
+  `;
+
+  inner.querySelectorAll("[data-editrate]").forEach((el) => {
+    el.onclick = () => openRateEditor(el.dataset.editrate, el.dataset.ratename, rates);
+  });
+}
+
+function openRateEditor(uid, name, rates) {
+  const mine = Object.assign({}, rates[uid] || {});
+
+  const o = document.createElement("div");
+  o.className = "modal-overlay";
+  o.innerHTML = `
+    <div class="modal-card" style="max-width:380px;">
+      <div class="modal-title">${escapeHtml(name)}</div>
+      <div class="modal-subtitle">Leave a box empty to use the standard rate.</div>
+      ${RATE_POSITIONS.map((p) => `
+        <div class="field-block" style="margin-bottom:9px;">
+          <div class="label">${escapeHtml(p)} <span style="color:var(--text-faint); font-weight:600;">standard $${standardRateFor(p)}</span></div>
+          <input id="rate_${rateKeyOf(p)}" type="number" min="0" step="5"
+            placeholder="$${standardRateFor(p)}"
+            value="${escapeAttr(mine[rateKeyOf(p)] != null ? String(mine[rateKeyOf(p)]) : "")}" />
+        </div>`).join("")}
+      <button class="primary-btn" id="rateSave" style="margin-top:8px;">Save</button>
+      <button class="shift-btn shift-btn-ghost" id="rateCancel"
+        style="width:100%; margin-top:10px; padding:11px 0;">Cancel</button>
+    </div>`;
+  document.body.appendChild(o);
+  document.body.style.overflow = "hidden";
+  const close = () => { o.remove(); document.body.style.overflow = ""; };
+  o.querySelector("#rateCancel").onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+
+  o.querySelector("#rateSave").onclick = async () => {
+    const out = {};
+    RATE_POSITIONS.forEach((p) => {
+      const v = parseFloat(document.getElementById("rate_" + rateKeyOf(p)).value);
+      // An empty box removes the entry rather than storing a zero, so the
+      // person falls back to the standard rate instead of being paid nothing.
+      if (!isNaN(v) && v > 0) out[rateKeyOf(p)] = v;
+    });
+    try {
+      if (Object.keys(out).length) await db.ref(`crewRates/${uid}`).set(out);
+      else await db.ref(`crewRates/${uid}`).remove();
+      close();
+      renderCrewRatesAdmin();
+    } catch (e) {
+      alert("Couldn't save that: " + (e.message || "unknown error"));
+    }
+  };
+}
 
 async function renderCallTimesAdmin() {
   const inner = document.getElementById("innerRoot");
