@@ -1436,7 +1436,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v64 · private crew rates";
+const APP_BUILD = "build 2026-09-01 · v66 · rate editor close";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3672,9 +3672,18 @@ function openRateEditor(uid, name, rates) {
   const o = document.createElement("div");
   o.className = "modal-overlay";
   o.innerHTML = `
-    <div class="modal-card" style="max-width:380px;">
-      <div class="modal-title">${escapeHtml(name)}</div>
-      <div class="modal-subtitle">Leave a box empty to use the standard rate.</div>
+    <div class="modal-card" style="max-width:380px; max-height:82vh; overflow-y:auto;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1; min-width:0;">
+          <div class="modal-title">${escapeHtml(name)}</div>
+          <div class="modal-subtitle">Leave a box empty to use the standard rate.</div>
+        </div>
+        <button id="rateClose" title="Close"
+          style="flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-size:16px; font-weight:800;
+                 cursor:pointer; line-height:1;">&#10005;</button>
+      </div>
       ${RATE_POSITIONS.map((p) => `
         <div class="field-block" style="margin-bottom:9px;">
           <div class="label">${escapeHtml(p)} <span style="color:var(--text-faint); font-weight:600;">standard $${standardRateFor(p)}</span></div>
@@ -3689,7 +3698,11 @@ function openRateEditor(uid, name, rates) {
   document.body.appendChild(o);
   document.body.style.overflow = "hidden";
   const close = () => { o.remove(); document.body.style.overflow = ""; };
+  // Twelve fields is taller than a phone screen, so Cancel at the bottom was
+  // off the fold with nothing to scroll. The card scrolls now and there is a
+  // close button at the top that is always reachable.
   o.querySelector("#rateCancel").onclick = close;
+  o.querySelector("#rateClose").onclick = close;
   o.onclick = (e) => { if (e.target === o) close(); };
 
   o.querySelector("#rateSave").onclick = async () => {
@@ -7120,6 +7133,162 @@ const RUN_OF_SHOW = {
           { time: "If needed", event: "Fire evacuation", audio: "Announcer", read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane.", notes: "Repeat once more." },
           { time: "If needed", event: "Severe weather", audio: "Announcer", read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
           { time: "If needed", event: "Lightning", audio: "Announcer", read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately.", notes: "Repeat once more." },
+        ],
+      },
+    ],
+  },
+
+  // Built from Script.docx. No run of show grid came with this one, so screen
+  // and ribbon are only filled in where the script names them.
+  //
+  // TWO THINGS TO CHECK BEFORE DOORS:
+  //   - Senior Night is a 25 minute block (6:20 to 6:45) with no script in the
+  //     document. Chase it.
+  //   - The script labels a cue in the 1st Quarter section as "End of 2nd QTR
+  //     Video #4", and labels another as End of 2nd as well. One of them is
+  //     almost certainly End of 1st. Left where the script put them, flagged.
+  "2026-09-18": {
+    header: "Crowley vs Skyline",
+    sub: "Friday, September 18, 2026 \u00b7 7:00 PM kickoff \u00b7 CISD Multi-Purpose Stadium",
+    sections: [
+      {
+        name: "In Game Notes",
+        cues: [
+          { time: "Standing", event: "Timeout read", audio: "Announcer",
+            read: "Timeout ______. This timeout is sponsored by BJ's Wholesale Club, Home of the Save." },
+        ],
+      },
+      {
+        name: "Pregame",
+        cues: [
+          { time: "6:15 PM", event: "Welcome announcements", screen: "CISD Logo", audio: "Announcer",
+            read: "On behalf of the Crowley ISD Board of Trustees, Superintendent of Schools Dr. Michael McFarland, and Executive Director of Athletics Greg Williams, we would like to welcome you to CISD Multi-Purpose Stadium." },
+          { time: "6:15 PM", event: "UIL Pregame Statement", audio: "Announcer", notes: "Inside the folder." },
+          { time: "6:17 PM", event: "Introduce both schools' administrations", screen: "Teams Graphic", audio: "Announcer",
+            read: "Crowley Independent School District Administration\nSuperintendent of Schools \u2014 Dr. Michael McFarland\nCrowley HS Principal \u2014 Dr. Colecia Williams\nExecutive Director of Athletics \u2014 Greg Williams\nHead Football Coach \u2014 Carlos Lynn\n\nDallas Independent School District Administration\nSuperintendent of Schools \u2014 Dr. Stephanie Elizalde (eh-lee-ZAHL-day)\nAssistant Superintendent for Athletics \u2014 Vince Reyes\nSkyline Principal \u2014 Joseph Pouncy\nHead Football Coach \u2014 Jason Garrett" },
+          { time: "6:18 PM", dur: "2:04", event: "Video \u2014 The Texas Way", screen: "Texas Way (2:04)", audio: "Video" },
+          { time: "6:20 PM", dur: "25:00", event: "Senior Night Ceremony", screen: "Live Action", audio: "Announcer",
+            position: "Camera 4",
+            notes: "25 minute block. No script in the document \u2014 chase it before doors. Field camera needed." },
+          { time: "6:45 PM", event: "Introduce CHS offensive starters", screen: "Individual Pictures", audio: "Announcer",
+            read: "QB  #18  Jr.    Tre Brown\nRB  #6   Sr.    Kenyen Cotton\nWR  #4   Sr.    Derrell Martin\nWR  #1   Sr.    Jayden Crawford\nWR  #19  Jr.    Chris Mallet\nWR  #2   Jr.    Joseph Banks\nOT  #51  Jr.    Quran Ashe\nOG  #55  Sr.    Shekinah Famorit\nC   #50  Jr.    Jessiah Childress\nOG  #52  Soph.  Donovan Lawriw\nOT  #77  Sr.    Alexander Herrera" },
+          { time: "6:47 PM", event: "Introduce CHS defensive starters", screen: "Individual Pictures", audio: "Announcer",
+            read: "DE  #8   Sr.    Derrick Ober\nDE  #88  Jr.    Caleb Holmes\nNG  #11  Sr.    Rylon Fowler\nDT  #9   Sr.    Keandre Bluitt\nDT  #92  Jr.    Jayden Gunnels\nLB  #27  Soph.  Kaleb Person\nLB  #26  Jr.    Elijah Landfair\nS   #22  Jr.    Jaylen Proutt\nS   #3   Sr.    Sakai Briggs\nCB  #7   Sr.    Amari Bartee\nCB  #10  Soph.  Isaiah Stinson" },
+          { time: "6:49 PM", event: "Introduce CHS coaching staff", screen: "Individual Pictures", audio: "Announcer",
+            read: "Deaudre Hill\nJonathan Longworth\nJohn Jones\nReggie Fish\nTed Jones\nMatthew Livingston\nJoshua Young\nJanard Lee\nRJ Bond\nDesmond Guy\nRichard Jolivette\nJaise Oliver\nLamonte Peters\nEric Shon\nLewis Washington\nJeremy Coleman\n\nAnd the Head Football Coach for your Crowley Eagles is Carlos Lynn" },
+          { time: "6:50 PM", dur: "0:51", event: "Video \u2014 On the Rise", screen: "Video #3", audio: "Video" },
+          { time: "6:51 PM", event: "Introduce referees", audio: "Announcer", notes: "See referee card." },
+          { time: "6:52 PM", event: "Coin toss", screen: "Live Action", audio: "Announcer", position: "Camera 4" },
+          { time: "6:54 PM", event: "Skyline takes the field", screen: "Live Action", audio: "Announcer",
+            read: "Ladies and gentlemen, let's welcome the Raiders of Skyline High School" },
+          { time: "6:54 PM", event: "Video \u2014 CHS hype video", screen: "CHS Hype", audio: "Video" },
+          { time: "6:55 PM", event: "Introduce the Crowley football team", screen: "Live Action", audio: "Announcer",
+            read: "Fans, get on your feet, get loud and welcome your 2026 Crowley Eagles to the field!" },
+          { time: "6:56 PM", event: "Introduction of JROTC Color Guard", screen: "US Flag", audio: "Announcer",
+            read: "Ladies and gentlemen, we ask that you please stand and remove your hats as the Crowley ISD Corp of Cadets presents the colors for tonight's game.\n\nAmerican Guard \u2014 Cadet Captain Timothy Nyabayo\nAmerican Flag \u2014 Cadet Colonel Enrique Morales\nTexas Flag \u2014 Cadet Captain Bao Nguyen\nTexas Guard \u2014 Cadet Sergeant 1st Class Jamiah Williams\n\nSergeant First Class Gregory Peavy: Army Instructor\nSergeant First Class Jonpierre Meyer: Army Instructor" },
+          { time: "6:56 PM", event: "National Anthem", screen: "US Flag / Live Action", audio: "Crowley Mighty Eagle Band",
+            read: "Fans \u2014 At this time\u2026 the Crowley Mighty Eagle Band\u2026 under the direction of Chris Dunning\u2026 will perform the National Anthem." },
+          { time: "6:58 PM", dur: "1:01", event: "Video \u2014 School Board welcome", screen: "Video #1", audio: "Video" },
+          { time: "7:00 PM", event: "Kickoff", screen: "Live Action" },
+        ],
+      },
+      {
+        name: "1st Quarter",
+        cues: [
+          { time: "1st qtr", event: "Announcement #22 \u2014 Principal Williams", screen: "Principal Williams Graphic", audio: "Announcer",
+            read: "Crowley High School Principal Dr. Colecia Williams welcomes everyone to tonight's game. As we celebrate the excellence on display, we ask all fans to support our student-athletes with great sportsmanship and respect for players, coaches, officials and fellow fans." },
+          { time: "1st qtr", event: "Announcement #24 \u2014 CHS home schedule", screen: "CHS Home Schedule", audio: "Announcer",
+            read: "Fans \u2014 It's a new year with a new district schedule and we'll need to pack the house and bring the noise to give our Eagles a real home field advantage! Mark your calendars for all the exciting home games at Crowley Multi-Purpose Stadium this fall." },
+          { time: "End of quarter", dur: "1:06", event: "Video #4 \u2014 Sinclairs MyCrowleyPride", screen: "Video #4", audio: "Video",
+            notes: "The script labels this End of 2nd, but it sits in the 1st Quarter section. Confirm which break it belongs in." },
+        ],
+      },
+      {
+        name: "2nd Quarter",
+        cues: [
+          { time: "2nd qtr", event: "Announcement #7 \u2014 Graduation at Dickies Arena", screen: "Dickies Graduation graphic", audio: "Announcer",
+            read: "Caps, Gowns and Cowtown! Graduation for the Class of 2027 is heading to Dickies Arena on Sunday, May 23. Crowley High graduates at 4 p.m., while the North Crowley ceremony is scheduled for 8 p.m. Senior families, watch for more details about ticket quantities, arrival times and more. And get ready to celebrate with Crowley Pride Unified!" },
+          { time: "2nd qtr", event: "Announcement #27 \u2014 North Crowley vs Crowley", screen: "Graphic #27", audio: "Announcer",
+            read: "Eagle fans \u2014 we're one week away from the crosstown showdown between the North Crowley Panthers and your Crowley Eagles on Friday, September 25th. Kickoff is set for 7 p.m. right here at Crowley ISD Multi-Purpose Stadium. Tickets go on sale Monday, so mark your calendars and secure your seats early! We need everyone to show up, get loud and show your Crowley Pride!" },
+          { time: "2:00 warning", dur: "1:00", event: "Video #18 \u2014 CHS Academic Highlights", screen: "Video #18", audio: "Video" },
+        ],
+      },
+      {
+        name: "End of 2nd Quarter",
+        cues: [
+          { time: "End of 2nd", dur: "1:08", event: "Video #19 \u2014 New CHS Short", screen: "Video #19", audio: "Video" },
+        ],
+      },
+      {
+        name: "Halftime",
+        cues: [
+          { time: "Halftime", event: "Halftime show", screen: "Live Action", audio: "Bands" },
+          { time: "After halftime", dur: "1:40", event: "Video #5 \u2014 Bond Update", screen: "Video #5", audio: "Video" },
+          { time: "After halftime", dur: "0:15", event: "BJ's Wholesale Club ad", screen: "BJ's Ad", audio: "Video" },
+        ],
+      },
+      {
+        name: "3rd Quarter",
+        cues: [
+          { time: "3rd qtr", event: "Announcement #35 \u2014 Hispanic Heritage Month", screen: "Graphic #35", audio: "Announcer",
+            read: "Diversity is our superpower in Crowley ISD and we're celebrating the rich history, culture and contributions of Hispanic and Latino Americans throughout National Hispanic Heritage Month! We're excited to announce Saturday, Oct. 17th as the date for this year's annual Hispanic Heritage Quiz Bowl! Admission is free and the event will take place at North Crowley High School. It's a great opportunity for you to cheer on our students as they compete academically in Crowley ISD!" },
+          { time: "3rd qtr", event: "Announcement #29 \u2014 Voter registration drive", screen: "Graphic #29", audio: "Announcer",
+            read: "Get ready to make your voice heard, CISD! Voter registration is coming directly to your campus this month. Mark your calendars for National Voter Registration Day on September 15th, plus campus drives happening September 28th through 30th! You can also get registered at the big CHS vs. NCHS rivalry game on September 25th. Be on the lookout for registration tables at your school, and special thanks to the Fort Worth Alphas, March To The Polls, and our Student Voter Empowerment Clubs for powering our youth vote!" },
+        ],
+      },
+      {
+        name: "End of 3rd Quarter",
+        cues: [
+          { time: "End of 3rd", event: "Video #7 \u2014 Indoor Event Center", screen: "Video #7", audio: "Video" },
+        ],
+      },
+      {
+        name: "4th Quarter",
+        cues: [
+          { time: "4th qtr", event: "Announcement #20 \u2014 Call your ride", screen: "Call Your Ride", audio: "Announcer" },
+          { time: "4th qtr", event: "Announcement \u2014 Stay off the field", screen: "Live Action", audio: "Announcer" },
+          { time: "2:00 warning", dur: "1:07", event: "Video #15 \u2014 State of the District", screen: "Video #15", audio: "Video" },
+        ],
+      },
+      {
+        name: "Postgame",
+        cues: [
+          { time: "Postgame", event: "Thank you and drive safe", screen: "Eagles", audio: "Announcer",
+            read: "On behalf of Crowley ISD\u2026 thank you for your attendance and support at tonight's game. We kindly ask you to stay off the playing field, exit the stadium and be safe travelling home. We'll see you again next week on September 25th for the Eagles next home game against North Crowley." },
+        ],
+      },
+      {
+        name: "Filler \u2014 if time allows",
+        cues: [
+          { time: "Priority 1", dur: "0:41", event: "Video #13 \u2014 Capua MyCrowleyPride", screen: "Video #13", audio: "Video" },
+          { time: "Priority 2", dur: "0:40", event: "Video #8 \u2014 Indoor 40 seconds", screen: "Video #8", audio: "Video" },
+          { time: "Priority 3", dur: "0:48", event: "Video #9 \u2014 Indoor 48 seconds", screen: "Video #9", audio: "Video" },
+          { time: "Priority 4", dur: "0:35", event: "Video #14 \u2014 Cook MyCrowleyPride", screen: "Video #14", audio: "Video" },
+          { time: "Priority 5", dur: "0:39", event: "Video #11 \u2014 Future Ready", screen: "Video #11", audio: "Video" },
+          { time: "Priority 6", dur: "0:32", event: "Video #16 \u2014 Paul Quinn Promo", screen: "Video #16", audio: "Video" },
+          { time: "Priority 7", dur: "1:21", event: "Video #10 \u2014 CTE Promo", screen: "Video #10", audio: "Video" },
+          { time: "Priority 8", dur: "1:23", event: "Video #6 \u2014 Book Machines", screen: "Video #6", audio: "Video" },
+          { time: "Priority 9", dur: "2:07", event: "Video #17 \u2014 Teacher Recruitment", screen: "Video #17", audio: "Video" },
+          { time: "Graphic", event: "Graphic #28 \u2014 September Attendance Matters", screen: "Graphic #28", audio: "Announcer",
+            read: "September is Attendance Awareness Month, and every day matters! Being at school every day gives students more opportunities to learn, connect and succeed. Families, help us make attendance a priority. Let's work together to ensure our students are present, engaged and ready to learn every day! Because in Crowley ISD\u2026 Every Day Matters!" },
+          { time: "Graphic", event: "Graphic #3 \u2014 District Ratings", screen: "Graphic #3", audio: "Announcer",
+            read: "Crowley ISD is on the rise! We're celebrating an A in Financial Integrity, a B in Academics, and an 11-point academic gain in just two years. These results reflect the dedication of our students, educators and families as we continue advancing Vision 2030 and our North Star goal of achieving A and B ratings across Crowley ISD schools with Excellence Every Day!" },
+          { time: "Graphic", event: "Graphic #8 \u2014 Follow on social media", screen: "Graphic #8", audio: "Announcer",
+            read: "Stay up-to-date on all of the great things happening in Crowley ISD on social media! You can follow the district and campuses on Facebook, Instagram, YouTube and more. And don't forget to use the hashtag #CrowleyPrideUnified when you share your photos from tonight's game!" },
+          { time: "Graphic", event: "Graphic #16 \u2014 Spirit Store", screen: "Graphic #16", audio: "Announcer",
+            notes: "Script says North Crowley gear \u2014 check, this is a Crowley home game.",
+            read: "The Spirit Store is now open on the home side concourse. Drop in to pick up North Crowley gear! You'll find shirts, hoodies, hats, blankets and more!" },
+        ],
+      },
+      {
+        name: "Emergency Response",
+        cues: [
+          { time: "If needed", event: "Fire evacuation", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane." },
+          { time: "If needed", event: "Severe weather", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately." },
+          { time: "If needed", event: "Lightning", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately." },
         ],
       },
     ],
