@@ -1436,7 +1436,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v66 · rate editor close";
+const APP_BUILD = "build 2026-09-01 · v68 · new event text blast";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2760,6 +2760,228 @@ function allShiftEvents() {
   return built.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
+// Create an event straight onto the shift board.
+//
+// Events used to only arrive through a labor request. This lets an admin add
+// one directly: a name, a date, and the positions it needs. It lands in
+// clientEvents, the same place a request-built event goes, so it shows up on
+// the board, takes pickups and assignments, and bills the same way.
+const NEW_EVENT_ROLES = [
+  "EIC", "PM", "Director", "Producer", "Shader", "Clips", "Replay",
+  "Camera Lead", "Camera 1", "Camera 2", "Camera 3", "Camera 4",
+  "Audio A1", "Audio A2/Utility", "Stagehand", "Utility",
+];
+
+function openNewEventForm() {
+  const o = document.createElement("div");
+  o.className = "modal-overlay";
+  o.innerHTML = `
+    <div class="modal-card" style="max-width:400px; max-height:86vh; overflow-y:auto;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div class="modal-title">New event</div>
+          <div class="modal-subtitle">Adds it to the shift board so crew can pick it up.</div>
+        </div>
+        <button id="neClose" title="Close"
+          style="flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-size:16px; font-weight:800; cursor:pointer;">&#10005;</button>
+      </div>
+
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Event name</div>
+        <input id="neName" placeholder="e.g. Band Night, Graduation, NCHS vs Duncanville" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Date</div>
+        <input id="neDate" type="date" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Client</div>
+        <input id="neClient" placeholder="CISD" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Venue</div>
+        <input id="neVenue" placeholder="CISD Multi-Purpose Stadium" />
+      </div>
+      <div style="display:flex; gap:9px; margin-bottom:9px;">
+        <div class="field-block" style="flex:1;">
+          <div class="label">Call time</div>
+          <input id="neCall" type="time" />
+        </div>
+        <div class="field-block" style="flex:1;">
+          <div class="label">End time</div>
+          <input id="neEnd" type="time" />
+        </div>
+      </div>
+
+      <div class="label" style="margin:12px 0 6px;">Positions needed</div>
+      ${NEW_EVENT_ROLES.map((r) => `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+          <span style="flex:1; font-size:14px;">${escapeHtml(r)}</span>
+          <input type="number" min="0" max="20" value="0" data-nerole="${escapeAttr(r)}"
+            style="width:64px; text-align:center;" />
+        </div>`).join("")}
+
+      <button class="primary-btn" id="neSave" style="margin-top:14px;">Add to shift board</button>
+      <div class="error-msg" id="neMsg" style="display:none; margin-top:10px;"></div>
+    </div>`;
+  document.body.appendChild(o);
+  document.body.style.overflow = "hidden";
+  const close = () => { o.remove(); document.body.style.overflow = ""; };
+  o.querySelector("#neClose").onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+
+  const toLabel = (t) => {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    const ap = h >= 12 ? "PM" : "AM";
+    return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ap}`;
+  };
+
+  o.querySelector("#neSave").onclick = async () => {
+    const msg = o.querySelector("#neMsg");
+    const say = (t) => { msg.textContent = t; msg.style.display = "block"; };
+    const name = o.querySelector("#neName").value.trim();
+    const date = o.querySelector("#neDate").value;
+    if (!name) return say("Give the event a name.");
+    if (!date) return say("Pick a date.");
+
+    // One roster slot per head: 3 Stagehands become Stagehand 1, 2 and 3.
+    // The base role is kept separately because billing matches on the role,
+    // not the numbered slot.
+    const roles = [];
+    const billingRoles = {};
+    o.querySelectorAll("[data-nerole]").forEach((inp) => {
+      const n = parseInt(inp.value, 10) || 0;
+      const base = inp.dataset.nerole;
+      for (let i = 1; i <= n; i++) {
+        const display = n > 1 ? `${base} ${i}` : base;
+        roles.push(display);
+        billingRoles[display.replace(/[^A-Za-z0-9]/g, "_")] = base;
+      }
+    });
+    if (!roles.length) return say("Add at least one position.");
+
+    const dt = new Date(date + "T12:00:00");
+    const eventId = `${date}__${Date.now().toString(36).slice(-6)}`;
+    try {
+      await db.ref(`clientEvents/${eventId}`).set({
+        name,
+        client: o.querySelector("#neClient").value.trim() || "CISD",
+        venue: o.querySelector("#neVenue").value.trim(),
+        date: `${dt.getMonth() + 1}/${dt.getDate()}`,
+        day: dt.toLocaleDateString([], { weekday: "short" }),
+        eventDate: date,
+        callTime: toLabel(o.querySelector("#neCall").value),
+        endTime: toLabel(o.querySelector("#neEnd").value),
+        roles,
+        billingRoles,
+        createdBy: currentUser ? currentUser.uid : "",
+        createdAt: new Date().toISOString(),
+      });
+      close();
+      renderShiftsView();
+      // Straight into picking who to tell. The event is saved either way;
+      // skipping this just means no text goes out.
+      openEventTextBlast({
+        name,
+        day: dt.toLocaleDateString([], { weekday: "short" }),
+        date: `${dt.getMonth() + 1}/${dt.getDate()}`,
+        callTime: toLabel(o.querySelector("#neCall").value),
+        venue: o.querySelector("#neVenue").value.trim(),
+        roles,
+      });
+    } catch (e) {
+      say("Couldn't save that: " + (e.message || "unknown error"));
+    }
+  };
+}
+
+// Pick crew and open one group text announcing the event.
+//
+// This opens the phone's own Messages app with the numbers filled in and the
+// message written — nothing is sent until you press send there. Same approach
+// as the crew call text, so no texting service or account is involved.
+async function openEventTextBlast(ev) {
+  let crew = [];
+  try {
+    const snap = await db.ref("profiles").once("value");
+    crew = Object.values(snap.val() || {})
+      .filter((p) => p && p.legalName)
+      .map((p) => ({ name: p.legalName, phone: normalizePhoneForSms(p.phone) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) {
+    alert("Couldn't load the crew list: " + (e.message || "unknown error"));
+    return;
+  }
+
+  const o = document.createElement("div");
+  o.className = "modal-overlay";
+  o.innerHTML = `
+    <div class="modal-card" style="max-width:400px; max-height:86vh; overflow-y:auto;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div class="modal-title">Text crew about it?</div>
+          <div class="modal-subtitle">${escapeHtml(ev.name)} \u00b7 ${escapeHtml(ev.day)} ${escapeHtml(ev.date)}</div>
+        </div>
+        <button id="tbClose" title="Close"
+          style="flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-size:16px; font-weight:800; cursor:pointer;">&#10005;</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="shift-btn shift-btn-ghost" id="tbAll" style="flex:1; padding:9px 0;">Select all</button>
+        <button class="shift-btn shift-btn-ghost" id="tbNone" style="flex:1; padding:9px 0;">Clear</button>
+      </div>
+
+      ${crew.map((c, i) => `
+        <label style="display:flex; align-items:center; gap:10px; padding:9px 4px;
+                      border-bottom:1px solid var(--border); ${c.phone ? "" : "opacity:.45;"}">
+          <input type="checkbox" data-tbi="${i}" ${c.phone ? "" : "disabled"}
+            style="width:19px; height:19px; margin:0;" />
+          <span style="flex:1; font-size:14px;">${escapeHtml(c.name)}</span>
+          ${c.phone ? "" : `<span style="font-size:11px; color:var(--text-faint);">no phone</span>`}
+        </label>`).join("")}
+
+      <div class="label" style="margin:14px 0 6px;">Message</div>
+      <textarea id="tbMsg" rows="6" style="width:100%; font-family:inherit;"></textarea>
+
+      <button class="primary-btn" id="tbSend" style="margin-top:12px;">Open in Messages</button>
+      <div class="footnote" style="margin-top:8px;">Nothing sends until you press send in Messages.</div>
+    </div>`;
+  document.body.appendChild(o);
+  document.body.style.overflow = "hidden";
+  const close = () => { o.remove(); document.body.style.overflow = ""; };
+  o.querySelector("#tbClose").onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+
+  o.querySelector("#tbMsg").value = [
+    `ADV MEDIA \u2014 NEW EVENT`,
+    `${ev.name}`,
+    `${ev.day} ${ev.date}${ev.callTime ? " \u00b7 Call " + ev.callTime : ""}`,
+    ev.venue ? ev.venue : null,
+    ``,
+    `Open shifts are up. Pick one up in the app:`,
+    `  ${appLink()}`,
+  ].filter((l) => l !== null).join("\n");
+
+  const boxes = () => [...o.querySelectorAll("[data-tbi]")].filter((b) => !b.disabled);
+  o.querySelector("#tbAll").onclick = () => boxes().forEach((b) => { b.checked = true; });
+  o.querySelector("#tbNone").onclick = () => boxes().forEach((b) => { b.checked = false; });
+
+  o.querySelector("#tbSend").onclick = () => {
+    const nums = boxes().filter((b) => b.checked).map((b) => crew[Number(b.dataset.tbi)].phone);
+    if (!nums.length) { alert("Pick at least one person."); return; }
+    const body = o.querySelector("#tbMsg").value;
+    // iOS separates the body with & and Android with ?, same as the crew call.
+    const sep = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "&" : "?";
+    window.location.href = `sms:${nums.join(",")}${sep}body=${encodeURIComponent(body)}`;
+    close();
+  };
+}
+
 async function renderShiftsView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading shifts…</div>`;
@@ -2803,6 +3025,7 @@ function renderShiftsList(liveRoster) {
   const admin = isAdmin();
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
+    ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:14px;">+ New event</button>` : ""}
     ${CAMERA_NOTICE_HTML}
     ${allShiftEvents().map((g) => {
       const gameRoster = liveRoster[g.id] || {};
@@ -2847,6 +3070,9 @@ function renderShiftsList(liveRoster) {
       `;
     }).join("")}
   `;
+
+  const nsb = document.getElementById("newShiftBtn");
+  if (nsb) nsb.onclick = openNewEventForm;
 
   inner.querySelectorAll(".shift-btn-pickup").forEach((btn) => {
     btn.onclick = () => pickUpShift(btn.dataset.game, btn.dataset.role);
