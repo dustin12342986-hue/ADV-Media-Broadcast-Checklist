@@ -1436,7 +1436,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v69 · text crew any event";
+const APP_BUILD = "build 2026-09-01 · v70 · pickup fix";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3236,13 +3236,27 @@ async function pickUpShift(gameId, roleKey) {
   try {
     const snap = await db.ref(`liveRoster/${gameId}/${roleKey}`).once("value");
     const entry = snap.val();
-    if (!entry || entry.status !== "open") {
+
+    // A missing entry is an OPEN slot, not a taken one. New events have no
+    // roster rows until someone picks up, and the board already draws a
+    // missing row as Open. Reading "missing" as "taken" is what made every
+    // pickup on a new event say the spot was already booked.
+    if (entry && entry.status !== "open") {
       alert("Sorry, that shift was just taken by someone else.");
       return;
     }
-    await db.ref(`liveRoster/${gameId}/${roleKey}`).set({ role: entry.role, name: myName, status: "assigned" });
+
+    // The role name for a slot with no row yet comes from the event itself.
+    let roleName = entry && entry.role;
+    if (!roleName) {
+      const ev = allShiftEvents().find((x) => x.id === gameId);
+      roleName = (ev && (ev.roles || []).find((r) => r.replace(/[^A-Za-z0-9]/g, "_") === roleKey))
+        || roleKey.replace(/_/g, " ");
+    }
+
+    await db.ref(`liveRoster/${gameId}/${roleKey}`).set({ role: roleName, name: myName, status: "assigned" });
     await db.ref(`shiftLog/${gameId}`).push({
-      role: entry.role, action: "picked up", byName: myName,
+      role: roleName, action: "picked up", byName: myName,
       byUid: currentUser.uid, at: new Date().toISOString(),
     });
   } catch (e) {
