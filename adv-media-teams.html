@@ -476,6 +476,13 @@
     padding: 12px 10px; font-size: 13.5px; font-weight: 800;
     word-break: break-word;
   }
+  .shift-delspot {
+    margin-left: 6px; width: 28px; height: 28px; border-radius: 50%;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-faint); font-size: 12px; font-weight: 800;
+    cursor: pointer; line-height: 1; vertical-align: middle;
+  }
+
   .shift-status { flex: 1; font-size: 13px; font-weight: 600; }
   .shift-status.shift-open { color: var(--amber); }
   .shift-action { flex: 0 0 auto; }
@@ -1436,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v70 · pickup fix";
+const APP_BUILD = "build 2026-09-01 · v71 · delete a spot";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3054,7 +3061,10 @@ function renderShiftsList(liveRoster) {
           <div class="shift-row">
             <div class="shift-role">${roleLabelHtml(role)}</div>
             <div class="shift-status ${entry.status === "open" ? "shift-open" : ""}">${entry.status === "open" ? "Open" : escapeHtml(entry.name)}</div>
-            <div class="shift-action">${actionHtml}</div>
+            <div class="shift-action">${actionHtml}${
+              admin && clientEvents && clientEvents[g.id]
+                ? `<button class="shift-delspot" data-delspot="${escapeAttr(g.id)}" data-role="${key}" title="Delete this spot">&#10005;</button>`
+                : ""}</div>
           </div>
         `;
       }).join("");
@@ -3075,6 +3085,37 @@ function renderShiftsList(liveRoster) {
 
   const nsb = document.getElementById("newShiftBtn");
   if (nsb) nsb.onclick = openNewEventForm;
+
+  // Delete a spot from an event entirely, not just empty it. "Remove" takes
+  // the person off a shift and leaves the spot open; this removes the spot
+  // itself, for when an event needs fewer people than first planned.
+  inner.querySelectorAll("[data-delspot]").forEach((btn) => {
+    btn.onclick = async () => {
+      const eventId = btn.dataset.delspot;
+      const roleKey = btn.dataset.role;
+      const ev = clientEvents[eventId];
+      if (!ev) return;
+      const role = (ev.roles || []).find((r) => r.replace(/[^A-Za-z0-9]/g, "_") === roleKey) || roleKey;
+      const taken = (liveRoster && liveRoster[eventId] && liveRoster[eventId][roleKey]
+        && liveRoster[eventId][roleKey].status === "assigned")
+        ? liveRoster[eventId][roleKey].name : "";
+      const msg = taken
+        ? `Delete the ${role} spot? ${taken} is on it and will be taken off.`
+        : `Delete the ${role} spot from ${ev.name}?`;
+      if (!confirm(msg)) return;
+      try {
+        const roles = (ev.roles || []).filter((r) => r !== role);
+        const billing = Object.assign({}, ev.billingRoles || {});
+        delete billing[roleKey];
+        await db.ref(`clientEvents/${eventId}`).update({ roles, billingRoles: billing });
+        await db.ref(`liveRoster/${eventId}/${roleKey}`).remove();
+        ev.roles = roles; ev.billingRoles = billing;
+        renderShiftsView();
+      } catch (e) {
+        alert("Couldn't delete that spot: " + (e.message || "unknown error"));
+      }
+    };
+  });
 
   // Send (or resend) the crew text for any event, not just at the moment it
   // was created — a failed send used to leave no way to try again.
