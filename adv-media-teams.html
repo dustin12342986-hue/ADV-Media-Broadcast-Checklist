@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v71 · delete a spot";
+const APP_BUILD = "build 2026-09-01 · v72 · custom events everywhere";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2379,7 +2379,8 @@ function rosterRowsFor(gameId, gameRoster) {
 async function textTomorrowsCrew(mode) {
   mode = mode || "call";
   const dateId = tomorrowId();
-  const game = GAMES.find((g) => g.id === dateId);
+  await loadClientEvents();
+  const game = eventById(dateId);
   if (!game) {
     alert("Nothing on the schedule for tomorrow.");
     return;
@@ -2747,6 +2748,29 @@ let clientEvents = {};
 // Every event the shift board should show: the hardcoded season schedule
 // plus anything created from a client request. Each entry carries its own
 // role list, since a client event only staffs the positions they asked for.
+// Today, the crew text and the Audio page all used to look only at GAMES, the
+// hardcoded football schedule. An event added through Shifts lives in
+// clientEvents, so none of them could see it: no card on Today, no run of
+// show, and "nothing on the schedule for tomorrow" when texting the crew.
+//
+// These two make every one of those places look at both.
+async function loadClientEvents() {
+  try {
+    const snap = await db.ref("clientEvents").once("value");
+    clientEvents = snap.val() || {};
+  } catch (e) { /* keep whatever is already loaded */ }
+}
+
+// Matches a plain date too. A custom event's id is the date plus a suffix
+// (2026-09-24__k3x9f1) so two events can share a day, but Today and the crew
+// text look up a bare date. Without this they never match.
+function eventById(id) {
+  const all = allShiftEvents();
+  return all.find((g) => g.id === id)
+    || all.find((g) => String(g.id).split("__")[0] === id)
+    || null;
+}
+
 function allShiftEvents() {
   const built = GAMES.map((g) => ({ ...g, roles: TRADEABLE_ROLES, client: "CISD" }));
   Object.entries(clientEvents).forEach(([id, ev]) => {
@@ -5361,13 +5385,10 @@ async function renderAudioView() {
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
 
   const todayId = localDateId();
-  let game = GAMES.find((g) => g.id === todayId);
-  let gameId = todayId;
-  if (!game) {
-    const t = tomorrowId();
-    game = GAMES.find((g) => g.id === t);
-    gameId = t;
-  }
+  await loadClientEvents();
+  let game = eventById(todayId);
+  if (!game) game = eventById(tomorrowId());
+  let gameId = game ? game.id : todayId;
   // No game today or tomorrow: the patch and handoffs are still worth reading,
   // so the page renders without the live parts rather than showing nothing.
   const hasGame = !!game;
@@ -5699,14 +5720,16 @@ async function renderTodayView() {
   // Today's game if there is one. If not, look one day ahead — the run of
   // show goes up 24 hours out so Directors and Producers can read it before
   // call time, and there's no point hiding the rest of the card behind that.
-  let game = GAMES.find((g) => g.id === todayId);
-  let gameId = todayId;
+  await loadClientEvents();
+  let game = eventById(todayId);
   let isTomorrow = false;
   if (!game) {
-    game = GAMES.find((g) => g.id === tomorrowId_);
-    gameId = tomorrowId_;
+    game = eventById(tomorrowId_);
     isTomorrow = true;
   }
+  // The event's own id, not the bare date — a custom event stores its roster
+  // and run of show under the suffixed id.
+  let gameId = game ? game.id : (isTomorrow ? tomorrowId_ : todayId);
 
   if (!game) {
     inner.innerHTML = `<div class="footnote">No game scheduled today or tomorrow.</div>`;
@@ -8632,11 +8655,12 @@ function namesMatch(rosterName, legalName, crewHandle) {
 // Which position this person is working on a given date, if any. Reads
 // liveRoster so a shift someone picked up (or dropped) is reflected here too.
 async function findScheduledEventOn(dateId, legalName, crewHandle) {
+  await loadClientEvents();
   const liveRoster = await loadLiveRoster();
   const rows = rosterRowsFor(dateId, liveRoster[dateId]);
   for (const r of rows) {
     if (!r.open && namesMatch(r.name, legalName, crewHandle)) {
-      return { position: r.role, game: GAMES.find((g) => g.id === dateId) };
+      return { position: r.role, game: eventById(dateId) };
     }
   }
   return null;
