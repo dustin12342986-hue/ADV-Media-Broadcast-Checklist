@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v72 · custom events everywhere";
+const APP_BUILD = "build 2026-09-01 · v73 · events in confirmations";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2501,10 +2501,11 @@ async function renderConfirmations() {
     // records alone silently drops them — they'd show as neither
     // confirmed nor waiting.
     const todayId = localDateId();
-    const upcoming = GAMES.filter((g) => g.id >= todayId);
+    await loadClientEvents();
+    const upcoming = upcomingEvents(todayId);
 
     if (upcoming.length === 0) {
-      inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
+      inner.innerHTML = `<div class="footnote">Nothing scheduled from today onward.</div>`;
       return;
     }
 
@@ -2764,6 +2765,15 @@ async function loadClientEvents() {
 // Matches a plain date too. A custom event's id is the date plus a suffix
 // (2026-09-24__k3x9f1) so two events can share a day, but Today and the crew
 // text look up a bare date. Without this they never match.
+// Everything from today forward, football games and added events together,
+// soonest first. Confirmations and Call Times each built this from GAMES
+// alone, which is why an added event never appeared on either.
+function upcomingEvents(fromId) {
+  return allShiftEvents()
+    .filter((g) => String(g.id).split("__")[0] >= fromId)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
 function eventById(id) {
   const all = allShiftEvents();
   return all.find((g) => g.id === id)
@@ -4053,9 +4063,10 @@ async function renderCallTimesAdmin() {
   await loadGameSettings();
 
   const todayId = localDateId();
-  const upcoming = GAMES.filter((g) => g.id >= todayId);
+  await loadClientEvents();
+  const upcoming = upcomingEvents(todayId);
   if (upcoming.length === 0) {
-    inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
+    inner.innerHTML = `<div class="footnote">Nothing scheduled from today onward.</div>`;
     return;
   }
 
