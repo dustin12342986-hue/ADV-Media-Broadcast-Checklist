@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v76 · events across the app";
+const APP_BUILD = "build 2026-09-01 · v78 · Prairie View run of show";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2582,7 +2582,7 @@ function renderAdminReset() {
     <div class="field-block">
       <div class="label">Game</div>
       <select id="resetGameSelect">
-        ${GAMES.map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
+        ${allShiftEvents().map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
       </select>
     </div>
     <button class="primary-btn" id="clearClockBtn" style="background:var(--red);">Clear Clock-Ins for This Game</button>
@@ -2735,11 +2735,11 @@ async function seedLiveRosterIfNeeded() {
   const snap = await db.ref("liveRoster").once("value");
   const existing = snap.val() || {};
   const seed = {};
-  for (const g of GAMES) {
+  for (const g of allShiftEvents()) {
     if (existing[g.id]) continue;
     const rosterForGame = ROSTER_DATA[g.id] || {};
     seed[g.id] = {};
-    for (const role of TRADEABLE_ROLES) {
+    for (const role of (Array.isArray(g.roles) && g.roles.length ? g.roles : TRADEABLE_ROLES)) {
       const name = rosterForGame[role];
       const key = role.replace(/[^A-Za-z0-9]/g, "_");
       if (name && name !== "TBD") {
@@ -3465,7 +3465,7 @@ async function renderEquipmentSubmit() {
     <div class="field-block">
       <div class="label">Game</div>
       <select id="eqGameSelect">
-        ${GAMES.map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
+        ${allShiftEvents().map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("")}
       </select>
     </div>
     <div class="field-block">
@@ -5467,9 +5467,10 @@ function renderAudioCues(cues, gameId) {
   // The stored cue list is only written once someone opens Run of Show. A1
   // should not have to wait for that, so fall back to the seed.
   let src = Array.isArray(cues) ? cues : Object.values(cues || {});
-  if (!src.length && gameId && RUN_OF_SHOW[gameId]) {
+  const seedSrc = rosSeedFor(gameId);
+  if (!src.length && seedSrc) {
     src = [];
-    (RUN_OF_SHOW[gameId].sections || []).forEach((sec) => {
+    (seedSrc.sections || []).forEach((sec) => {
       (sec.cues || []).forEach((c) => src.push(Object.assign({ section: sec.name }, c)));
     });
   }
@@ -5771,7 +5772,7 @@ async function renderTodayView() {
     return;
   }
 
-  const ros = RUN_OF_SHOW[gameId];
+  const ros = rosSeedFor(gameId);
 
   // The crew list comes from liveRoster — the same record the Shifts tab
   // reads and writes. See rosterRowsFor().
@@ -6252,7 +6253,7 @@ window.addEventListener("scroll", () => {
 
 
 function rosFlattenSeed(gameId) {
-  const seed = RUN_OF_SHOW[gameId];
+  const seed = rosSeedFor(gameId);
   if (!seed) return [];
   const out = [];
   (seed.sections || []).forEach((sec) => {
@@ -6271,9 +6272,23 @@ function rosFlattenSeed(gameId) {
 
 // Games worth showing here: anything from today forward, plus anything that
 // already has a run of show written.
+// The built-in cue list for an event, matched by id or by date.
+//
+// A custom event's id carries a random suffix (2026-09-24__k3x9f1), so a cue
+// list written against the plain date would never be found. Matching the date
+// too means a run of show can be added for an event without knowing the
+// suffix it was given.
+function rosSeedFor(gameId) {
+  if (!gameId) return null;
+  return RUN_OF_SHOW[gameId] || RUN_OF_SHOW[String(gameId).split("__")[0]] || null;
+}
+
 function rosGameOptions() {
   const todayId = localDateId();
-  return GAMES.filter((g) => g.id >= todayId || RUN_OF_SHOW[g.id]);
+  // Added events too. An event with no cue list yet opens empty, ready to
+  // build by hand or import a script into.
+  return allShiftEvents().filter((g) =>
+    String(g.id).split("__")[0] >= todayId || rosSeedFor(g.id));
 }
 
 // ============================================================================
@@ -6837,7 +6852,7 @@ function rosRender() {
 
     ${rosState.editing ? `
       <button class="primary-btn" id="rosAddCue" style="margin-top:14px;">+ Add Cue</button>
-      ${RUN_OF_SHOW[rosState.gameId] ? `
+      ${rosSeedFor(rosState.gameId) ? `
         <button class="shift-btn shift-btn-ghost" id="rosReload"
           style="width:100%; margin-top:10px; padding:11px 0;">Reload from script</button>
         <div class="footnote" style="margin-top:6px;">
@@ -7818,6 +7833,78 @@ const RUN_OF_SHOW = {
           { time: "Postgame", event: "End of game \u2014 final score and farewell", screen: "Rams Logo / Next Game Logo", audio: "Announcer",
             notes: "Band plays, then house music into the alma mater. Reread Announcement #15.",
             read: "And that's the end of today's contest, final score ____. With this victory, the Rams sit atop the Sooner Athletic Conference.\n\n(House music to alma mater played by band. Reread the next home game.)\n\nLadies and gentlemen, thank you for attending tonight's game. Texas Wesleyan University bids you safe travels and farewell from Crowley ISD Multi-Purpose Stadium." },
+        ],
+      },
+      {
+        name: "Emergency Response",
+        cues: [
+          { time: "If needed", event: "Fire evacuation", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! A fire emergency has occurred in the stadium. Please evacuate to the parking lot and avoid blocking the fire lane." },
+          { time: "If needed", event: "Severe weather", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to severe weather, spectators are asked to evacuate the stadium and seek shelter immediately." },
+          { time: "If needed", event: "Lightning", audio: "Announcer", notes: "Repeat once more.",
+            read: "Attention! Due to lightning in the area, spectators are asked to evacuate the stadium and seek shelter immediately." },
+        ],
+      },
+    ],
+  },
+
+  // Built from PV_Itinerary_2026.pdf.
+  //
+  // Keyed on the plain date so it attaches to the Prairie View event whatever
+  // suffix its id was given when it was created.
+  //
+  // This is a morning school event, not a football game. Worth knowing before
+  // doors:
+  //   - NOT open to the public. No parents, no community. It is streamed to
+  //     the elementary campuses instead, so the stream IS the audience.
+  //   - Dismissal is run by the announcer from the field, school by school.
+  //     Principals are not on the Durham and stadium comms, so the announcer
+  //     is the only instruction they get.
+  //   - Everman High School is a visiting district. Their band sits on the
+  //     upper visitor level.
+  "2026-09-24": {
+    header: "Prairie View A&M Band Performance",
+    sub: "Thursday, September 24, 2026 \u00b7 9:45 AM performance \u00b7 CISD Community Stadium",
+    sections: [
+      {
+        name: "In Game Notes",
+        cues: [
+          { time: "Standing", event: "This event is closed to the public", audio: "Announcer",
+            notes: "No parents or community members. It is streamed to the elementary campuses, so the stream is the audience. Treat the feed as the show." },
+          { time: "Standing", event: "Dismissal is announcer-led", audio: "Announcer",
+            position: "Camera 4",
+            notes: "Schools are dismissed one at a time from the field. Principals are NOT on comms with Durham or the stadium, so the announcer's call is the only direction they get. Expect to wait and be patient." },
+        ],
+      },
+      {
+        name: "Load in",
+        cues: [
+          { time: "8:45 AM", event: "Possible middle school bus arrival", screen: "Welcome", audio: "House Music",
+            notes: "Buses meet students and chaperones in the bus lane on their own campus. If a bus arrives early they may load and come straight over. Entry is on the side with the CONSTRUCTION FENCING \u2014 drivers have been told." },
+          { time: "8:45 AM", event: "Seating signs out", screen: "Welcome",
+            notes: "Seating arrangement signs taped to A-frames on the visitor EAST side, lower level. Everman High School band goes on the UPPER visitor level." },
+          { time: "9:00 AM", event: "Crew call", notes: "Signal up, comms check, confirm the stream to the elementary campuses is live before anyone arrives." },
+          { time: "9:30 AM", event: "Confirm the stream is up to the elementary campuses", screen: "Welcome",
+            notes: "This is the only way most of the audience sees it. Check before the performance, not during." },
+        ],
+      },
+      {
+        name: "Performance",
+        cues: [
+          { time: "9:45 AM", dur: "30:00", event: "Prairie View A&M band performance",
+            screen: "Live Action", audio: "PVAMU Band", position: "Camera 4",
+            notes: "9:45 to 10:15. MAY START LATE if not all schools have arrived \u2014 do not roll the end of the block on the clock, watch the field." },
+        ],
+      },
+      {
+        name: "Dismissal",
+        cues: [
+          { time: "After the performance", event: "Dismissal by school, called from the field",
+            screen: "Live Action", audio: "Announcer", position: "Camera 4",
+            notes: "Announcer on the field calls each school in turn. Nobody leaves until their school is called. Field mic needed.",
+            read: "Please remain seated until your school is called. We will dismiss school by school. Thank you for your patience." },
+          { time: "11:00 AM", event: "Everyone back on their campus", notes: "11:00 is the latest, per the itinerary." },
         ],
       },
       {
