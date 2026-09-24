@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v73 · events in confirmations";
+const APP_BUILD = "build 2026-09-01 · v74 · custom roles on the roster";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2221,17 +2221,22 @@ async function renderConfirmCard(profile) {
   const sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
   if (!sched) { host.innerHTML = ""; return; }
 
+  // Confirmations are stored under the event's own id, the same id the admin
+  // Confirmations page reads. Writing them under the bare date meant a
+  // confirmation for an added event was saved somewhere nobody looked.
+  const confirmId = (sched.game && sched.game.id) ? sched.game.id : dateId;
+
   const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
   let already = false;
   try {
-    const snap = await db.ref(`confirmations/${dateId}/${roleKey}`).once("value");
+    const snap = await db.ref(`confirmations/${confirmId}/${roleKey}`).once("value");
     already = !!(snap.val() && snap.val().confirmed);
   } catch (e) {
     // Read denied — the rules only let admins read this node. Fall back to
     // what this device recorded when it confirmed, so a crew member who
     // reopens the app is not asked to confirm something they already did.
     try {
-      already = localStorage.getItem(`advConfirmed:${dateId}:${roleKey}`) === "1";
+      already = localStorage.getItem(`advConfirmed:${confirmId}:${roleKey}`) === "1";
     } catch (e2) { /* leave it false and show the card */ }
   }
 
@@ -2270,7 +2275,7 @@ async function renderConfirmCard(profile) {
     btn.disabled = true;
     btn.textContent = "Confirming…";
     try {
-      await db.ref(`confirmations/${dateId}/${roleKey}`).set({
+      await db.ref(`confirmations/${confirmId}/${roleKey}`).set({
         name: profile.legalName || "",
         position: sched.position,
         confirmed: true,
@@ -2290,7 +2295,7 @@ async function renderConfirmCard(profile) {
         </div>`;
       // Remembered on the device so it still reads as confirmed after a
       // reload, even if this crew member cannot read the node back.
-      try { localStorage.setItem(`advConfirmed:${dateId}:${roleKey}`, "1"); } catch (e) {}
+      try { localStorage.setItem(`advConfirmed:${confirmId}:${roleKey}`, "1"); } catch (e) {}
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "I'll be there — Confirm";
@@ -2353,7 +2358,13 @@ function rosterRowsFor(gameId, gameRoster) {
     if (name && name !== "TBD") rows.push({ role, name, open: false });
   }
   if (gameRoster) {
-    for (const role of TRADEABLE_ROLES) {
+    // The positions an event actually has, not just the standard football
+    // crew. An added event can have Stagehand 1, Stagehand 2 and so on, and
+    // looping TRADEABLE_ROLES skipped every one of them — which is why an
+    // event with people on it reported nobody assigned.
+    const ev = typeof eventById === "function" ? eventById(gameId) : null;
+    const roleList = (ev && Array.isArray(ev.roles) && ev.roles.length) ? ev.roles : TRADEABLE_ROLES;
+    for (const role of roleList) {
       const entry = gameRoster[role.replace(/[^A-Za-z0-9]/g, "_")];
       if (!entry) continue;
       const assigned = entry.status === "assigned" && entry.name;
@@ -2387,7 +2398,10 @@ async function textTomorrowsCrew(mode) {
   }
 
   const liveRoster = await loadLiveRoster();
-  const assigned = rosterRowsFor(dateId, liveRoster[dateId]).filter((r) => !r.open);
+  // The event's own id — a custom event stores its roster under the suffixed
+  // id, so looking it up by bare date finds nothing and reports an empty crew.
+  const rosterId = game && game.id ? game.id : dateId;
+  const assigned = rosterRowsFor(rosterId, liveRoster[rosterId]).filter((r) => !r.open);
   if (assigned.length === 0) {
     alert("Nobody is assigned to tomorrow's game yet.");
     return;
@@ -2398,7 +2412,7 @@ async function textTomorrowsCrew(mode) {
 
   let people = assigned;
   if (mode === "remind") {
-    const cSnap = await db.ref(`confirmations/${dateId}`).once("value");
+    const cSnap = await db.ref(`confirmations/${confirmId}`).once("value");
     const confirmed = cSnap.val() || {};
     const isConfirmed = (name) =>
       Object.values(confirmed).some((c) => c && c.name && namesMatch(c.name, name) && c.confirmed);
@@ -8668,10 +8682,12 @@ function namesMatch(rosterName, legalName, crewHandle) {
 async function findScheduledEventOn(dateId, legalName, crewHandle) {
   await loadClientEvents();
   const liveRoster = await loadLiveRoster();
-  const rows = rosterRowsFor(dateId, liveRoster[dateId]);
+  const ev = eventById(dateId);
+  const rosterId = ev ? ev.id : dateId;
+  const rows = rosterRowsFor(rosterId, liveRoster[rosterId]);
   for (const r of rows) {
     if (!r.open && namesMatch(r.name, legalName, crewHandle)) {
-      return { position: r.role, game: eventById(dateId) };
+      return { position: r.role, game: ev };
     }
   }
   return null;
