@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v74 · custom roles on the roster";
+const APP_BUILD = "build 2026-09-01 · v76 · events across the app";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1809,7 +1809,7 @@ async function renderMyInvoices() {
       ${directDepositCardHtml(myProfile)}
       <div class="footnote" style="margin-bottom:12px;">Showing invoices matching "${escapeHtml(myProfile.legalName)}". Deleting one removes it from your view only — the office keeps a permanent copy regardless.</div>
       ${entries.map((inv) => {
-        const game = GAMES.find((g) => g.id === inv.gameId);
+        const game = eventById(inv.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
         const when = new Date(inv.submittedAt);
         const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -1901,7 +1901,7 @@ async function renderAdminInvoices() {
     inner.innerHTML = `
       <div class="footnote" style="margin-bottom:12px;">${entries.length} invoice${entries.length === 1 ? "" : "s"} submitted — total $${total.toFixed(2)} — this is the permanent record and can't be changed from anyone's own view</div>
       ${entries.map((inv) => {
-        const game = GAMES.find((g) => g.id === inv.gameId);
+        const game = eventById(inv.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
         const when = new Date(inv.submittedAt);
         const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -1967,7 +1967,7 @@ async function renderQbApproval() {
     const approved = entries.filter((e) => e.qb);
 
     const renderRow = (inv) => {
-      const game = GAMES.find((g) => g.id === inv.gameId);
+      const game = eventById(inv.gameId);
       const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
       const amountStr = inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "—");
       const when = new Date(inv.submittedAt);
@@ -2439,7 +2439,7 @@ async function textTomorrowsCrew(mode) {
 
   await loadGameSettings();
   const calls = callsFor(game);
-  const earlyCalls = roleCallEntries(calls)
+  const earlyCalls = roleCallEntries(calls, game.id)
     .filter(([, t]) => t !== calls.call)
     .map(([role, t]) => `  • ${role} — ${fmtCall(t)}`);
 
@@ -2591,7 +2591,7 @@ function renderAdminReset() {
 
   document.getElementById("clearClockBtn").onclick = async () => {
     const gameId = document.getElementById("resetGameSelect").value;
-    const game = GAMES.find((g) => g.id === gameId);
+    const game = eventById(gameId);
     const label = game ? `${game.day} ${game.date} — ${game.opp}` : gameId;
     if (!confirm(`Clear the live clock-in list for ${label}? The permanent record is kept regardless — this only resets what shows on the Time Clock screen.`)) return;
 
@@ -2637,7 +2637,7 @@ async function renderAdminLocations() {
     inner.innerHTML = `
       <div class="footnote" style="margin-bottom:12px;">${entries.length} clock-in${entries.length === 1 ? "" : "s"} — most recent first. Permanent record, only visible to admins, never affected by clearing the live list in the Reset tab.</div>
       ${entries.map((loc) => {
-        const game = GAMES.find((g) => g.id === loc.gameId);
+        const game = eventById(loc.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : loc.gameId;
         const when = new Date(loc.at);
         const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -2693,7 +2693,7 @@ async function renderShiftLog() {
     inner.innerHTML = `
       <div class="footnote" style="margin-bottom:12px;">${entries.length} shift change${entries.length === 1 ? "" : "s"} — most recent first</div>
       ${entries.map((e) => {
-        const game = GAMES.find((g) => g.id === e.gameId);
+        const game = eventById(e.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : e.gameId;
         const when = new Date(e.at);
         const whenStr = isNaN(when) ? e.at : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -3171,8 +3171,7 @@ function renderShiftsList(liveRoster) {
     btn.onclick = () => {
       const g = allShiftEvents().find((x) => x.id === btn.dataset.textcrew);
       if (!g) return;
-      const calls = typeof callsFor === "function" && GAMES.find((x) => x.id === g.id)
-        ? callsFor(GAMES.find((x) => x.id === g.id)) : {};
+      const calls = typeof callsFor === "function" ? callsFor(eventById(g.id)) : {};
       openEventTextBlast({
         name: g.opp, day: g.day, date: g.date,
         callTime: (calls && calls.call) || g.callTime || "",
@@ -3226,7 +3225,7 @@ function renderAdminAssignModal() {
   if (!adminAssignState) return;
 
   const { crew, loading, roleKey, gameId } = adminAssignState;
-  const game = GAMES.find((g) => g.id === gameId);
+  const game = eventById(gameId);
   const roleLabel = TRADEABLE_ROLES.find((r) => r.replace(/[^A-Za-z0-9]/g, "_") === roleKey) || roleKey;
 
   const overlay = document.createElement("div");
@@ -3816,7 +3815,7 @@ async function renderEquipmentReports() {
     inner.innerHTML = `
       ${needsAttention.length > 0 ? `<div class="setup-warning" style="display:block; margin-bottom:14px;">⚠️ ${needsAttention.length} report${needsAttention.length === 1 ? "" : "s"} flagged "Needs Attention"</div>` : ""}
       ${entries.map((r) => {
-        const game = GAMES.find((g) => g.id === r.gameId);
+        const game = eventById(r.gameId);
         const label = game ? `${game.day} ${game.date} — ${game.opp}` : r.gameId;
         const when = new Date(r.submittedAt);
         const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -3881,6 +3880,15 @@ function normaliseRoleCalls(raw) {
   return out;
 }
 
+// The positions an event has, for anything that lists them: call times, the
+// roster, role overrides. An added event carries its own list; a football
+// game uses the standard crew.
+function rolesForEvent(gameId) {
+  const ev = typeof eventById === "function" ? eventById(gameId) : null;
+  if (ev && Array.isArray(ev.roles) && ev.roles.length) return ev.roles;
+  return CALL_TIME_ROLES;
+}
+
 function callsFor(game) {
   if (!game) return { gameTime: "", call: "", roleCalls: {} };
   const saved = gameSettings[game.id];
@@ -3900,8 +3908,8 @@ function callsFor(game) {
 
 // Role calls as [displayName, time] pairs. Needed because the stored keys are
 // sanitised and can't be shown to anyone.
-function roleCallEntries(calls) {
-  return CALL_TIME_ROLES
+function roleCallEntries(calls, gameId) {
+  return (gameId ? rolesForEvent(gameId) : CALL_TIME_ROLES)
     .map((role) => [role, calls.roleCalls[callKey(role)]])
     .filter(([, t]) => t);
 }
@@ -4091,7 +4099,7 @@ async function renderCallTimesAdmin() {
     </div>
     ${upcoming.map((g) => {
       const c = callsFor(g);
-      const overrides = roleCallEntries(c).filter(([, t]) => t !== c.call);
+      const overrides = roleCallEntries(c, g.id).filter(([, t]) => t !== c.call);
       return `
       <div class="shift-game-card">
         <div class="shift-game-header">${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}</div>
@@ -4115,7 +4123,9 @@ async function renderCallTimesAdmin() {
 }
 
 function openCallTimeEditor(gameId) {
-  const game = GAMES.find((g) => g.id === gameId);
+  // Both schedules. Looking only in GAMES meant tapping Edit on an added
+  // event did nothing at all — the editor returned before opening.
+  const game = eventById(gameId);
   if (!game) return;
   const c = callsFor(game);
 
@@ -4142,7 +4152,7 @@ function openCallTimeEditor(gameId) {
       <div class="footnote" style="margin:16px 0 6px;">
         Position overrides — leave blank to use the general call.
       </div>
-      ${CALL_TIME_ROLES.map((role) => `
+      ${rolesForEvent(game.id).map((role) => `
         <div class="ct-row">
           <div class="ct-role">${escapeHtml(role)}</div>
           <input class="ct-input" type="time" data-role="${escapeAttr(role)}"
@@ -6792,7 +6802,7 @@ function rosRender() {
   const inner = document.getElementById("innerRoot");
   if (!inner || mainState.view !== "runofshow") return;
   const admin = isAdmin();
-  const game = GAMES.find((g) => g.id === rosState.gameId);
+  const game = eventById(rosState.gameId);
   const cues = rosState.cues;
   const cur = rosState.current;
   const prompter = rosState.prompter || rosDefaultPrompter();
