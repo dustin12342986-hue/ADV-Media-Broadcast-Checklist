@@ -33,9 +33,58 @@
   // Crew must be physically at the stadium to clock in — checked against
   // these coordinates every time someone taps Clock In.
   // Crowley ISD Multi-Purpose Stadium, 9900 Hemphill St, Fort Worth, TX 76134
-  const VENUE_LAT = 32.609913;
-  const VENUE_LNG = -97.339093;
-  const MAX_DISTANCE_METERS = 152; // ~500 ft, covers the stadium and parking lots
+  // CISD Multi-Purpose Stadium, 9900 Hemphill Street, Fort Worth TX 76134.
+  //
+  // These are the fallback. The real ones are recorded by standing at the
+  // stadium and using "Set stadium location" below, which saves the phone's
+  // own reading to Firebase so every device uses the same point. A coordinate
+  // taken from a map search is the middle of a label, not the middle of a
+  // stadium, and can sit a few hundred feet off.
+  let VENUE_LAT = 32.609913;
+  let VENUE_LNG = -97.339093;
+
+  // Loaded at startup. gameSettings is already readable and writable, so this
+  // needs no rules change.
+  async function loadVenue() {
+    try {
+      const snap = await db.ref("gameSettings/__venue").once("value");
+      const v = snap.val();
+      if (v && typeof v.lat === "number" && typeof v.lng === "number") {
+        VENUE_LAT = v.lat; VENUE_LNG = v.lng;
+      }
+    } catch (e) { /* keep the fallback */ }
+  }
+
+  // Records where the stadium actually is, from a phone standing in it.
+  async function setVenueFromHere(btn) {
+    const msg = document.getElementById("venueMsg");
+    const say = (t, bad) => { if (msg) msg.innerHTML = `<div class="${bad ? "error-msg" : "footnote"}">${t}</div>`; };
+    if (btn) btn.disabled = true;
+    say("Taking a reading, hold still for a few seconds…");
+    try {
+      const pos = await getBestLocation(8000);
+      const acc = Math.round(pos.coords.accuracy);
+      if (acc > 60) {
+        say(`That reading is only accurate to about ${acc} m, which is too rough to save. Step outside, wait a moment and try again.`, true);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      await db.ref("gameSettings/__venue").set({
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        accuracy: acc, setAt: new Date().toISOString(),
+      });
+      VENUE_LAT = pos.coords.latitude; VENUE_LNG = pos.coords.longitude;
+      say(`Saved. Accurate to about ${acc} m. Every phone will use this point from now on.`);
+    } catch (e) {
+      say("Couldn't get a reading: " + (e.message || "unknown error"), true);
+    }
+    if (btn) btn.disabled = false;
+  }
+  // ~1,300 ft. The stadium, both parking lots and the field itself are a big
+  // footprint, and phones are least accurate in exactly the places crew work:
+  // the press box, under the stands, in the truck. A tight radius here does
+  // not stop anyone cheating, it stops the crew clocking in.
+  const MAX_DISTANCE_METERS = 400;
 
   // ==========================================================================
   // INVOICE EMAIL SETUP — one-time, ~5 minutes
@@ -286,6 +335,43 @@ function getLocation() {
   });
 }
 
+// Take a few readings and keep the most accurate one.
+//
+// A single reading inside a concrete press box can land a mile off, which is
+// what put people at "5,000 ft" while they were standing at the stadium. The
+// first fix is usually the worst — it often comes from wifi or the cell tower
+// before GPS has settled — so this watches for a few seconds and keeps the
+// best.
+function getBestLocation(ms) {
+  ms = ms || 6000;
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("This browser doesn't support location access."));
+      return;
+    }
+    let best = null;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      navigator.geolocation.clearWatch(id);
+      clearTimeout(timer);
+      if (best) resolve(best);
+      else reject(new Error("Couldn't get a location fix."));
+    };
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+        // Good enough to stop early rather than make anyone wait.
+        if (best.coords.accuracy <= 25) finish();
+      },
+      (err) => { if (!best) { done = true; clearTimeout(timer); reject(err); } },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: ms }
+    );
+    const timer = setTimeout(finish, ms);
+  });
+}
+
 // ============================================================================
 // Firebase setup (mirrors broadcast-checklist.html)
 // ============================================================================
@@ -398,7 +484,17 @@ function escapeHtml(str) {
 // ============================================================================
 // Render
 // ============================================================================
+document.addEventListener("click", (e) => {
+  const vb = e.target.closest && e.target.closest("#setVenueBtn");
+  if (!vb) return;
+  if (!confirm("Only do this while standing AT the stadium. It sets the clock-in area for everyone. Continue?")) return;
+  setVenueFromHere(vb);
+});
+
 function renderView() {
+  // Refresh the saved stadium location each time, so a phone that was open
+  // before it was set picks it up without a reload.
+  loadVenue();
   if (unsubClock) { unsubClock(); unsubClock = null; }
   if (unsubInvoiceLog) { unsubInvoiceLog(); unsubInvoiceLog = null; }
   const root = document.getElementById("viewRoot");
@@ -518,7 +614,7 @@ function renderClockUI(entries) {
 
     let pos;
     try {
-      pos = await getLocation();
+      pos = await getBestLocation(6000);
     } catch (err) {
       btn.disabled = false;
       msgEl.innerHTML = `<div class="error-msg">⚠️ Location access is required to clock in, and it wasn't available (${escapeHtml(err.message || "permission denied")}). Please allow location access for this site in your browser settings, then try again.</div>`;
@@ -526,10 +622,18 @@ function renderClockUI(entries) {
     }
 
     const dist = distanceMeters(pos.coords.latitude, pos.coords.longitude, VENUE_LAT, VENUE_LNG);
-    if (dist > MAX_DISTANCE_METERS) {
+
+    // The phone's own margin of error counts in your favour. A reading that
+    // says "800 m away, give or take 900 m" is not evidence anyone is off
+    // site, and blocking on it keeps people who are standing at the stadium
+    // from clocking in.
+    const accuracy = (pos.coords && pos.coords.accuracy) || 0;
+    const nearest = Math.max(0, dist - accuracy);
+
+    if (nearest > MAX_DISTANCE_METERS) {
       const distFeet = Math.round(dist * 3.28084);
       btn.disabled = false;
-      msgEl.innerHTML = `<div class="error-msg">⚠️ You're about ${distFeet.toLocaleString()} ft from the stadium — you need to be within 500 ft to clock in.</div>`;
+      msgEl.innerHTML = `<div class="error-msg">⚠️ You're about ${distFeet.toLocaleString()} ft from the stadium — you need to be at the venue to clock in.<br><br>If you ARE at the stadium, step outside for a moment and try again. Phones lose their fix indoors and under the stands.</div>`;
       return;
     }
 
@@ -641,7 +745,17 @@ function renderInvoiceUI(entries) {
     <button class="submit-btn" id="invoiceSubmitBtn">Submit Invoice</button>
   `;
   html += `</div>`;
-  html += `<div class="footnote" style="margin-top:14px;">Want to see your own submitted invoices? Sign in to the ADV Media Teams app — that's the only place invoice history is shown, since it requires a real login.</div>`;
+  html += `<div id="venueBox" style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
+      <div class="footnote" style="margin-bottom:8px;">
+        Clocking in needs you to be at the stadium. If people are being told
+        they're too far away while standing at the venue, record the stadium's
+        location from a phone that is actually there.
+      </div>
+      <button class="shift-btn shift-btn-ghost" id="setVenueBtn" style="width:100%; padding:11px 0;">Set stadium location from here</button>
+      <div id="venueMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="footnote" style="margin-top:14px;">Want to see your own submitted invoices? Sign in to the ADV Media Teams app — that's the only place invoice history is shown, since it requires a real login.</div>`;
 
   root.innerHTML = html;
 
