@@ -272,6 +272,46 @@
 // ============================================================================
 // Data
 // ============================================================================
+// Events added through the app live in Firebase under clientEvents, not in
+// the list below. Without loading them, an added event has no entry in the
+// picker here, which means nobody can clock in or invoice for it.
+let CLIENT_EVENTS = {};
+
+async function loadClientEventsTC() {
+  try {
+    const snap = await db.ref("clientEvents").once("value");
+    CLIENT_EVENTS = snap.val() || {};
+  } catch (e) { CLIENT_EVENTS = {}; }
+}
+
+// Both schedules, soonest first.
+// The positions an event has. An added event carries its own list, so a
+// Stagehand can pick "Stagehand 2" rather than being stuck with the football
+// crew list.
+function positionsFor(gameId) {
+  const ev = eventByIdTC(gameId);
+  if (ev && Array.isArray(ev.roles) && ev.roles.length) return ev.roles;
+  return POSITION_LABELS;
+}
+
+function allEvents() {
+  const out = GAMES.slice();
+  Object.entries(CLIENT_EVENTS).forEach(([id, ev]) => {
+    if (!ev) return;
+    out.push({ id, day: ev.day || "", date: ev.date || "", opp: ev.name || "Event",
+               client: ev.client || "Client", venue: ev.venue || "",
+               callTime: ev.callTime || "", roles: ev.roles || null });
+  });
+  return out.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+function eventByIdTC(id) {
+  const all = allEvents();
+  return all.find((g) => g.id === id)
+    || all.find((g) => String(g.id).split("__")[0] === id)
+    || null;
+}
+
 const GAMES = [
   { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma" },
   { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo" },
@@ -401,6 +441,11 @@ async function initFirebaseAndBoot() {
     dbReady = false;
     db = null;
   }
+  // Added events come from Firebase, so the picker is filled after they load.
+  // The state's game is re-chosen at the same time, in case the soonest thing
+  // on the calendar is an added event rather than a football game.
+  await loadClientEventsTC();
+  if (!state.gameId || !eventByIdTC(state.gameId)) state.gameId = nextUpcomingGameId();
   populateGameSelect();
   updateTabs();
   renderView();
@@ -435,8 +480,9 @@ function dbListen(path, cb) {
 // ============================================================================
 function nextUpcomingGameId() {
   const today = new Date(); today.setHours(0,0,0,0);
-  for (const g of GAMES) { if (new Date(g.id + "T00:00:00") >= today) return g.id; }
-  return GAMES[GAMES.length - 1].id;
+  const all = allEvents();
+  for (const g of all) { if (new Date(String(g.id).split("__")[0] + "T00:00:00") >= today) return g.id; }
+  return all[all.length - 1].id;
 }
 
 const state = {
@@ -458,7 +504,7 @@ function updateTabs() {
 
 function populateGameSelect() {
   const sel = document.getElementById("gameSelect");
-  sel.innerHTML = GAMES.map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("");
+  sel.innerHTML = allEvents().map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("");
   sel.value = state.gameId;
   sel.onchange = () => { state.gameId = sel.value; state.justClockedIn = false; renderView(); };
 
@@ -516,7 +562,7 @@ function renderView() {
 
 function renderClockUI(entries) {
   const root = document.getElementById("viewRoot");
-  const currentGame = GAMES.find((g) => g.id === state.gameId);
+  const currentGame = eventByIdTC(state.gameId);
   const now = new Date();
 
   const activeEntries = Object.entries(entries).filter(([, e]) => e.clockInAt && !e.clockOutAt);
@@ -549,7 +595,7 @@ function renderClockUI(entries) {
       <div class="field-block" style="text-align:left">
         <div class="label">Position</div>
         <select id="positionSelect">
-          ${POSITION_LABELS.map((p) => `<option value="${p}" ${p === state.position ? "selected" : ""}>${p}</option>`).join("")}
+          ${positionsFor(state.gameId).map((p) => `<option value="${p}" ${p === state.position ? "selected" : ""}>${p}</option>`).join("")}
         </select>
       </div>
 
@@ -687,7 +733,7 @@ const EVENT_HOURS = 5;
 
 function renderInvoiceUI(entries) {
   const root = document.getElementById("viewRoot");
-  const currentGame = GAMES.find((g) => g.id === state.gameId);
+  const currentGame = eventByIdTC(state.gameId);
   const notConfigured = FORMSPREE_ENDPOINT.includes("PASTE_YOUR_FORM_ID");
 
   let html = `<div class="invoice-card">`;
@@ -703,7 +749,7 @@ function renderInvoiceUI(entries) {
       <div class="field-block">
         <div class="label">Position</div>
         <select id="invPositionSelect">
-          ${POSITION_LABELS.map((p) => `<option value="${p}" ${p === state.position ? "selected" : ""}>${p}</option>`).join("")}
+          ${positionsFor(state.gameId).map((p) => `<option value="${p}" ${p === state.position ? "selected" : ""}>${p}</option>`).join("")}
         </select>
       </div>
       <div class="field-block">
