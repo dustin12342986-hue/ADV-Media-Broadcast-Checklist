@@ -1443,7 +1443,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v78 · Prairie View run of show";
+const APP_BUILD = "build 2026-09-01 · v79 · text confirmations any day";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2217,8 +2217,14 @@ async function getForecastForDate(dateId) {
 async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
-  const dateId = tomorrowId();
-  const sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  // Today first, then tomorrow. Texts go out day-of sometimes, and a crew
+  // member told to confirm needs a button to press when they open the app.
+  let dateId = localDateId();
+  let sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  if (!sched) {
+    dateId = tomorrowId();
+    sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  }
   if (!sched) { host.innerHTML = ""; return; }
 
   // Confirmations are stored under the event's own id, the same id the admin
@@ -2253,7 +2259,7 @@ async function renderConfirmCard(profile) {
 
   host.innerHTML = `
     <div style="background:var(--panel); border:2px solid var(--amber); border-radius:14px; padding:18px; margin-bottom:18px;">
-      <div style="font-size:11.5px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Confirm tomorrow's shift</div>
+      <div style="font-size:11.5px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Confirm ${escapeHtml(whenWord(dateId) ? whenWord(dateId) + "'s shift" : "your shift")}</div>
       <div style="font-size:17px; font-weight:800; margin-bottom:3px;">${escapeHtml(label)}</div>
       <div class="log-reason" style="margin-bottom:12px;">You're on as <strong>${escapeHtml(sched.position)}</strong>${g && g.call ? ` · call ${escapeHtml(g.call)}` : ""}</div>
       <div id="confirmWeather" class="log-reason" style="margin-bottom:12px;">Checking the forecast…</div>
@@ -2387,15 +2393,34 @@ function rosterRowsFor(gameId, gameRoster) {
 // The reminder deliberately skips anyone who has already confirmed. Texting
 // someone to do a thing they have already done is how people start ignoring
 // the texts.
-async function textTomorrowsCrew(mode) {
+// How to refer to a date in a text message. "tomorrow" reads wrong when the
+// message goes out on game day, which is exactly when it matters most.
+function whenWord(dateId) {
+  const today = localDateId();
+  if (dateId === today) return "today";
+  if (dateId === tomorrowId()) return "tomorrow";
+  return null;
+}
+
+// targetId — the event to text about. Omitted, it falls back to tomorrow if
+// something is scheduled then, otherwise today. Either bare date or the
+// suffixed id of an added event works.
+async function textCrewFor(mode, targetId) {
   mode = mode || "call";
-  const dateId = tomorrowId();
   await loadClientEvents();
-  const game = eventById(dateId);
+
+  let game = targetId ? eventById(targetId) : null;
   if (!game) {
-    alert("Nothing on the schedule for tomorrow.");
+    game = eventById(tomorrowId()) || eventById(localDateId());
+  }
+  if (!game) {
+    alert("Pick an event to text about — nothing is scheduled today or tomorrow.");
     return;
   }
+  // Weather and the crew card key off the calendar date, not the suffixed id.
+  const dateId = String(game.id).split("__")[0];
+  const when = whenWord(dateId);
+  const whenPhrase = when || `${game.day} ${game.date}`;
 
   const liveRoster = await loadLiveRoster();
   // The event's own id — a custom event stores its roster under the suffixed
@@ -2403,7 +2428,7 @@ async function textTomorrowsCrew(mode) {
   const rosterId = game && game.id ? game.id : dateId;
   const assigned = rosterRowsFor(rosterId, liveRoster[rosterId]).filter((r) => !r.open);
   if (assigned.length === 0) {
-    alert("Nobody is assigned to tomorrow's game yet.");
+    alert(`Nobody is assigned to ${game.day} ${game.date} yet.`);
     return;
   }
 
@@ -2412,13 +2437,13 @@ async function textTomorrowsCrew(mode) {
 
   let people = assigned;
   if (mode === "remind") {
-    const cSnap = await db.ref(`confirmations/${confirmId}`).once("value");
+    const cSnap = await db.ref(`confirmations/${rosterId}`).once("value");
     const confirmed = cSnap.val() || {};
     const isConfirmed = (name) =>
       Object.values(confirmed).some((c) => c && c.name && namesMatch(c.name, name) && c.confirmed);
     people = assigned.filter((r) => !isConfirmed(r.name));
     if (people.length === 0) {
-      alert("Everyone has already confirmed for tomorrow. Nothing to send.");
+      alert(`Everyone has already confirmed for ${game.day} ${game.date}. Nothing to send.`);
       return;
     }
   }
@@ -2433,7 +2458,7 @@ async function textTomorrowsCrew(mode) {
   });
 
   if (numbers.length === 0) {
-    alert("No usable phone numbers for tomorrow's crew. Check the Crew Directory — profiles need a phone number filled in.");
+    alert("No usable phone numbers for that crew. Check the Crew Directory — profiles need a phone number filled in.");
     return;
   }
 
@@ -2487,7 +2512,8 @@ async function textTomorrowsCrew(mode) {
         "ADV MEDIA",
         `${game.day} ${game.date} · ${game.opp}`,
         "",
-        "Please confirm in the app for tomorrow's shift.",
+        when ? `Please confirm in the app for ${when}'s shift.`
+             : `Please confirm in the app for your ${whenPhrase} shift.`,
         `  ${appLink()}`,
       ].join("\n")
     : fullBody;
@@ -2501,6 +2527,9 @@ async function textTomorrowsCrew(mode) {
   const sep = isIOS ? "&" : "?";
   window.location.href = `sms:${numbers.join(",")}${sep}body=${encodeURIComponent(body)}`;
 }
+
+// Kept so older buttons still work; new callers pass the event.
+async function textTomorrowsCrew(mode) { return textCrewFor(mode); }
 
 async function renderConfirmations() {
   const inner = document.getElementById("innerRoot");
@@ -2524,10 +2553,7 @@ async function renderConfirmations() {
     }
 
     inner.innerHTML = `
-      <button class="primary-btn" id="textCrewBtn" style="margin-bottom:8px;">📱 Text Tomorrow's Crew</button>
-      <button class="shift-btn shift-btn-ghost" id="remindCrewBtn"
-        style="width:100%; margin-bottom:14px; padding:12px 0;">Remind whoever hasn't confirmed</button>
-      <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app.</div>
+      <div class="footnote" style="margin-bottom:12px;">Everyone scheduled, and whether they've confirmed. Green checkmarks fill in as crew confirm in the app. Each event has its own send buttons — use them whenever you need, day-of included.</div>
       ${upcoming.map((game) => {
         const all = visibleRosterRows(rosterRowsFor(game.id, liveRoster[game.id]));
         const confirms = byGame[game.id] || {};
@@ -2544,11 +2570,18 @@ async function renderConfirmations() {
         const yes = rows.filter((r) => r.confirmed).length;
         const no = rows.length - yes;
 
+        const dayWord = whenWord(String(game.id).split("__")[0]);
         return `
           <div class="shift-game-card">
-            <div class="shift-game-header">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
+            <div class="shift-game-header">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}${dayWord ? ` <span style="color:var(--amber); font-weight:800;">· ${dayWord}</span>` : ""}</div>
             <div class="log-reason" style="margin-bottom:8px;">
               ${yes} confirmed · ${no} waiting${open ? ` · ${open} position${open === 1 ? "" : "s"} unfilled` : ""}
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+              <button class="shift-btn" data-textcrew="${escapeHtml(game.id)}"
+                style="flex:1; min-width:140px; padding:11px 0;">📱 Text crew</button>
+              <button class="shift-btn shift-btn-ghost" data-remindcrew="${escapeHtml(game.id)}"
+                style="flex:1; min-width:140px; padding:11px 0;"${no === 0 ? " disabled" : ""}>${no === 0 ? "All confirmed" : `Remind the ${no} waiting`}</button>
             </div>
             ${rows.map((r) => `
               <div class="shift-row">
@@ -2562,11 +2595,13 @@ async function renderConfirmations() {
         `;
       }).join("")}
     `;
-    const rb = document.getElementById("remindCrewBtn");
-    if (rb) rb.onclick = () => textTomorrowsCrew("remind");
-
-    const tb = document.getElementById("textCrewBtn");
-    if (tb) tb.onclick = () => textTomorrowsCrew().catch((e) => alert("Couldn't build that message: " + (e.message || "unknown error")));
+    const oops = (e) => alert("Couldn't build that message: " + (e.message || "unknown error"));
+    inner.querySelectorAll("[data-textcrew]").forEach((b) => {
+      b.onclick = () => textCrewFor("call", b.getAttribute("data-textcrew")).catch(oops);
+    });
+    inner.querySelectorAll("[data-remindcrew]").forEach((b) => {
+      b.onclick = () => textCrewFor("remind", b.getAttribute("data-remindcrew")).catch(oops);
+    });
   } catch (e) {
     console.error(e);
     inner.innerHTML = `<div class="error-msg">Couldn't load confirmations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include a "confirmations" section.</div>`;
