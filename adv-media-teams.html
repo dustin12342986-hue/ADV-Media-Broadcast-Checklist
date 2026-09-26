@@ -1034,6 +1034,15 @@
      the Director needs and the announcer does not (ribbon, screen, dept
      colours) is left off. */
   .scr-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .view-bar { display: flex; gap: 0; }
+  .view-bar button {
+    flex: 1; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text-faint); font-family: inherit; font-size: 13px;
+    font-weight: 800; padding: 11px 0; cursor: pointer;
+  }
+  .view-bar button:first-child { border-radius: 9px 0 0 9px; }
+  .view-bar button:last-child { border-radius: 0 9px 9px 0; border-left: none; }
+  .view-bar button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .scr-size { display: flex; gap: 0; flex: 0 0 auto; }
   .scr-size button {
     background: var(--panel2); border: 1px solid var(--border); color: var(--text);
@@ -1501,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v80 · announcer script page";
+const APP_BUILD = "build 2026-09-01 · v82 · paste the whole script";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4578,6 +4587,8 @@ function renderDocsSection(gameId, docs) {
       ${admin ? `
         <button class="shift-btn shift-btn-ghost" id="docAdd"
           style="width:100%; margin-top:8px; padding:11px 0;">+ Upload a document</button>
+        <button class="shift-btn shift-btn-ghost" id="docPasteScript"
+          style="width:100%; margin-top:8px; padding:11px 0;">✎ Paste the announcer script</button>
         <button class="shift-btn shift-btn-ghost" id="sheetLink"
           style="width:100%; margin-top:8px; padding:11px 0;">${rosState.sheetUrl ? "Change" : "Link"} a Google Sheet</button>
         <input type="file" id="docFile" style="display:none"
@@ -4611,6 +4622,16 @@ function wireDocsSection(gameId) {
     };
   });
 
+  const pasteBtn = document.getElementById("docPasteScript");
+  if (pasteBtn) pasteBtn.onclick = async () => {
+    let existing = null;
+    try {
+      const snap = await db.ref(`runOfShow/${gameId}/script`).once("value");
+      existing = snap.val();
+    } catch (e) { /* treat as none */ }
+    openScriptPaste(gameId, existing);
+  };
+
   const linkBtn = document.getElementById("sheetLink");
   if (linkBtn) linkBtn.onclick = () => linkSheet(gameId);
   const refBtn = document.getElementById("sheetRefresh");
@@ -4636,10 +4657,17 @@ function wireDocsSection(gameId) {
     const type = await askDocType(file.name);
     if (!type) return;
 
-    // Build the cue list FIRST. It's the valuable output, it needs no network,
-    // and an upload that hangs on a bad stadium connection shouldn't stand
-    // between you and a run of show on a show day.
-    if (type === "script" || type === "ros") {
+    // A script gets filed as a script. Uploading one used to walk straight
+    // into rebuilding the cue list, so dropping in tonight's script could
+    // replace a run of show somebody had already corrected by hand. Now the
+    // words are saved for the announcer, and rebuilding cues is a separate
+    // question you have to say yes to.
+    //
+    // A run-of-show grid is different: turning it into cues is the whole point
+    // of uploading one, so that still goes to the importer.
+    if (type === "script") {
+      await saveFullScript(gameId, file);
+    } else if (type === "ros") {
       await offerScriptImport(gameId, file);
     }
 
@@ -4920,6 +4948,160 @@ async function rosBuildWithAI(gameId, text, filename) {
   }
 }
 
+// The full text of the script, stored so the announcer reads the document the
+// school actually sent rather than the one-line reads attached to cues.
+//
+// It lives at runOfShow/{gameId}/script, inside the node the Script page and
+// the announcer portal already read. A node of its own would have needed a new
+// database rule, and a missing rule on a show night is not worth the tidiness.
+async function saveFullScript(gameId, file) {
+  const status = document.getElementById("docStatus");
+  const say = (t) => { if (status) status.textContent = t; };
+
+  let text = "";
+  try {
+    say("Reading the script…");
+    text = await readScriptFile(file);
+  } catch (e) {
+    // A PDF can't be read in the browser. The file still uploads and still
+    // shows on the Script page as a link, so say what did and didn't happen
+    // rather than failing the whole upload.
+    say("");
+    // A PDF stores glyphs and positions, not paragraphs, so reading one in the
+    // browser would mean guessing where the lines are. Pasting keeps the
+    // document's real line breaks.
+    const wantPaste = confirm(
+      (e.message || "Couldn't read that file.") +
+      "\n\nThe file will still be uploaded and linked on the Script page.\n\n" +
+      "To get the words on screen, open the script, select all, copy, and paste it in. " +
+      "Every word comes through exactly as written.\n\nOpen the paste box now?"
+    );
+    if (wantPaste) openScriptPaste(gameId, null);
+    return;
+  }
+
+  text = String(text || "").replace(/\r\n?/g, "\n").replace(/\n{4,}/g, "\n\n\n").trim();
+  if (!text) {
+    say("");
+    alert("That file opened but had no text in it. The file will still be uploaded and linked.");
+    return;
+  }
+
+  try {
+    await db.ref(`runOfShow/${gameId}/script`).set({
+      text,
+      name: file.name || "Script",
+      at: new Date().toISOString(),
+      by: (myProfileForShifts && myProfileForShifts.legalName)
+          || (currentUser && (currentUser.displayName || currentUser.email)) || "",
+    });
+    say("");
+  } catch (e) {
+    say("");
+    alert("Couldn't save the script text: " + (e.message || "unknown error"));
+    return;
+  }
+
+  const words = text.split(/\s+/).filter(Boolean).length;
+
+  // The cue list is the producer's working document and people hand-correct it,
+  // so replacing it is opt-in and the warning says what is at stake.
+  let cueCount = 0;
+  try {
+    const snap = await db.ref(`runOfShow/${gameId}/cues`).once("value");
+    cueCount = (snap.val() || []).length;
+  } catch (e) { /* treat as unknown, the wording below covers it */ }
+
+  const ask = cueCount
+    ? `Script saved — ${words.toLocaleString()} words, now on the Script page.\n\n` +
+      `Do you also want to rebuild the run of show from it?\n\n` +
+      `This game already has ${cueCount} cues. Rebuilding REPLACES all of them, ` +
+      `including anything you've edited by hand. Say no to keep them as they are.`
+    : `Script saved — ${words.toLocaleString()} words, now on the Script page.\n\n` +
+      `Do you also want to build the run of show cues from it?`;
+
+  if (!confirm(ask)) return;
+  await offerScriptImport(gameId, file);
+}
+
+// Paste the whole script in. This is the path that always works: select all in
+// Word or the PDF, copy, paste. The document's own line breaks come with it.
+//
+// It exists because a PDF cannot be read in a browser without guessing at page
+// layout, and a guessed-at script reads badly on a live mic.
+function openScriptPaste(gameId, existing) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:720px; width:100%;">
+      <div class="modal-title">${existing ? "Edit the script" : "Paste the script"}</div>
+      <div class="modal-subtitle">
+        Open the script, select all, copy, and paste it below. Every word comes through exactly as written — nothing is shortened and nothing is turned into cues.
+      </div>
+      <textarea id="scrPasteBox" rows="16"
+        style="width:100%; font-family:inherit; font-size:14px; line-height:1.5;"
+        placeholder="Paste the whole script here…">${escapeHtml(existing && existing.text ? existing.text : "")}</textarea>
+      <div class="footnote" id="scrPasteCount" style="margin-top:6px;"></div>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button class="shift-btn shift-btn-ghost" id="scrPasteCancel"
+          style="flex:0 0 auto; padding:12px 18px;">Cancel</button>
+        <button class="primary-btn" id="scrPasteSave" style="flex:1; margin:0;">Save the script</button>
+      </div>
+      ${existing ? `
+        <button class="shift-btn shift-btn-ghost" id="scrPasteClear"
+          style="width:100%; margin-top:10px; padding:11px 0; color:var(--red);">Remove this script</button>` : ""}
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const box = overlay.querySelector("#scrPasteBox");
+  const count = overlay.querySelector("#scrPasteCount");
+  const tally = () => {
+    const v = box.value.trim();
+    const words = v ? v.split(/\s+/).filter(Boolean).length : 0;
+    count.textContent = words
+      ? `${words.toLocaleString()} words, ${v.split("\n").length.toLocaleString()} lines`
+      : "Nothing pasted yet.";
+  };
+  box.oninput = tally;
+  tally();
+  box.focus();
+
+  const close = () => overlay.remove();
+  overlay.querySelector("#scrPasteCancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  const clearBtn = overlay.querySelector("#scrPasteClear");
+  if (clearBtn) clearBtn.onclick = async () => {
+    if (!confirm("Remove the script for this game? The cue list is not affected.")) return;
+    try {
+      await db.ref(`runOfShow/${gameId}/script`).remove();
+      close();
+    } catch (e) { alert("Couldn't remove it: " + (e.message || "unknown error")); }
+  };
+
+  overlay.querySelector("#scrPasteSave").onclick = async () => {
+    const text = box.value.replace(/\r\n?/g, "\n").replace(/\n{4,}/g, "\n\n\n").trim();
+    if (!text) { alert("Nothing to save — paste the script first."); return; }
+    const btn = overlay.querySelector("#scrPasteSave");
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      await db.ref(`runOfShow/${gameId}/script`).set({
+        text,
+        name: (existing && existing.name) || "Pasted script",
+        at: new Date().toISOString(),
+        by: (myProfileForShifts && myProfileForShifts.legalName)
+            || (currentUser && (currentUser.displayName || currentUser.email)) || "",
+      });
+      close();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "Save the script";
+      alert("Couldn't save it: " + (e.message || "unknown error"));
+    }
+  };
+}
+
 async function offerScriptImport(gameId, file) {
   const name = (file.name || "").toLowerCase();
   let parsed;
@@ -4989,6 +5171,9 @@ function showImportPreview(gameId, filename, parsed) {
     <div class="modal-card imp-card">
       <div class="modal-title">Build the run of show?</div>
       <div class="modal-subtitle">${escapeHtml(filename)}</div>
+      <div class="setup-warning" style="display:block; margin:0 0 12px;">
+        Saving this replaces every cue for this game, including hand edits. The script text on the Script page is not affected.
+      </div>
 
       <div class="imp-sum">
         <strong>${cues.length}</strong> cues across
@@ -6415,6 +6600,9 @@ const scriptState = {
   current: 0,
   loaded: false,
   size: 17,
+  full: null,        // { text, name, at, by } — the whole script
+  mode: null,        // "full" | "cue"
+  modeChosen: false, // true once the reader picks a side, so data stops overriding
 };
 
 function scrLoadSize() {
@@ -6474,6 +6662,15 @@ function scrSubscribe() {
     // page. Read-only here, so unlike the Run of Show this never writes a seed.
     scriptState.cues = (val && val.cues) || rosFlattenSeed(gameId) || [];
     scriptState.current = (val && typeof val.current === "number") ? val.current : 0;
+    scriptState.full = (val && val.script) || null;
+    // Land on the full script whenever there is one.
+    //
+    // This used to latch on the first render: open the page before a script
+    // exists, the mode locked to "cue", and pasting a script afterwards left
+    // you still looking at the short cue reads. So the choice is only sticky
+    // once you have actually tapped one of the two buttons.
+    if (!scriptState.modeChosen) scriptState.mode = scriptState.full ? "full" : "cue";
+    else if (scriptState.mode === "full" && !scriptState.full) scriptState.mode = "cue";
     scrRender();
   };
   ref.on("value", cb);
@@ -6521,6 +6718,7 @@ function scrRender() {
   const game = eventById(scriptState.gameId);
   const cues = scriptState.cues || [];
   const cur = scriptState.current;
+  const admin = isAdmin();
   const spoken = cues.filter((c) => c && c.read).length;
 
   inner.innerHTML = `
@@ -6537,15 +6735,44 @@ function scrRender() {
       </div>
       <button class="ghost-pill" id="scrToRos" title="Back to the technical grid">◀ Run of Show</button>
     </div>
+    ${scriptState.full ? `
+      <div class="view-bar" style="margin-bottom:12px;">
+        <button id="scrModeFull" class="${scriptState.mode === "full" ? "on" : ""}">Full script</button>
+        <button id="scrModeCue" class="${scriptState.mode === "cue" ? "on" : ""}">Cue reads</button>
+      </div>` : ""}
     <div class="footnote" style="margin-bottom:12px;">
-      ${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : "")}${spoken ? ` · ${spoken} read${spoken === 1 ? "" : "s"}` : ""} · follows the producer live
+      ${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : "")}
+      ${scriptState.mode === "full" && scriptState.full
+        ? ` · ${escapeHtml(scriptState.full.name || "script")}${scriptState.full.at ? " · uploaded " + escapeHtml(shortWhen(scriptState.full.at)) : ""}`
+        : `${spoken ? ` · ${spoken} read${spoken === 1 ? "" : "s"}` : ""} · follows the producer live`}
     </div>
     <div id="scrDocs"></div>
-    ${cues.length === 0 ? `
-      <div class="footnote">
-        No script for ${escapeHtml(game ? game.opp : "this game")} yet. It appears here as soon as the run of show is built or a script is imported on the Run of Show tab.
+    ${scriptState.mode === "full" && scriptState.full ? `
+      <div class="scr-doc" style="--scr-size:${scriptState.size}px;">
+        <div class="scr-read">${escapeHtml(scriptState.full.text || "")}</div>
       </div>
+    ` : !scriptState.full ? `
+      <!-- No full script loaded. The cue reads are a summary of a script, not
+           the script, so they are offered as a fallback and clearly labelled
+           rather than shown as if they were the real thing. -->
+      <div class="setup-warning" style="display:block; margin-bottom:14px;">
+        <b>No full script loaded for ${escapeHtml(game ? game.opp : "this game")}.</b><br>
+        Paste it in and every word appears here exactly as written. Uploading a .docx or .txt works too. A PDF has to be pasted — the words can't be pulled out of one reliably.
+      </div>
+      ${admin ? `<button class="primary-btn" id="scrPasteOpen" style="margin-bottom:16px;">✎ Paste the script</button>` : ""}
+      ${cues.length ? `
+        <div class="gear-head" style="margin-bottom:8px;">Cue reads</div>
+        <div class="footnote" style="margin-bottom:12px;">
+          The short read copy attached to each cue. This is a summary, not the full script.
+        </div>
+        <div class="scr-doc" style="--scr-size:${scriptState.size}px;">${scrBodyHtml(cues, cur)}</div>
+      ` : ""}
     ` : `<div class="scr-doc" style="--scr-size:${scriptState.size}px;">${scrBodyHtml(cues, cur)}</div>`}
+
+    ${admin && scriptState.full ? `
+      <button class="shift-btn shift-btn-ghost" id="scrPasteEdit"
+        style="width:100%; margin-top:18px; padding:11px 0;">✎ Edit or replace this script</button>
+    ` : ""}
 
     <!-- The PA announcer usually is not signed in here. The portal is the same
          script behind a passcode, so this is the link to hand them. -->
@@ -6563,10 +6790,21 @@ function scrRender() {
 
   document.getElementById("scrGameSel").onchange = (e) => {
     scriptState.gameId = e.target.value;
+    scriptState.full = null;
+    scriptState.modeChosen = false;
     scrSubscribe();
   };
   document.getElementById("scrSmaller").onclick = () => scrSetSize(-1);
   document.getElementById("scrBigger").onclick = () => scrSetSize(1);
+  const mf = document.getElementById("scrModeFull");
+  const mc = document.getElementById("scrModeCue");
+  if (mf) mf.onclick = () => { scriptState.mode = "full"; scriptState.modeChosen = true; scrRender(); };
+  if (mc) mc.onclick = () => { scriptState.mode = "cue"; scriptState.modeChosen = true; scrRender(); };
+
+  const pOpen = document.getElementById("scrPasteOpen");
+  if (pOpen) pOpen.onclick = () => openScriptPaste(scriptState.gameId, null);
+  const pEdit = document.getElementById("scrPasteEdit");
+  if (pEdit) pEdit.onclick = () => openScriptPaste(scriptState.gameId, scriptState.full);
   document.getElementById("scrToRos").onclick = () => {
     rosState.gameId = scriptState.gameId;
     mainState.view = "runofshow";

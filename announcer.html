@@ -276,7 +276,7 @@
            autocapitalize="none" spellcheck="false" placeholder="Type the company name" />
     <button id="gateGo" class="gate-btn">Enter</button>
     <div class="gate-err" id="gateErr"></div>
-    <div class="gate-foot">ADV Media Limited Company &middot; AN-3</div>
+    <div class="gate-foot">ADV Media Limited Company &middot; AN-4</div>
   </div>
 </div>
 
@@ -565,6 +565,8 @@ sel.value = gameId;
 sel.onchange = () => {
   gameId = sel.value;
   cues = [];
+  fullScript = null;
+  scrMode = null;
   applyBranding(GAMES.find((g) => g.id === gameId));
   poll();
 };
@@ -581,6 +583,10 @@ async function poll() {
     const data = await res.json();
     cues = (data && data.cues) || [];
     current = (data && typeof data.current === "number") ? data.current : 0;
+    fullScript = (data && data.script) || null;
+    // Open on the whole script when there is one — that's the document the
+    // announcer was handed. The per-cue reads are the summary of it.
+    if (scrMode === null) scrMode = fullScript ? "full" : "cue";
   } catch (e) {
     cues = [];
   }
@@ -594,6 +600,8 @@ async function poll() {
 // show means glancing; reading the script means reading. The monitor is
 // untouched by the switch, so the feed keeps playing either way.
 let viewMode = "show";
+let fullScript = null;   // { text, name, at, by } from runOfShow/<id>/script
+let scrMode = null;      // "full" | "cue", null until we know if full text exists
 const VIEW_KEY = "advAnnouncerView";
 const SCR_SIZE_KEY = "advAnnouncerScrSize";
 const SCR_SIZES = [15, 17, 19, 22, 26, 30];
@@ -630,8 +638,43 @@ document.getElementById("tabScript").onclick = () => setViewMode("script");
 // announcer can see where the show is between reads.
 function drawScript(root) {
   const spoken = cues.filter((c) => c && c.read).length;
+
+  const sizeBar = `
+    <div class="scr-size">
+      <button id="scrSmaller">A\u2212</button>
+      <button id="scrBigger">A+</button>
+      <span></span>
+    </div>`;
+  const modeBar = fullScript ? `
+    <div class="view-bar" style="margin-bottom:12px;">
+      <button id="scrModeFull" class="${scrMode === "full" ? "on" : ""}">Full script</button>
+      <button id="scrModeCue" class="${scrMode === "cue" ? "on" : ""}">By cue</button>
+    </div>` : "";
+  const wireSize = () => {
+    document.getElementById("scrSmaller").onclick = () => setScrSize(-1);
+    document.getElementById("scrBigger").onclick = () => setScrSize(1);
+    const mf = document.getElementById("scrModeFull");
+    const mc = document.getElementById("scrModeCue");
+    if (mf) mf.onclick = () => { scrMode = "full"; draw(); };
+    if (mc) mc.onclick = () => { scrMode = "cue"; draw(); };
+  };
+
+  // The whole document, as uploaded.
+  if (scrMode === "full" && fullScript) {
+    root.innerHTML = modeBar + sizeBar + `
+      <div class="scr-doc" style="--scr-size:${scrSize}px;">
+        <div class="scr-read">${esc(fullScript.text || "")}</div>
+      </div>`;
+    wireSize();
+    return;
+  }
+
   if (!spoken) {
-    root.innerHTML = `<div class="empty">No read copy in this run of show yet.</div>`;
+    root.innerHTML = modeBar + `<div class="empty">No read copy on the cues yet.${fullScript ? " Tap Full script for the whole document." : ""}</div>`;
+    const mf = document.getElementById("scrModeFull");
+    const mc = document.getElementById("scrModeCue");
+    if (mf) mf.onclick = () => { scrMode = "full"; draw(); };
+    if (mc) mc.onclick = () => { scrMode = "cue"; draw(); };
     return;
   }
 
@@ -664,16 +707,10 @@ function drawScript(root) {
       </div>`;
   });
 
-  root.innerHTML = `
-    <div class="scr-size">
-      <button id="scrSmaller">A\u2212</button>
-      <button id="scrBigger">A+</button>
-      <span></span>
-    </div>
-    <div class="scr-doc" style="--scr-size:${scrSize}px;">${body}</div>`;
+  root.innerHTML = modeBar + sizeBar +
+    `<div class="scr-doc" style="--scr-size:${scrSize}px;">${body}</div>`;
 
-  document.getElementById("scrSmaller").onclick = () => setScrSize(-1);
-  document.getElementById("scrBigger").onclick = () => setScrSize(1);
+  wireSize();
 
   // Land on the live read, not the top of a two-hour document.
   const live = root.querySelector(".live");
@@ -684,6 +721,11 @@ function drawScript(root) {
 
 function draw() {
   const root = document.getElementById("body");
+
+  // A script can be uploaded before anyone builds the cue list, and on that
+  // night the script is the only thing the announcer needs.
+  if (viewMode === "script" && fullScript) { drawScript(root); return; }
+
   if (!cues.length) {
     root.innerHTML = `<div class="empty">The run of show for this game hasn't been published yet.</div>`;
     return;
