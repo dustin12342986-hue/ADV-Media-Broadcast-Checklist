@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v84 · open shift alerts";
+const APP_BUILD = "build 2026-09-01 · v85 · shifts fix";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3149,11 +3149,11 @@ async function openEventTextBlast(ev) {
 }
 
 // Which spots are still open, for one event or across the board.
-function openSpotsFor(gameId) {
+function openSpotsFor(gameId, rosterAll) {
   const out = [];
   allShiftEvents().forEach((g) => {
     if (gameId && g.id !== gameId) return;
-    const roster = (liveRoster && liveRoster[g.id]) || {};
+    const roster = (rosterAll && rosterAll[g.id]) || {};
     const roles = visibleRosterRows(rosterRowsFor(g.id, roster))
       .filter((r) => r.open)
       .map((r) => r.role);
@@ -3165,8 +3165,8 @@ function openSpotsFor(gameId) {
 // Who is already working an event. They don't need telling about its open
 // spots, so they start unticked and are labelled — but they are still on the
 // list, because sometimes the person you want is the one already coming.
-function assignedNamesFor(gameId) {
-  const roster = (liveRoster && liveRoster[gameId]) || {};
+function assignedNamesFor(gameId, rosterAll) {
+  const roster = (rosterAll && rosterAll[gameId]) || {};
   return visibleRosterRows(rosterRowsFor(gameId, roster))
     .filter((r) => !r.open)
     .map((r) => r.name);
@@ -3174,7 +3174,9 @@ function assignedNamesFor(gameId) {
 
 // gameId omitted means every upcoming event that still has holes in it.
 async function openShiftAlert(gameId) {
-  const spots = openSpotsFor(gameId);
+  let rosterAll = {};
+  try { rosterAll = await loadLiveRoster(); } catch (e) { rosterAll = {}; }
+  const spots = openSpotsFor(gameId, rosterAll);
   if (!spots.length) {
     alert(gameId ? "Nothing open on that event." : "Nothing is open right now — every spot is filled.");
     return;
@@ -3196,7 +3198,7 @@ async function openShiftAlert(gameId) {
   // Anyone already on one of these events, so the list can say so.
   const onIt = {};
   spots.forEach(({ game }) => {
-    assignedNamesFor(game.id).forEach((n) => {
+    assignedNamesFor(game.id, rosterAll).forEach((n) => {
       crew.forEach((c) => { if (namesMatch(n, c.name, c.handle)) onIt[c.name] = true; });
     });
   });
@@ -3336,12 +3338,7 @@ function renderShiftsList(liveRoster) {
   const admin = isAdmin();
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
-    ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:10px;">+ New event</button>` : ""}
-    ${admin && openSpotsFor().length ? `
-      <button class="shift-btn shift-btn-ghost" id="alertOpenBtn"
-        style="width:100%; margin-bottom:14px; padding:12px 0; border-color:var(--amber); color:var(--amber);">
-        📣 Alert crew about ${openSpotsFor().reduce((n, s2) => n + s2.roles.length, 0)} open spot${openSpotsFor().reduce((n, s2) => n + s2.roles.length, 0) === 1 ? "" : "s"}
-      </button>` : ""}
+    ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:14px;">+ New event</button>` : ""}
     ${CAMERA_NOTICE_HTML}
     ${allShiftEvents().map((g) => {
       const gameRoster = liveRoster[g.id] || {};
@@ -3381,7 +3378,7 @@ function renderShiftsList(liveRoster) {
         <div class="shift-game-card">
           ${admin ? `<button class="shift-btn shift-btn-ghost" data-textcrew="${escapeAttr(g.id)}"
             style="float:right; padding:5px 11px; font-size:11.5px;">Text crew</button>` : ""}
-          ${admin && openSpotsFor(g.id).length ? `
+          ${admin && openSpotsFor(g.id, liveRoster).length ? `
             <button class="shift-btn shift-btn-ghost" data-alertopen="${escapeAttr(g.id)}"
               style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;
                      border-color:var(--amber); color:var(--amber);">📣 Alert open</button>` : ""}
@@ -3399,8 +3396,6 @@ function renderShiftsList(liveRoster) {
   const nsb = document.getElementById("newShiftBtn");
   if (nsb) nsb.onclick = openNewEventForm;
 
-  const aob = document.getElementById("alertOpenBtn");
-  if (aob) aob.onclick = () => openShiftAlert();
   inner.querySelectorAll("[data-alertopen]").forEach((b) => {
     b.onclick = () => openShiftAlert(b.getAttribute("data-alertopen"));
   });
