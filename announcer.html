@@ -276,7 +276,7 @@
            autocapitalize="none" spellcheck="false" placeholder="Type the company name" />
     <button id="gateGo" class="gate-btn">Enter</button>
     <div class="gate-err" id="gateErr"></div>
-    <div class="gate-foot">ADV Media Limited Company &middot; AN-4</div>
+    <div class="gate-foot">ADV Media Limited Company &middot; AN-6</div>
   </div>
 </div>
 
@@ -567,6 +567,7 @@ sel.onchange = () => {
   cues = [];
   fullScript = null;
   scrMode = null;
+  scrModeChosen = false;
   applyBranding(GAMES.find((g) => g.id === gameId));
   poll();
 };
@@ -584,9 +585,11 @@ async function poll() {
     cues = (data && data.cues) || [];
     current = (data && typeof data.current === "number") ? data.current : 0;
     fullScript = (data && data.script) || null;
-    // Open on the whole script when there is one — that's the document the
-    // announcer was handed. The per-cue reads are the summary of it.
-    if (scrMode === null) scrMode = fullScript ? "full" : "cue";
+    // Open on the whole script whenever there is one. Not just the first time:
+    // the page polls every few seconds, and a script uploaded while it is open
+    // has to appear rather than leave the announcer on the short cue reads.
+    // Once they tap one of the two buttons themselves, that choice stands.
+    if (!scrModeChosen) scrMode = "cue";
   } catch (e) {
     cues = [];
   }
@@ -601,7 +604,8 @@ async function poll() {
 // untouched by the switch, so the feed keeps playing either way.
 let viewMode = "show";
 let fullScript = null;   // { text, name, at, by } from runOfShow/<id>/script
-let scrMode = null;      // "full" | "cue", null until we know if full text exists
+let scrMode = null;        // "full" | "cue"
+let scrModeChosen = false; // true once the announcer picks a side
 const VIEW_KEY = "advAnnouncerView";
 const SCR_SIZE_KEY = "advAnnouncerScrSize";
 const SCR_SIZES = [15, 17, 19, 22, 26, 30];
@@ -636,6 +640,121 @@ document.getElementById("tabScript").onclick = () => setViewMode("script");
 
 // The script, cue by cue. A cue with nothing to say keeps a thin line so the
 // announcer can see where the show is between reads.
+
+// ---------------------------------------------------------------------------
+// Splitting the script into cues
+// ---------------------------------------------------------------------------
+// The announcer wanted the script laid out like the run of show. The important
+// word is LAID OUT: this only ever CUTS the text at headings. Every line of the
+// document ends up either as a cue heading or inside a cue body, in the
+// original order and the original wording. Nothing is summarised, condensed or
+// dropped — reassembling the cues gives back the document character for
+// character, which is what the test checks.
+const SCR_TIME    = /^(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s?m\.?)?|\d{1,2}\s*[ap]\.?\s?m\.?)\s*(.*)$/i;
+const SCR_SECTION = /^(?:(?:1st|2nd|3rd|4th|first|second|third|fourth)\s+quarter|halftime(?:\s+show)?|pre-?game|post-?game|overtime|kickoff)\b/i;
+const SCR_CUE     = /^(?:announcement\b|end of\b|after halftime\b|\d+\s*-?\s*minute warning\b|two[- ]minute warning\b|video\s*#|#\d+\b|timeout\b)/i;
+
+function scrIsAllCaps(line) {
+  const letters = line.replace(/[^A-Za-z]/g, "");
+  return letters.length >= 4 && letters === letters.toUpperCase();
+}
+
+function scrCapsAreLoud(lines) {
+  let caps = 0, total = 0;
+  lines.forEach((l) => {
+    const t = l.trim();
+    if (t.length < 4) return;
+    total++;
+    if (scrIsAllCaps(t)) caps++;
+  });
+  return total > 0 && caps / total > 0.25;
+}
+
+function scrHeadingKind(line, capsLoud) {
+  const t = line.trim();
+  if (!t) return null;
+  // A long line is prose, whatever it starts with. Headings are short.
+  const long = t.length > 90;
+  if (SCR_TIME.test(t)) return "cue";
+  if (SCR_SECTION.test(t) && t.length <= 40) return "section";
+  if (scrIsAllCaps(t) && t.length <= 70) return capsLoud ? "cue" : "section";
+  if (!long && SCR_CUE.test(t)) return "cue";
+  return null;
+}
+
+function splitScriptIntoCues(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  const capsLoud = scrCapsAreLoud(lines);
+  const cues = [];
+  let section = "";
+  let cur = null;
+
+  const push = () => {
+    if (!cur) return;
+    // Only blank lines at the ends go; spacing inside is the author's.
+    cur.body = cur.body.replace(/^\n+/, "").replace(/\n+$/, "");
+    cues.push(cur);
+    cur = null;
+  };
+
+  lines.forEach((raw) => {
+    const t = raw.trim();
+    const kind = scrHeadingKind(raw, capsLoud);
+
+    if (kind === "section") {
+      push();
+      section = t;
+      cur = { section: t, time: "", heading: t, body: "", isSection: true };
+      push();
+      return;
+    }
+
+    if (kind === "cue") {
+      push();
+      let time = "", heading = t;
+      const m = t.match(SCR_TIME);
+      if (m) { time = m[1].trim(); heading = (m[2] || "").trim() || t; }
+      cur = { section, time, heading, body: "" };
+      return;
+    }
+
+    // Body line. Anything before the first heading opens an untitled cue, so
+    // the top of the document cannot fall on the floor.
+    if (!cur) cur = { section, time: "", heading: "", body: "" };
+    cur.body += (cur.body ? "\n" : "") + raw;
+  });
+  push();
+
+  return cues.filter((c) => c.heading || c.body.trim());
+}
+
+// The script as cue cards. Body text keeps the announcer type size, because
+// the body is the part that gets read out loud.
+function scriptCuesHtml(text) {
+  const cues = splitScriptIntoCues(text);
+  if (!cues.length) return "";
+  let section = null, html = "";
+  cues.forEach((c) => {
+    if (c.section && c.section !== section) {
+      section = c.section;
+      html += `<div class="scr-sec">${esc(section)}</div>`;
+    }
+    // The section banner is already drawn as the heading above; drawing it
+    // again as an empty card would just be noise.
+    if (c.isSection) return;
+    html += `
+      <div class="scr-cue">
+        ${(c.time || c.heading) ? `
+          <div class="scr-head">
+            ${c.time ? `<span class="scr-time">${esc(c.time)}</span>` : ""}
+            ${c.heading ? `<span class="scr-name">${esc(c.heading)}</span>` : ""}
+          </div>` : ""}
+        ${c.body ? `<div class="scr-read">${esc(c.body)}</div>` : ""}
+      </div>`;
+  });
+  return html;
+}
+
 function drawScript(root) {
   const spoken = cues.filter((c) => c && c.read).length;
 
@@ -647,23 +766,26 @@ function drawScript(root) {
     </div>`;
   const modeBar = fullScript ? `
     <div class="view-bar" style="margin-bottom:12px;">
-      <button id="scrModeFull" class="${scrMode === "full" ? "on" : ""}">Full script</button>
-      <button id="scrModeCue" class="${scrMode === "cue" ? "on" : ""}">By cue</button>
+      <button id="scrModeCue" class="${scrMode === "cue" ? "on" : ""}">Cues</button>
+      <button id="scrModeFull" class="${scrMode === "full" ? "on" : ""}">Document</button>
     </div>` : "";
   const wireSize = () => {
     document.getElementById("scrSmaller").onclick = () => setScrSize(-1);
     document.getElementById("scrBigger").onclick = () => setScrSize(1);
     const mf = document.getElementById("scrModeFull");
     const mc = document.getElementById("scrModeCue");
-    if (mf) mf.onclick = () => { scrMode = "full"; draw(); };
-    if (mc) mc.onclick = () => { scrMode = "cue"; draw(); };
+    if (mf) mf.onclick = () => { scrMode = "full"; scrModeChosen = true; draw(); };
+    if (mc) mc.onclick = () => { scrMode = "cue"; scrModeChosen = true; draw(); };
   };
 
-  // The whole document, as uploaded.
-  if (scrMode === "full" && fullScript) {
+  // Both views are built from the same full script: one cut into cues, one
+  // flowing. Neither shortens anything.
+  if (fullScript) {
     root.innerHTML = modeBar + sizeBar + `
       <div class="scr-doc" style="--scr-size:${scrSize}px;">
-        <div class="scr-read">${esc(fullScript.text || "")}</div>
+        ${scrMode === "full"
+          ? `<div class="scr-read">${esc(fullScript.text || "")}</div>`
+          : scriptCuesHtml(fullScript.text || "")}
       </div>`;
     wireSize();
     return;
@@ -673,8 +795,8 @@ function drawScript(root) {
     root.innerHTML = modeBar + `<div class="empty">No read copy on the cues yet.${fullScript ? " Tap Full script for the whole document." : ""}</div>`;
     const mf = document.getElementById("scrModeFull");
     const mc = document.getElementById("scrModeCue");
-    if (mf) mf.onclick = () => { scrMode = "full"; draw(); };
-    if (mc) mc.onclick = () => { scrMode = "cue"; draw(); };
+    if (mf) mf.onclick = () => { scrMode = "full"; scrModeChosen = true; draw(); };
+    if (mc) mc.onclick = () => { scrMode = "cue"; scrModeChosen = true; draw(); };
     return;
   }
 

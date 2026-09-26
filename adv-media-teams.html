@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v82 · paste the whole script";
+const APP_BUILD = "build 2026-09-01 · v84 · open shift alerts";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -3148,6 +3148,151 @@ async function openEventTextBlast(ev) {
   };
 }
 
+// Which spots are still open, for one event or across the board.
+function openSpotsFor(gameId) {
+  const out = [];
+  allShiftEvents().forEach((g) => {
+    if (gameId && g.id !== gameId) return;
+    const roster = (liveRoster && liveRoster[g.id]) || {};
+    const roles = visibleRosterRows(rosterRowsFor(g.id, roster))
+      .filter((r) => r.open)
+      .map((r) => r.role);
+    if (roles.length) out.push({ game: g, roles });
+  });
+  return out;
+}
+
+// Who is already working an event. They don't need telling about its open
+// spots, so they start unticked and are labelled — but they are still on the
+// list, because sometimes the person you want is the one already coming.
+function assignedNamesFor(gameId) {
+  const roster = (liveRoster && liveRoster[gameId]) || {};
+  return visibleRosterRows(rosterRowsFor(gameId, roster))
+    .filter((r) => !r.open)
+    .map((r) => r.name);
+}
+
+// gameId omitted means every upcoming event that still has holes in it.
+async function openShiftAlert(gameId) {
+  const spots = openSpotsFor(gameId);
+  if (!spots.length) {
+    alert(gameId ? "Nothing open on that event." : "Nothing is open right now — every spot is filled.");
+    return;
+  }
+
+  let crew = [];
+  try {
+    const snap = await db.ref("profiles").once("value");
+    crew = Object.values(snap.val() || {})
+      .filter((p) => p && p.legalName)
+      .map((p) => ({ name: p.legalName, handle: p.crewHandle || "", phone: normalizePhoneForSms(p.phone) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) {
+    alert("Couldn't load the crew list: " + (e.message || "unknown error"));
+    return;
+  }
+  if (!crew.length) { alert("No crew profiles to text yet."); return; }
+
+  // Anyone already on one of these events, so the list can say so.
+  const onIt = {};
+  spots.forEach(({ game }) => {
+    assignedNamesFor(game.id).forEach((n) => {
+      crew.forEach((c) => { if (namesMatch(n, c.name, c.handle)) onIt[c.name] = true; });
+    });
+  });
+
+  const body = [
+    "ADV MEDIA — OPEN SHIFT" + (spots.length > 1 || spots[0].roles.length > 1 ? "S" : ""),
+    "",
+    ...spots.map(({ game, roles }) => [
+      `${game.day} ${game.date} — ${game.opp}`,
+      game.venue ? `  ${game.venue}` : null,
+      game.callTime ? `  Call ${game.callTime}` : null,
+      ...roles.map((r) => `  • ${r}`),
+      "",
+    ].filter((l) => l !== null).join("\n")),
+    "First to pick it up in the app has it:",
+    `  ${appLink()}`,
+  ].join("\n").replace(/\n{3,}/g, "\n\n");
+
+  const o = document.createElement("div");
+  o.className = "modal-overlay";
+  o.innerHTML = `
+    <div class="modal-card" style="max-width:420px; max-height:86vh; overflow-y:auto;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div class="modal-title">Alert about open shifts</div>
+          <div class="modal-subtitle">
+            ${spots.length === 1
+              ? `${escapeHtml(spots[0].game.day)} ${escapeHtml(spots[0].game.date)} — ${escapeHtml(spots[0].game.opp)} · ${spots[0].roles.length} open`
+              : `${spots.length} events · ${spots.reduce((n, s2) => n + s2.roles.length, 0)} spots open`}
+          </div>
+        </div>
+        <button id="osClose" title="Close"
+          style="flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-size:16px; font-weight:800; cursor:pointer;">&#10005;</button>
+      </div>
+
+      <div class="label" style="margin:10px 0 6px;">Who gets it</div>
+      <div style="display:flex; gap:8px; margin-bottom:4px;">
+        <button class="shift-btn shift-btn-ghost" id="osAll" style="flex:1; padding:9px 0;">Everyone free</button>
+        <button class="shift-btn shift-btn-ghost" id="osNone" style="flex:1; padding:9px 0;">Clear</button>
+      </div>
+      <div class="footnote" style="margin-bottom:8px;">
+        "Everyone free" skips anyone already working it. Tick them yourself if you want them told anyway.
+      </div>
+
+      ${crew.map((c, i) => `
+        <label style="display:flex; align-items:center; gap:10px; padding:9px 4px;
+                      border-bottom:1px solid var(--border); ${c.phone ? "" : "opacity:.45;"}">
+          <input type="checkbox" data-osi="${i}" ${c.phone ? "" : "disabled"}
+            data-onit="${onIt[c.name] ? "1" : "0"}" style="width:19px; height:19px; margin:0;" />
+          <span style="flex:1; font-size:14px;">${escapeHtml(c.name)}</span>
+          ${!c.phone
+            ? `<span style="font-size:11px; color:var(--text-faint);">no phone</span>`
+            : onIt[c.name]
+              ? `<span style="font-size:11px; color:var(--text-faint);">already on it</span>`
+              : ""}
+        </label>`).join("")}
+
+      <div class="label" style="margin:14px 0 6px;">Message</div>
+      <textarea id="osMsg" rows="9" style="width:100%; font-family:inherit; font-size:13px;"></textarea>
+
+      <button class="primary-btn" id="osSend" style="margin-top:12px;">Open in Messages</button>
+      <div class="footnote" id="osCount" style="margin-top:8px;">Nothing sends until you press send in Messages.</div>
+    </div>`;
+  document.body.appendChild(o);
+  document.body.style.overflow = "hidden";
+  const close = () => { o.remove(); document.body.style.overflow = ""; };
+  o.querySelector("#osClose").onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+  o.querySelector("#osMsg").value = body;
+
+  const boxes = () => [...o.querySelectorAll("[data-osi]")].filter((b) => !b.disabled);
+  const tally = () => {
+    const n = boxes().filter((b) => b.checked).length;
+    o.querySelector("#osCount").textContent = n
+      ? `${n} ${n === 1 ? "person" : "people"} selected. Nothing sends until you press send in Messages.`
+      : "Nobody selected yet.";
+  };
+  boxes().forEach((b) => { b.onchange = tally; });
+  o.querySelector("#osAll").onclick = () => {
+    boxes().forEach((b) => { b.checked = b.dataset.onit !== "1"; });
+    tally();
+  };
+  o.querySelector("#osNone").onclick = () => { boxes().forEach((b) => { b.checked = false; }); tally(); };
+  tally();
+
+  o.querySelector("#osSend").onclick = () => {
+    const nums = boxes().filter((b) => b.checked).map((b) => crew[Number(b.dataset.osi)].phone);
+    if (!nums.length) { alert("Pick at least one person."); return; }
+    const sep = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "&" : "?";
+    window.location.href = `sms:${nums.join(",")}${sep}body=${encodeURIComponent(o.querySelector("#osMsg").value)}`;
+    close();
+  };
+}
+
 async function renderShiftsView() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading shifts…</div>`;
@@ -3191,7 +3336,12 @@ function renderShiftsList(liveRoster) {
   const admin = isAdmin();
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
-    ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:14px;">+ New event</button>` : ""}
+    ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:10px;">+ New event</button>` : ""}
+    ${admin && openSpotsFor().length ? `
+      <button class="shift-btn shift-btn-ghost" id="alertOpenBtn"
+        style="width:100%; margin-bottom:14px; padding:12px 0; border-color:var(--amber); color:var(--amber);">
+        📣 Alert crew about ${openSpotsFor().reduce((n, s2) => n + s2.roles.length, 0)} open spot${openSpotsFor().reduce((n, s2) => n + s2.roles.length, 0) === 1 ? "" : "s"}
+      </button>` : ""}
     ${CAMERA_NOTICE_HTML}
     ${allShiftEvents().map((g) => {
       const gameRoster = liveRoster[g.id] || {};
@@ -3231,6 +3381,10 @@ function renderShiftsList(liveRoster) {
         <div class="shift-game-card">
           ${admin ? `<button class="shift-btn shift-btn-ghost" data-textcrew="${escapeAttr(g.id)}"
             style="float:right; padding:5px 11px; font-size:11.5px;">Text crew</button>` : ""}
+          ${admin && openSpotsFor(g.id).length ? `
+            <button class="shift-btn shift-btn-ghost" data-alertopen="${escapeAttr(g.id)}"
+              style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;
+                     border-color:var(--amber); color:var(--amber);">📣 Alert open</button>` : ""}
           <div class="shift-game-header">
             ${g.day} ${g.date} — ${escapeHtml(g.opp)}
             ${g.client && g.client !== "CISD" ? `<span style="background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">${escapeHtml(g.client)}</span>` : ""}
@@ -3244,6 +3398,12 @@ function renderShiftsList(liveRoster) {
 
   const nsb = document.getElementById("newShiftBtn");
   if (nsb) nsb.onclick = openNewEventForm;
+
+  const aob = document.getElementById("alertOpenBtn");
+  if (aob) aob.onclick = () => openShiftAlert();
+  inner.querySelectorAll("[data-alertopen]").forEach((b) => {
+    b.onclick = () => openShiftAlert(b.getAttribute("data-alertopen"));
+  });
 
   // Delete a spot from an event entirely, not just empty it. "Remove" takes
   // the person off a shift and leaves the spot open; this removes the spot
@@ -6669,8 +6829,7 @@ function scrSubscribe() {
     // exists, the mode locked to "cue", and pasting a script afterwards left
     // you still looking at the short cue reads. So the choice is only sticky
     // once you have actually tapped one of the two buttons.
-    if (!scriptState.modeChosen) scriptState.mode = scriptState.full ? "full" : "cue";
-    else if (scriptState.mode === "full" && !scriptState.full) scriptState.mode = "cue";
+    if (!scriptState.modeChosen) scriptState.mode = "cue";
     scrRender();
   };
   ref.on("value", cb);
@@ -6737,21 +6896,23 @@ function scrRender() {
     </div>
     ${scriptState.full ? `
       <div class="view-bar" style="margin-bottom:12px;">
-        <button id="scrModeFull" class="${scriptState.mode === "full" ? "on" : ""}">Full script</button>
-        <button id="scrModeCue" class="${scriptState.mode === "cue" ? "on" : ""}">Cue reads</button>
+        <button id="scrModeCue" class="${scriptState.mode === "cue" ? "on" : ""}">Cues</button>
+        <button id="scrModeFull" class="${scriptState.mode === "full" ? "on" : ""}">Document</button>
       </div>` : ""}
     <div class="footnote" style="margin-bottom:12px;">
       ${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : "")}
-      ${scriptState.mode === "full" && scriptState.full
-        ? ` · ${escapeHtml(scriptState.full.name || "script")}${scriptState.full.at ? " · uploaded " + escapeHtml(shortWhen(scriptState.full.at)) : ""}`
-        : `${spoken ? ` · ${spoken} read${spoken === 1 ? "" : "s"}` : ""} · follows the producer live`}
+      ${scriptState.full
+        ? ` · ${escapeHtml(scriptState.full.name || "script")}${scriptState.full.at ? " · " + escapeHtml(shortWhen(scriptState.full.at)) : ""} · every word of it`
+        : ""}
     </div>
     <div id="scrDocs"></div>
-    ${scriptState.mode === "full" && scriptState.full ? `
+    ${scriptState.full ? `
       <div class="scr-doc" style="--scr-size:${scriptState.size}px;">
-        <div class="scr-read">${escapeHtml(scriptState.full.text || "")}</div>
+        ${scriptState.mode === "full"
+          ? `<div class="scr-read">${escapeHtml(scriptState.full.text || "")}</div>`
+          : scriptCuesHtml(scriptState.full.text || "")}
       </div>
-    ` : !scriptState.full ? `
+    ` : `
       <!-- No full script loaded. The cue reads are a summary of a script, not
            the script, so they are offered as a fallback and clearly labelled
            rather than shown as if they were the real thing. -->
@@ -6760,14 +6921,7 @@ function scrRender() {
         Paste it in and every word appears here exactly as written. Uploading a .docx or .txt works too. A PDF has to be pasted — the words can't be pulled out of one reliably.
       </div>
       ${admin ? `<button class="primary-btn" id="scrPasteOpen" style="margin-bottom:16px;">✎ Paste the script</button>` : ""}
-      ${cues.length ? `
-        <div class="gear-head" style="margin-bottom:8px;">Cue reads</div>
-        <div class="footnote" style="margin-bottom:12px;">
-          The short read copy attached to each cue. This is a summary, not the full script.
-        </div>
-        <div class="scr-doc" style="--scr-size:${scriptState.size}px;">${scrBodyHtml(cues, cur)}</div>
-      ` : ""}
-    ` : `<div class="scr-doc" style="--scr-size:${scriptState.size}px;">${scrBodyHtml(cues, cur)}</div>`}
+    `}
 
     ${admin && scriptState.full ? `
       <button class="shift-btn shift-btn-ghost" id="scrPasteEdit"
@@ -6818,6 +6972,121 @@ function scrRender() {
   if (live && live.scrollIntoView) {
     try { live.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Splitting the script into cues
+// ---------------------------------------------------------------------------
+// The announcer wanted the script laid out like the run of show. The important
+// word is LAID OUT: this only ever CUTS the text at headings. Every line of the
+// document ends up either as a cue heading or inside a cue body, in the
+// original order and the original wording. Nothing is summarised, condensed or
+// dropped — reassembling the cues gives back the document character for
+// character, which is what the test checks.
+const SCR_TIME    = /^(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s?m\.?)?|\d{1,2}\s*[ap]\.?\s?m\.?)\s*(.*)$/i;
+const SCR_SECTION = /^(?:(?:1st|2nd|3rd|4th|first|second|third|fourth)\s+quarter|halftime(?:\s+show)?|pre-?game|post-?game|overtime|kickoff)\b/i;
+const SCR_CUE     = /^(?:announcement\b|end of\b|after halftime\b|\d+\s*-?\s*minute warning\b|two[- ]minute warning\b|video\s*#|#\d+\b|timeout\b)/i;
+
+function scrIsAllCaps(line) {
+  const letters = line.replace(/[^A-Za-z]/g, "");
+  return letters.length >= 4 && letters === letters.toUpperCase();
+}
+
+function scrCapsAreLoud(lines) {
+  let caps = 0, total = 0;
+  lines.forEach((l) => {
+    const t = l.trim();
+    if (t.length < 4) return;
+    total++;
+    if (scrIsAllCaps(t)) caps++;
+  });
+  return total > 0 && caps / total > 0.25;
+}
+
+function scrHeadingKind(line, capsLoud) {
+  const t = line.trim();
+  if (!t) return null;
+  // A long line is prose, whatever it starts with. Headings are short.
+  const long = t.length > 90;
+  if (SCR_TIME.test(t)) return "cue";
+  if (SCR_SECTION.test(t) && t.length <= 40) return "section";
+  if (scrIsAllCaps(t) && t.length <= 70) return capsLoud ? "cue" : "section";
+  if (!long && SCR_CUE.test(t)) return "cue";
+  return null;
+}
+
+function splitScriptIntoCues(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  const capsLoud = scrCapsAreLoud(lines);
+  const cues = [];
+  let section = "";
+  let cur = null;
+
+  const push = () => {
+    if (!cur) return;
+    // Only blank lines at the ends go; spacing inside is the author's.
+    cur.body = cur.body.replace(/^\n+/, "").replace(/\n+$/, "");
+    cues.push(cur);
+    cur = null;
+  };
+
+  lines.forEach((raw) => {
+    const t = raw.trim();
+    const kind = scrHeadingKind(raw, capsLoud);
+
+    if (kind === "section") {
+      push();
+      section = t;
+      cur = { section: t, time: "", heading: t, body: "", isSection: true };
+      push();
+      return;
+    }
+
+    if (kind === "cue") {
+      push();
+      let time = "", heading = t;
+      const m = t.match(SCR_TIME);
+      if (m) { time = m[1].trim(); heading = (m[2] || "").trim() || t; }
+      cur = { section, time, heading, body: "" };
+      return;
+    }
+
+    // Body line. Anything before the first heading opens an untitled cue, so
+    // the top of the document cannot fall on the floor.
+    if (!cur) cur = { section, time: "", heading: "", body: "" };
+    cur.body += (cur.body ? "\n" : "") + raw;
+  });
+  push();
+
+  return cues.filter((c) => c.heading || c.body.trim());
+}
+
+// The script as cue cards. Body text keeps the announcer type size, because
+// the body is the part that gets read out loud.
+function scriptCuesHtml(text) {
+  const cues = splitScriptIntoCues(text);
+  if (!cues.length) return "";
+  let section = null, html = "";
+  cues.forEach((c) => {
+    if (c.section && c.section !== section) {
+      section = c.section;
+      html += `<div class="scr-sec">${escapeHtml(section)}</div>`;
+    }
+    // The section banner is already drawn as the heading above; drawing it
+    // again as an empty card would just be noise.
+    if (c.isSection) return;
+    html += `
+      <div class="scr-cue">
+        ${(c.time || c.heading) ? `
+          <div class="scr-head">
+            ${c.time ? `<span class="scr-time">${escapeHtml(c.time)}</span>` : ""}
+            ${c.heading ? `<span class="scr-name">${escapeHtml(c.heading)}</span>` : ""}
+          </div>` : ""}
+        ${c.body ? `<div class="scr-read">${escapeHtml(c.body)}</div>` : ""}
+      </div>`;
+  });
+  return html;
 }
 
 function scrBodyHtml(cues, cur) {
