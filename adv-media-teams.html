@@ -1028,6 +1028,64 @@
   }
   .ros-now .ros-read { font-size: 15px; line-height: 1.6; }
 
+  /* ---- Script view -------------------------------------------------------
+     The announcer's page. Read copy is the content here, not an annotation on
+     a technical cue, so it gets the type size and the line length. Everything
+     the Director needs and the announcer does not (ribbon, screen, dept
+     colours) is left off. */
+  .scr-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .scr-size { display: flex; gap: 0; flex: 0 0 auto; }
+  .scr-size button {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    font-family: inherit; font-weight: 800; cursor: pointer; padding: 9px 13px;
+  }
+  .scr-size button:first-child { border-radius: 9px 0 0 9px; }
+  .scr-size button:last-child { border-radius: 0 9px 9px 0; border-left: none; }
+  .scr-doc { max-width: 40em; }
+  .scr-sec {
+    margin: 26px 0 10px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--accent);
+    font-size: 12.5px; font-weight: 900; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .scr-sec:first-child { margin-top: 4px; }
+  .scr-cue { padding: 14px 0 16px; border-bottom: 1px solid var(--border); }
+  .scr-cue.live { background: var(--panel); border-left: 4px solid var(--amber);
+                  padding-left: 12px; margin-left: -12px; border-radius: 0 8px 8px 0; }
+  .scr-cue.done { opacity: 0.45; }
+  .scr-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 7px; }
+  .scr-time {
+    flex: 0 0 auto; font-variant-numeric: tabular-nums;
+    font-size: 12px; font-weight: 800; color: var(--text-faint);
+  }
+  .scr-name { font-size: 13px; font-weight: 800; color: var(--text-dim, var(--text)); }
+  .scr-live-tag {
+    flex: 0 0 auto; background: var(--amber); color: #1A1204;
+    border-radius: 5px; padding: 1px 7px; font-size: 10px; font-weight: 900;
+    letter-spacing: 0.7px; text-transform: uppercase;
+  }
+  /* The read copy itself. Size is driven by --scr-size so A-/A+ moves every
+     block at once, and the announcer can set it once and forget it. */
+  .scr-read {
+    white-space: pre-wrap;
+    font-size: var(--scr-size, 17px);
+    line-height: 1.62;
+    color: var(--text);
+  }
+  .scr-note {
+    margin-top: 9px; font-size: 12.5px; line-height: 1.5;
+    color: var(--text-faint); white-space: pre-wrap;
+  }
+  /* A cue with no words. Kept in the list so the announcer can see where the
+     show is between reads, but given no weight. */
+  .scr-silent {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 7px 0; border-bottom: 1px dashed var(--border);
+    font-size: 12px; color: var(--text-faint);
+  }
+  .scr-silent.live { color: var(--amber); font-weight: 800; }
+  .scr-silent.done { opacity: 0.4; }
+
   /* Advance bar sits above the thumb, not under the browser chrome.
      The right gutter is deliberate: the Blue Bonnet bubble is fixed at
      bottom-right with a near-max z-index, and without this it sits on top of
@@ -1443,7 +1501,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v79 · text confirmations any day";
+const APP_BUILD = "build 2026-09-01 · v80 · announcer script page";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1483,6 +1541,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "profile" ? "active" : ""}" id="tabProfile">Profile</button>
       <button class="tab-btn ${mainState.view === "idcard" ? "active" : ""}" id="tabIdCard">ID Card</button>
       <button class="tab-btn ${mainState.view === "runofshow" ? "active" : ""}" id="tabRunOfShow">Run of Show</button>
+      <button class="tab-btn ${mainState.view === "script" ? "active" : ""}" id="tabScript">Script</button>
       <button class="tab-btn ${mainState.view === "cables" ? "active" : ""}" id="tabCables">Gear</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
@@ -1512,7 +1571,7 @@ function renderMainApp() {
   // hunt for a tab is a link that gets ignored.
   if (!mainState.deepLinked) {
     const want = (location.hash || "").replace("#", "").toLowerCase();
-    const ok = ["today", "audio", "runofshow", "cables", "shifts", "profile", "idcard"];
+    const ok = ["today", "audio", "runofshow", "script", "cables", "shifts", "profile", "idcard"];
     if (ok.includes(want)) {
       mainState.deepLinked = true;
       if (mainState.view !== want) { mainState.view = want; renderMainApp(); return; }
@@ -1547,6 +1606,7 @@ function renderMainApp() {
   document.getElementById("tabProfile").onclick = () => { mainState.view = "profile"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabIdCard").onclick = () => { mainState.view = "idcard"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabRunOfShow").onclick = () => { mainState.view = "runofshow"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabScript").onclick = () => { mainState.view = "script"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabCables").onclick = () => { mainState.view = "cables"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -1558,6 +1618,7 @@ function renderMainApp() {
     });
   }
 
+  if (mainState.view !== "script" && unsubScript) { unsubScript(); unsubScript = null; }
   if (mainState.view !== "runofshow" && unsubRos) { unsubRos(); unsubRos = null; }
   if (mainState.view !== "runofshow" && unsubDocs) { unsubDocs(); unsubDocs = null; }
   if (mainState.view !== "runofshow") rosExitFullscreenIfNeeded();
@@ -1585,6 +1646,12 @@ function renderMainApp() {
   if (mainState.view === "runofshow") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderRunOfShowView();
+    return;
+  }
+
+  if (mainState.view === "script") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderScriptView();
     return;
   }
 
@@ -6326,6 +6393,230 @@ function rosGameOptions() {
     String(g.id).split("__")[0] >= todayId || rosSeedFor(g.id));
 }
 
+
+// ============================================================================
+// Script
+// ============================================================================
+// The announcer's page. Same cue list as the Run of Show, same live position,
+// but only the part they say out loud.
+//
+// This is a separate view rather than a filter on the Run of Show because the
+// two jobs read differently. The Director scans a grid for what's next on the
+// screen. The announcer reads a paragraph out loud, on mic, in a press box, in
+// the dark, and needs the words large and the clutter gone. A cue with no copy
+// still gets a thin line so they can see where the show is between reads.
+let unsubScript = null;
+const SCR_SIZE_KEY = "advScriptSize";
+const SCR_SIZES = [15, 17, 19, 22, 26, 30];
+
+const scriptState = {
+  gameId: null,
+  cues: [],
+  current: 0,
+  loaded: false,
+  size: 17,
+};
+
+function scrLoadSize() {
+  try {
+    const v = Number(localStorage.getItem(SCR_SIZE_KEY));
+    if (SCR_SIZES.includes(v)) scriptState.size = v;
+  } catch (e) { /* default stands */ }
+}
+
+function scrSetSize(step) {
+  const i = SCR_SIZES.indexOf(scriptState.size);
+  const next = SCR_SIZES[Math.max(0, Math.min(SCR_SIZES.length - 1, (i < 0 ? 1 : i) + step))];
+  scriptState.size = next;
+  try { localStorage.setItem(SCR_SIZE_KEY, String(next)); } catch (e) {}
+  scrRender();
+}
+
+async function renderScriptView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+  scrLoadSize();
+
+  const options = rosGameOptions();
+  if (options.length === 0) {
+    inner.innerHTML = `<div class="footnote">No upcoming games on the schedule.</div>`;
+    return;
+  }
+
+  // Follow whatever the Run of Show is on, so the corner tab lands on the same
+  // game. Falling back to today, then tomorrow, then the next one up.
+  if (!scriptState.gameId || !options.some((g) => g.id === scriptState.gameId)) {
+    const fromRos = rosState && rosState.gameId;
+    const todayId = localDateId(), tId = tomorrowId();
+    scriptState.gameId =
+      (options.find((g) => g.id === fromRos) ||
+       options.find((g) => g.id === todayId) ||
+       options.find((g) => g.id === tId) ||
+       options[0]).id;
+  }
+
+  scrSubscribe();
+}
+
+function scrSubscribe() {
+  if (unsubScript) { unsubScript(); unsubScript = null; }
+  scriptState.loaded = false;
+
+  const gameId = scriptState.gameId;
+  const ref = db.ref(`runOfShow/${gameId}`);
+  const cb = (snap) => {
+    // A callback from a game we've already moved off would overwrite the one
+    // on screen.
+    if (scriptState.gameId !== gameId) return;
+    const val = snap.val();
+    scriptState.loaded = true;
+    // Nothing published yet: show the built-in version rather than a blank
+    // page. Read-only here, so unlike the Run of Show this never writes a seed.
+    scriptState.cues = (val && val.cues) || rosFlattenSeed(gameId) || [];
+    scriptState.current = (val && typeof val.current === "number") ? val.current : 0;
+    scrRender();
+  };
+  ref.on("value", cb);
+  unsubScript = () => { ref.off("value", cb); };
+
+  // Also pull the uploaded documents, so a PDF the school sent is one tap away
+  // from the read copy instead of back on the Run of Show tab.
+  const dref = docsRefFor(gameId);
+  const dcb = (snap) => {
+    if (scriptState.gameId !== gameId) return;
+    scriptState.docs = snap.val() || {};
+    const host = document.getElementById("scrDocs");
+    if (host) { host.innerHTML = scrDocsHtml(scriptState.docs); }
+  };
+  dref.on("value", dcb);
+  const offRos = unsubScript;
+  unsubScript = () => { offRos(); dref.off("value", dcb); };
+}
+
+// Only the script files. The announcer does not need the technical grid PDF,
+// and a list with one relevant row in five gets skimmed past.
+function scrDocsHtml(docs) {
+  const rows = Object.entries(docs || {})
+    .map(([id, d]) => ({ id, ...d }))
+    .filter((d) => d.type === "script")
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  if (rows.length === 0) return "";
+  return `
+    <div style="margin-bottom:14px;">
+      ${rows.map((d) => `
+        <a class="doc-row" href="${escapeAttr(d.url || "#")}" target="_blank" rel="noopener">
+          <span class="doc-tag" style="background:#8B72D9">SCRIPT</span>
+          <span class="doc-main">
+            <span class="doc-name">${escapeHtml(d.name || "Script")}</span>
+            <span class="doc-meta">The file as it was sent${d.at ? " · " + escapeHtml(shortWhen(d.at)) : ""}</span>
+          </span>
+        </a>`).join("")}
+    </div>`;
+}
+
+function scrRender() {
+  const inner = document.getElementById("innerRoot");
+  if (!inner || mainState.view !== "script") return;
+
+  const game = eventById(scriptState.gameId);
+  const cues = scriptState.cues || [];
+  const cur = scriptState.current;
+  const spoken = cues.filter((c) => c && c.read).length;
+
+  inner.innerHTML = `
+    <div class="scr-bar">
+      <select id="scrGameSel" class="ros-gamesel">
+        ${rosGameOptions().map((g) => `
+          <option value="${escapeAttr(g.id)}" ${g.id === scriptState.gameId ? "selected" : ""}>
+            ${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}
+          </option>`).join("")}
+      </select>
+      <div class="scr-size">
+        <button id="scrSmaller" title="Smaller type">A−</button>
+        <button id="scrBigger" title="Bigger type">A+</button>
+      </div>
+      <button class="ghost-pill" id="scrToRos" title="Back to the technical grid">◀ Run of Show</button>
+    </div>
+    <div class="footnote" style="margin-bottom:12px;">
+      ${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : "")}${spoken ? ` · ${spoken} read${spoken === 1 ? "" : "s"}` : ""} · follows the producer live
+    </div>
+    <div id="scrDocs"></div>
+    ${cues.length === 0 ? `
+      <div class="footnote">
+        No script for ${escapeHtml(game ? game.opp : "this game")} yet. It appears here as soon as the run of show is built or a script is imported on the Run of Show tab.
+      </div>
+    ` : `<div class="scr-doc" style="--scr-size:${scriptState.size}px;">${scrBodyHtml(cues, cur)}</div>`}
+
+    <!-- The PA announcer usually is not signed in here. The portal is the same
+         script behind a passcode, so this is the link to hand them. -->
+    <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
+      <a class="nav-link-btn" href="announcer.html" target="_blank" rel="noopener"
+         style="display:block; text-align:center;">📖 Open the Announcer portal</a>
+      <div class="footnote" style="margin-top:7px;">
+        Same script and a show monitor, no sign-in needed. The announcer enters the script code once and it is remembered on their device.
+      </div>
+    </div>
+  `;
+
+  const host = document.getElementById("scrDocs");
+  if (host) host.innerHTML = scrDocsHtml(scriptState.docs || {});
+
+  document.getElementById("scrGameSel").onchange = (e) => {
+    scriptState.gameId = e.target.value;
+    scrSubscribe();
+  };
+  document.getElementById("scrSmaller").onclick = () => scrSetSize(-1);
+  document.getElementById("scrBigger").onclick = () => scrSetSize(1);
+  document.getElementById("scrToRos").onclick = () => {
+    rosState.gameId = scriptState.gameId;
+    mainState.view = "runofshow";
+    renderMainApp();
+  };
+
+  // Bring the live cue into view, the same way the Run of Show does. An
+  // announcer who opens the page mid-show should land on the current read,
+  // not at the top of a two-hour document.
+  const live = inner.querySelector(".live");
+  if (live && live.scrollIntoView) {
+    try { live.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
+  }
+}
+
+function scrBodyHtml(cues, cur) {
+  let section = null;
+  let html = "";
+  cues.forEach((c, i) => {
+    if (!c) return;
+    if (c.section && c.section !== section) {
+      section = c.section;
+      html += `<div class="scr-sec">${escapeHtml(section)}</div>`;
+    }
+    const cls = i < cur ? "done" : i === cur ? "live" : "";
+    const when = [c.time, c.dur].filter(Boolean).join(" · ");
+
+    if (!c.read) {
+      html += `
+        <div class="scr-silent ${cls}">
+          <span style="font-variant-numeric:tabular-nums; min-width:62px;">${escapeHtml(c.time || "")}</span>
+          <span>${escapeHtml(c.event || "")}${i === cur ? " — on now" : ""}</span>
+        </div>`;
+      return;
+    }
+
+    html += `
+      <div class="scr-cue ${cls}">
+        <div class="scr-head">
+          ${when ? `<span class="scr-time">${escapeHtml(when)}</span>` : ""}
+          <span class="scr-name">${escapeHtml(c.event || "")}</span>
+          ${i === cur ? `<span class="scr-live-tag">On now</span>` : ""}
+        </div>
+        <div class="scr-read">${escapeHtml(c.read)}</div>
+        ${c.notes ? `<div class="scr-note">${escapeHtml(c.notes)}</div>` : ""}
+      </div>`;
+  });
+  return html;
+}
+
 // ============================================================================
 // Stadium monitor.
 //  - Run of Show tab: a small floating mini-player, bottom-left, out of the
@@ -6869,6 +7160,8 @@ function rosRender() {
       </select>
       ${admin ? `<button class="ghost-pill" id="rosEditToggle">${rosState.editing ? "Done" : "Edit"}</button>` : ""}
       <button class="ghost-pill" id="rosFullToggle" title="Full screen">${rosFull ? "Exit" : "⛶"}</button>
+      <button class="ghost-pill" id="rosScriptBtn" title="The announcer's read copy"
+        style="border-color:#8B72D9; color:#B9A6F0;">📖 Script</button>
       <a class="ghost-pill" href="producer-guide.html"
          style="text-decoration:none;">Guide</a>
     </div>
@@ -6944,6 +7237,16 @@ function rosRender() {
 
   const fullBtn = document.getElementById("rosFullToggle");
   if (fullBtn) fullBtn.onclick = () => rosSetFullscreen(!rosFull);
+
+  // Corner tab through to the script. Full screen has to come off first or the
+  // script would render underneath the fullscreen layer.
+  const scrBtn = document.getElementById("rosScriptBtn");
+  if (scrBtn) scrBtn.onclick = () => {
+    if (rosFull) rosSetFullscreen(false);
+    scriptState.gameId = rosState.gameId;
+    mainState.view = "script";
+    renderMainApp();
+  };
 
   const prev = document.getElementById("rosPrev");
   const next = document.getElementById("rosNext");

@@ -198,6 +198,70 @@
     margin-top: 5px; white-space: pre-wrap; line-height: 1.45;
   }
 
+  /* ---- Script mode -------------------------------------------------------
+     Same cue list, but only the words. Larger type, one column, nothing in the
+     margins. The monitor stays wherever it was, so the announcer can read and
+     watch at once. */
+  .view-bar { display: flex; gap: 0; margin: 0 0 12px; }
+  .view-bar button {
+    flex: 1; background: var(--panel2, #1A222B); border: 1px solid var(--border);
+    color: var(--text-muted); font-family: inherit; font-size: 13px;
+    font-weight: 800; padding: 11px 0; cursor: pointer;
+  }
+  .view-bar button:first-child { border-radius: 9px 0 0 9px; }
+  .view-bar button:last-child { border-radius: 0 9px 9px 0; border-left: none; }
+  .view-bar button.on { background: var(--accent, #4A8FC0); border-color: var(--accent, #4A8FC0); color: #fff; }
+
+  .scr-size { display: flex; gap: 0; margin: 0 0 14px; }
+  .scr-size button {
+    background: var(--panel2, #1A222B); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-weight: 800;
+    padding: 8px 15px; cursor: pointer; font-size: 13px;
+  }
+  .scr-size button:first-child { border-radius: 9px 0 0 9px; }
+  .scr-size button:last-child { border-radius: 0 9px 9px 0; border-left: none; }
+  .scr-size span { flex: 1; }
+
+  .scr-doc { max-width: 40em; }
+  .scr-sec {
+    margin: 26px 0 10px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--accent, #4A8FC0);
+    font-size: 12.5px; font-weight: 900; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--accent, #4A8FC0);
+  }
+  .scr-sec:first-child { margin-top: 2px; }
+  .scr-cue { padding: 14px 0 16px; border-bottom: 1px solid var(--border); }
+  .scr-cue.live {
+    background: var(--panel, #141B22); border-left: 4px solid var(--amber, #E0A63C);
+    padding-left: 12px; margin-left: -12px; border-radius: 0 8px 8px 0;
+  }
+  .scr-cue.done { opacity: 0.45; }
+  .scr-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 7px; flex-wrap: wrap; }
+  .scr-time {
+    font-size: 12px; font-weight: 800; color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .scr-name { font-size: 13px; font-weight: 800; color: var(--text-muted); }
+  .scr-live-tag {
+    background: var(--amber, #E0A63C); color: #1A1204; border-radius: 5px;
+    padding: 1px 7px; font-size: 10px; font-weight: 900;
+    letter-spacing: 0.7px; text-transform: uppercase;
+  }
+  .scr-read {
+    white-space: pre-wrap; font-size: var(--scr-size, 19px);
+    line-height: 1.62; color: var(--text);
+  }
+  .scr-note {
+    margin-top: 9px; font-size: 12.5px; line-height: 1.5;
+    color: var(--amber, #E0A63C); font-weight: 700; white-space: pre-wrap;
+  }
+  .scr-silent {
+    display: flex; gap: 10px; align-items: baseline; padding: 7px 0;
+    border-bottom: 1px dashed var(--border); font-size: 12px; color: var(--text-faint);
+  }
+  .scr-silent.live { color: var(--amber, #E0A63C); font-weight: 800; }
+  .scr-silent.done { opacity: 0.4; }
+
   .empty { color: var(--text-muted); font-size: 14px; padding: 20px 0; text-align: center; }
   .foot { margin-top: 26px; font-size: 11px; color: var(--text-faint); text-align: center; }
 </style>
@@ -212,7 +276,7 @@
            autocapitalize="none" spellcheck="false" placeholder="Type the company name" />
     <button id="gateGo" class="gate-btn">Enter</button>
     <div class="gate-err" id="gateErr"></div>
-    <div class="gate-foot">ADV Media Limited Company &middot; AN-2</div>
+    <div class="gate-foot">ADV Media Limited Company &middot; AN-3</div>
   </div>
 </div>
 
@@ -238,6 +302,11 @@
     <button class="mon-close" id="monClose" title="Back to normal">&#10005;</button>
   </div>
   <div class="vid-note" id="monNote">Connecting to the monitor feed…</div>
+
+  <div class="view-bar">
+    <button id="tabShow" class="on">Show</button>
+    <button id="tabScript">📖 Script</button>
+  </div>
 
   <div id="body"><div class="empty">Loading…</div></div>
 
@@ -518,12 +587,109 @@ async function poll() {
   draw();
 }
 
+// "show"   — the grid: what is on now, what is next, the whole cue list.
+// "script" — only what gets read out loud, in large type.
+//
+// Two views rather than one because they are read differently. Following the
+// show means glancing; reading the script means reading. The monitor is
+// untouched by the switch, so the feed keeps playing either way.
+let viewMode = "show";
+const VIEW_KEY = "advAnnouncerView";
+const SCR_SIZE_KEY = "advAnnouncerScrSize";
+const SCR_SIZES = [15, 17, 19, 22, 26, 30];
+let scrSize = 19;
+
+try {
+  const v = localStorage.getItem(VIEW_KEY);
+  if (v === "show" || v === "script") viewMode = v;
+  const n = Number(localStorage.getItem(SCR_SIZE_KEY));
+  if (SCR_SIZES.includes(n)) scrSize = n;
+} catch (e) { /* defaults stand */ }
+
+function setViewMode(mode) {
+  viewMode = mode;
+  try { localStorage.setItem(VIEW_KEY, mode); } catch (e) {}
+  document.getElementById("tabShow").classList.toggle("on", mode === "show");
+  document.getElementById("tabScript").classList.toggle("on", mode === "script");
+  document.getElementById("subLine").textContent =
+    mode === "script" ? "Everything you read out loud, in show order." : "Where the show is right now.";
+  draw();
+}
+
+function setScrSize(step) {
+  const i = SCR_SIZES.indexOf(scrSize);
+  scrSize = SCR_SIZES[Math.max(0, Math.min(SCR_SIZES.length - 1, (i < 0 ? 2 : i) + step))];
+  try { localStorage.setItem(SCR_SIZE_KEY, String(scrSize)); } catch (e) {}
+  draw();
+}
+
+document.getElementById("tabShow").onclick = () => setViewMode("show");
+document.getElementById("tabScript").onclick = () => setViewMode("script");
+
+// The script, cue by cue. A cue with nothing to say keeps a thin line so the
+// announcer can see where the show is between reads.
+function drawScript(root) {
+  const spoken = cues.filter((c) => c && c.read).length;
+  if (!spoken) {
+    root.innerHTML = `<div class="empty">No read copy in this run of show yet.</div>`;
+    return;
+  }
+
+  let section = null, body = "";
+  cues.forEach((c, i) => {
+    if (!c) return;
+    if (c.section && c.section !== section) {
+      section = c.section;
+      body += `<div class="scr-sec">${esc(section)}</div>`;
+    }
+    const cls = i < current ? "done" : i === current ? "live" : "";
+    if (!c.read) {
+      body += `
+        <div class="scr-silent ${cls}">
+          <span style="min-width:62px; font-variant-numeric:tabular-nums;">${esc(c.time || "")}</span>
+          <span>${esc(c.event || "")}${i === current ? " — on now" : ""}</span>
+        </div>`;
+      return;
+    }
+    const when = [c.time, c.dur].filter(Boolean).join(" \u00b7 ");
+    body += `
+      <div class="scr-cue ${cls}">
+        <div class="scr-head">
+          ${when ? `<span class="scr-time">${esc(when)}</span>` : ""}
+          <span class="scr-name">${esc(c.event || "")}</span>
+          ${i === current ? `<span class="scr-live-tag">On now</span>` : ""}
+        </div>
+        <div class="scr-read">${esc(c.read)}</div>
+        ${c.notes ? `<div class="scr-note">${esc(c.notes)}</div>` : ""}
+      </div>`;
+  });
+
+  root.innerHTML = `
+    <div class="scr-size">
+      <button id="scrSmaller">A\u2212</button>
+      <button id="scrBigger">A+</button>
+      <span></span>
+    </div>
+    <div class="scr-doc" style="--scr-size:${scrSize}px;">${body}</div>`;
+
+  document.getElementById("scrSmaller").onclick = () => setScrSize(-1);
+  document.getElementById("scrBigger").onclick = () => setScrSize(1);
+
+  // Land on the live read, not the top of a two-hour document.
+  const live = root.querySelector(".live");
+  if (live && live.scrollIntoView) {
+    try { live.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
+  }
+}
+
 function draw() {
   const root = document.getElementById("body");
   if (!cues.length) {
     root.innerHTML = `<div class="empty">The run of show for this game hasn't been published yet.</div>`;
     return;
   }
+
+  if (viewMode === "script") { drawScript(root); return; }
 
   const cur = cues[current] || cues[0];
   const nxt = cues[current + 1];
@@ -602,6 +768,7 @@ function start() {
   if (started) return;
   started = true;
   applyBranding(GAMES.find((g) => g.id === gameId));
+  setViewMode(viewMode);   // paint the remembered tab before the first poll
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     startVideo();
   } else {
