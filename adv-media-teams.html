@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v85 · shifts fix";
+const APP_BUILD = "build 2026-09-01 · v86 · script runs like the show";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -4781,7 +4781,7 @@ function wireDocsSection(gameId) {
   if (pasteBtn) pasteBtn.onclick = async () => {
     let existing = null;
     try {
-      const snap = await db.ref(`runOfShow/${gameId}/script`).once("value");
+      const snap = await scrRef(gameId).once("value");
       existing = snap.val();
     } catch (e) { /* treat as none */ }
     openScriptPaste(gameId, existing);
@@ -4821,7 +4821,7 @@ function wireDocsSection(gameId) {
     // A run-of-show grid is different: turning it into cues is the whole point
     // of uploading one, so that still goes to the importer.
     if (type === "script") {
-      await saveFullScript(gameId, file);
+      await buildScriptFromFile(gameId, file);
     } else if (type === "ros") {
       await offerScriptImport(gameId, file);
     }
@@ -5103,13 +5103,13 @@ async function rosBuildWithAI(gameId, text, filename) {
   }
 }
 
-// The full text of the script, stored so the announcer reads the document the
-// school actually sent rather than the one-line reads attached to cues.
-//
-// It lives at runOfShow/{gameId}/script, inside the node the Script page and
-// the announcer portal already read. A node of its own would have needed a new
-// database rule, and a missing rule on a show night is not worth the tidiness.
+// Superseded by buildScriptFromFile, which also cuts the script into cues.
+// Kept so nothing that referenced it breaks.
 async function saveFullScript(gameId, file) {
+  return buildScriptFromFile(gameId, file);
+}
+
+async function saveFullScriptLegacy(gameId, file) {
   const status = document.getElementById("docStatus");
   const say = (t) => { if (status) status.textContent = t; };
 
@@ -5179,6 +5179,132 @@ async function saveFullScript(gameId, file) {
   await offerScriptImport(gameId, file);
 }
 
+// The preview before a script becomes the Script tab's cue list. Same shape as
+// the run of show's import preview, so it reads the same way, but it saves to
+// the script record and says so.
+function showScriptCuePreview(gameId, filename, cues, text) {
+ return new Promise((done) => {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.overflow = "auto";
+
+  const bySection = [];
+  cues.forEach((c) => {
+    const last = bySection[bySection.length - 1];
+    if (!last || last.name !== c.section) bySection.push({ name: c.section, cues: [c] });
+    else last.cues.push(c);
+  });
+  const words = text.split(/\s+/).filter(Boolean).length;
+
+  overlay.innerHTML = `
+    <div class="modal-card imp-card">
+      <div class="modal-title">Put this in the Script tab?</div>
+      <div class="modal-subtitle">${escapeHtml(filename)}</div>
+      <div class="setup-warning" style="display:block; margin:0 0 12px; background:var(--good-bg); border-color:var(--green); color:var(--good-ink);">
+        This goes to the <b>Script</b> tab. Your run of show and its cues are not touched.
+      </div>
+
+      <div class="imp-sum">
+        <strong>${cues.length}</strong> cues across
+        <strong>${bySection.length || 1}</strong> sections ·
+        <strong>${words.toLocaleString()}</strong> words, all of them
+      </div>
+
+      <div class="imp-note">
+        Every word of the script is here. The cues only decide where it breaks.
+      </div>
+
+      <div class="imp-list">
+        ${bySection.map((sec) => `
+          ${sec.name ? `<div class="imp-sec">${escapeHtml(sec.name)}</div>` : ""}
+          ${sec.cues.map((c) => `
+            <div class="imp-cue">
+              <span class="imp-time">${escapeHtml(c.time || "—")}</span>
+              <span class="imp-body">
+                <span class="imp-event">${escapeHtml(c.heading || "(no heading)")}</span>
+                ${c.body ? `<span class="imp-read">${escapeHtml(c.body.split("\n")[0].slice(0, 120))}${c.body.length > 120 ? "…" : ""}</span>` : ""}
+              </span>
+            </div>`).join("")}
+        `).join("")}
+      </div>
+
+      <button class="primary-btn" id="scpGo" style="margin-top:10px;">Save ${cues.length} cues to the Script tab</button>
+      <button class="shift-btn shift-btn-ghost" id="scpCancel"
+        style="width:100%; margin-top:10px; padding:11px 0;">Cancel</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  const close = () => { overlay.remove(); document.body.style.overflow = ""; done(); };
+  overlay.querySelector("#scpCancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  overlay.querySelector("#scpGo").onclick = async () => {
+    overlay.remove(); document.body.style.overflow = "";
+    try {
+      await scrRef(gameId).update({
+        text, cues, current: 0,
+        name: filename,
+        at: new Date().toISOString(),
+        by: (myProfileForShifts && myProfileForShifts.legalName)
+            || (currentUser && (currentUser.displayName || currentUser.email)) || "",
+      });
+      if (confirm(`Script saved — ${cues.length} cues, ${words.toLocaleString()} words.\n\nOpen the Script tab now?`)) {
+        scriptState.gameId = gameId;
+        scriptState.modeChosen = false;
+        mainState.view = "script";
+        renderMainApp();
+      }
+    } catch (e) {
+      alert("Couldn't save the script: " + (e.message || "unknown error"));
+    }
+    done();
+  };
+ });
+}
+
+// Uploading a file tagged SCRIPT. Reads it, cuts it into cues at its own
+// headings, shows the result, saves to the Script tab.
+async function buildScriptFromFile(gameId, file) {
+  const status = document.getElementById("docStatus");
+  const say = (t) => { if (status) status.textContent = t; };
+
+  let text = "";
+  try {
+    say("Reading the script…");
+    text = await readScriptFile(file);
+  } catch (e) {
+    say("");
+    // A PDF stores glyphs and positions, not paragraphs, so reading one here
+    // would mean guessing where the lines are. Pasting keeps them exactly.
+    const wantPaste = confirm(
+      (e.message || "Couldn't read that file.") +
+      "\n\nThe file will still be uploaded and linked on the Script page.\n\n" +
+      "To get the words in, open the script, select all, copy, and paste. " +
+      "Every word comes through as written and it is cut into cues the same way." +
+      "\n\nOpen the paste box now?"
+    );
+    if (wantPaste) openScriptPaste(gameId, null);
+    return;
+  }
+
+  text = String(text || "").replace(/\r\n?/g, "\n").replace(/\n{4,}/g, "\n\n\n").trim();
+  if (!text) {
+    say("");
+    alert("That file opened but had no text in it. The file will still be uploaded and linked.");
+    return;
+  }
+
+  const cues = splitScriptIntoCues(text).filter((c) => !c.isSection);
+  say("");
+  if (!cues.length) {
+    alert("That file had text but nothing that looked like a script. It will still be uploaded and linked.");
+    return;
+  }
+  await showScriptCuePreview(gameId, file.name || "Script", cues, text);
+}
+
 // Paste the whole script in. This is the path that always works: select all in
 // Word or the PDF, copy, paste. The document's own line breaks come with it.
 //
@@ -5229,9 +5355,10 @@ function openScriptPaste(gameId, existing) {
 
   const clearBtn = overlay.querySelector("#scrPasteClear");
   if (clearBtn) clearBtn.onclick = async () => {
-    if (!confirm("Remove the script for this game? The cue list is not affected.")) return;
+    if (!confirm("Remove the script for this game? The run of show is not affected.")) return;
     try {
-      await db.ref(`runOfShow/${gameId}/script`).remove();
+      await scrRef(gameId).remove();
+      await db.ref(`runOfShow/${gameId}/script`).remove().catch(() => {});
       close();
     } catch (e) { alert("Couldn't remove it: " + (e.message || "unknown error")); }
   };
@@ -5242,8 +5369,11 @@ function openScriptPaste(gameId, existing) {
     const btn = overlay.querySelector("#scrPasteSave");
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      await db.ref(`runOfShow/${gameId}/script`).set({
-        text,
+      // Cut into cues on the way in, so the Script tab has a cue list to run
+      // whether the script arrived by upload or by paste.
+      const cues = splitScriptIntoCues(text).filter((c) => !c.isSection);
+      await scrRef(gameId).update({
+        text, cues, current: 0,
         name: (existing && existing.name) || "Pasted script",
         at: new Date().toISOString(),
         by: (myProfileForShifts && myProfileForShifts.legalName)
@@ -6758,6 +6888,10 @@ const scriptState = {
   full: null,        // { text, name, at, by } — the whole script
   mode: null,        // "full" | "cue"
   modeChosen: false, // true once the reader picks a side, so data stops overriding
+  prompter: null,    // shared scroll: { running, speed, anchor, at }
+  primary: null,     // the announcer driving it
+  following: true,
+  lastTouch: 0,
 };
 
 function scrLoadSize() {
@@ -6804,44 +6938,67 @@ async function renderScriptView() {
 function scrSubscribe() {
   if (unsubScript) { unsubScript(); unsubScript = null; }
   scriptState.loaded = false;
+  scriptState.following = true;
+
+  // Same server-clock correction as the run of show: phone clocks disagree by
+  // enough to matter at prompter speeds.
+  db.ref(".info/serverTimeOffset").once("value")
+    .then((v) => { rosClockOffset = v.val() || 0; })
+    .catch(() => {});
+  scrLoadPrimaryCode();
 
   const gameId = scriptState.gameId;
-  const ref = db.ref(`runOfShow/${gameId}`);
+  const ref = scrRef(gameId);
   const cb = (snap) => {
-    // A callback from a game we've already moved off would overwrite the one
-    // on screen.
     if (scriptState.gameId !== gameId) return;
-    const val = snap.val();
+    const val = snap.val() || {};
     scriptState.loaded = true;
-    // Nothing published yet: show the built-in version rather than a blank
-    // page. Read-only here, so unlike the Run of Show this never writes a seed.
-    scriptState.cues = (val && val.cues) || rosFlattenSeed(gameId) || [];
-    scriptState.current = (val && typeof val.current === "number") ? val.current : 0;
-    scriptState.full = (val && val.script) || null;
-    // Land on the full script whenever there is one.
-    //
-    // This used to latch on the first render: open the page before a script
-    // exists, the mode locked to "cue", and pasting a script afterwards left
-    // you still looking at the short cue reads. So the choice is only sticky
-    // once you have actually tapped one of the two buttons.
+    scriptState.full = val.text
+      ? { text: val.text, name: val.name || "Script", at: val.at || "", by: val.by || "" }
+      : null;
+    scriptState.cues = Array.isArray(val.cues) ? val.cues : [];
+    scriptState.current = typeof val.current === "number" ? val.current : 0;
+    scriptState.prompter = val.prompter || scrDefaultPrompter();
+    scriptState.primary = val.primary || null;
+
+    // Cues come from the text, so a script saved before cue building existed
+    // still opens as a cue list rather than as nothing.
+    if (!scriptState.cues.length && scriptState.full) {
+      scriptState.cues = splitScriptIntoCues(scriptState.full.text).filter((c) => !c.isSection);
+    }
     if (!scriptState.modeChosen) scriptState.mode = "cue";
     scrRender();
+    if (scriptState.prompter.running) scrStartLoop(); else scrStopLoop();
   };
   ref.on("value", cb);
-  unsubScript = () => { ref.off("value", cb); };
+  unsubScript = () => { ref.off("value", cb); scrStopLoop(); };
 
-  // Also pull the uploaded documents, so a PDF the school sent is one tap away
-  // from the read copy instead of back on the Run of Show tab.
+  // Uploaded files for this game, so a PDF the school sent sits beside the copy.
   const dref = docsRefFor(gameId);
   const dcb = (snap) => {
     if (scriptState.gameId !== gameId) return;
     scriptState.docs = snap.val() || {};
     const host = document.getElementById("scrDocs");
-    if (host) { host.innerHTML = scrDocsHtml(scriptState.docs); }
+    if (host) host.innerHTML = scrDocsHtml(scriptState.docs);
   };
   dref.on("value", dcb);
   const offRos = unsubScript;
   unsubScript = () => { offRos(); dref.off("value", dcb); };
+
+  // A script saved by an earlier build sat beside the run of show cues. Move it
+  // across once, so nothing uploaded before today disappears.
+  db.ref(`runOfShow/${gameId}/script`).once("value").then((old) => {
+    const v = old.val();
+    if (!v || !v.text || scriptState.gameId !== gameId) return;
+    scrRef(gameId).once("value").then((cur) => {
+      if ((cur.val() || {}).text) return;   // already moved
+      const cues = splitScriptIntoCues(v.text).filter((x) => !x.isSection);
+      scrRef(gameId).update({
+        text: v.text, name: v.name || "Script", at: v.at || "", by: v.by || "",
+        cues, current: 0,
+      });
+    }).catch(() => {});
+  }).catch(() => {});
 }
 
 // Only the script files. The announcer does not need the technical grid PDF,
@@ -6873,7 +7030,10 @@ function scrRender() {
   const cues = scriptState.cues || [];
   const cur = scriptState.current;
   const admin = isAdmin();
-  const spoken = cues.filter((c) => c && c.read).length;
+  const prompter = scriptState.prompter || scrDefaultPrompter();
+  const running = !!prompter.running;
+  const speed = Number(prompter.speed) || 2;
+  const live = scriptState.full && scriptState.mode === "cue" && cues.length;
 
   inner.innerHTML = `
     <div class="scr-bar">
@@ -6887,52 +7047,78 @@ function scrRender() {
         <button id="scrSmaller" title="Smaller type">A−</button>
         <button id="scrBigger" title="Bigger type">A+</button>
       </div>
+      <button class="ghost-pill" id="scrFullToggle" title="Full screen">${scrFull ? "Exit" : "⛶"}</button>
       <button class="ghost-pill" id="scrToRos" title="Back to the technical grid">◀ Run of Show</button>
     </div>
+
     ${scriptState.full ? `
       <div class="view-bar" style="margin-bottom:12px;">
         <button id="scrModeCue" class="${scriptState.mode === "cue" ? "on" : ""}">Cues</button>
         <button id="scrModeFull" class="${scriptState.mode === "full" ? "on" : ""}">Document</button>
       </div>` : ""}
+
     <div class="footnote" style="margin-bottom:12px;">
       ${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : "")}
-      ${scriptState.full
-        ? ` · ${escapeHtml(scriptState.full.name || "script")}${scriptState.full.at ? " · " + escapeHtml(shortWhen(scriptState.full.at)) : ""} · every word of it`
-        : ""}
+      ${scriptState.full ? ` · ${escapeHtml(scriptState.full.name || "script")} · every word of it` : ""}
     </div>
     <div id="scrDocs"></div>
-    ${scriptState.full ? `
-      <div class="scr-doc" style="--scr-size:${scriptState.size}px;">
-        ${scriptState.mode === "full"
-          ? `<div class="scr-read">${escapeHtml(scriptState.full.text || "")}</div>`
-          : scriptCuesHtml(scriptState.full.text || "")}
-      </div>
-    ` : `
-      <!-- No full script loaded. The cue reads are a summary of a script, not
-           the script, so they are offered as a fallback and clearly labelled
-           rather than shown as if they were the real thing. -->
+
+    ${scrIsPrimary() ? `
+      <div class="ros-onair"><span class="ros-onair-dot"></span>YOU ARE READING</div>
+    ` : scriptState.primary ? `
+      <div class="ros-onair following">${escapeHtml(scriptState.primary.name || "Someone")} is reading</div>
+    ` : ""}
+
+    ${!scriptState.full ? `
       <div class="setup-warning" style="display:block; margin-bottom:14px;">
-        <b>No full script loaded for ${escapeHtml(game ? game.opp : "this game")}.</b><br>
-        Paste it in and every word appears here exactly as written. Uploading a .docx or .txt works too. A PDF has to be pasted — the words can't be pulled out of one reliably.
+        <b>No script loaded for ${escapeHtml(game ? game.opp : "this game")}.</b><br>
+        Upload it on the Run of Show tab and tag it SCRIPT — it gets built into cues and lands here, not in the run of show. Pasting works for any format, including a PDF.
       </div>
       ${admin ? `<button class="primary-btn" id="scrPasteOpen" style="margin-bottom:16px;">✎ Paste the script</button>` : ""}
-    `}
+    ` : scriptState.mode === "full" ? `
+      <div class="scr-doc" style="--scr-size:${scriptState.size}px;">
+        <div class="scr-read">${escapeHtml(scriptState.full.text || "")}</div>
+      </div>
+    ` : cues.length ? `
+      <div style="--scr-size:${scriptState.size}px;">${scrShowListHtml(cues, cur)}</div>
+    ` : `<div class="footnote">The script is loaded but has no cues yet.</div>`}
+
+    ${live ? `
+      <div class="ros-prompt">
+        <button class="ros-play ${running ? "on" : ""}" id="scrPlay">${running ? "❚❚" : "▶"}</button>
+        <button class="ros-tool" id="scrSlower" ${speed <= 0.5 ? "disabled" : ""}>−</button>
+        <div class="ros-speed">${speed.toFixed(1)}<span>cues/min</span></div>
+        <button class="ros-tool" id="scrFaster" ${speed >= 12 ? "disabled" : ""}>+</button>
+        <button class="ros-tool" id="scrToTop" title="Back to the cue being read">⤒</button>
+      </div>
+      <button class="ros-primary ${scrIsPrimary() ? "on" : ""}" id="scrPrimaryBtn">
+        ${scrIsPrimary()
+          ? "You're reading — tap to hand it back"
+          : (scriptState.primary
+              ? `${scrPrimaryCode ? "🔒 " : ""}Announcer: ${escapeHtml(scriptState.primary.name || "someone")} — tap to take over`
+              : `${scrPrimaryCode ? "🔒 " : ""}I'm the announcer`)}
+      </button>
+      <div class="ros-controls">
+        <button class="ros-nav" id="scrPrev" ${cur <= 0 ? "disabled" : ""}>◀ Prev</button>
+        <div class="ros-count">${cur + 1} / ${cues.length}</div>
+        <button class="ros-nav ros-nav-next" id="scrNext" ${cur >= cues.length - 1 ? "disabled" : ""}>Next ▶</button>
+      </div>
+      <button class="ros-follow-pill" id="scrFollowPill" style="display:none;">
+        Following paused — tap to catch up
+      </button>
+    ` : ""}
 
     ${admin && scriptState.full ? `
       <button class="shift-btn shift-btn-ghost" id="scrPasteEdit"
         style="width:100%; margin-top:18px; padding:11px 0;">✎ Edit or replace this script</button>
+      <button class="shift-btn shift-btn-ghost" id="scrSetPass"
+        style="width:100%; margin-top:10px; padding:11px 0;">
+        ${scrPrimaryCode ? `Announcer passcode: ${escapeHtml(scrPrimaryCode)} — tap to change` : "Set an announcer passcode"}
+      </button>
     ` : ""}
-
-    <!-- The PA announcer usually is not signed in here. The portal is the same
-         script behind a passcode, so this is the link to hand them. -->
-    <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
-      <a class="nav-link-btn" href="announcer.html" target="_blank" rel="noopener"
-         style="display:block; text-align:center;">📖 Open the Announcer portal</a>
-      <div class="footnote" style="margin-top:7px;">
-        Same script and a show monitor, no sign-in needed. The announcer enters the script code once and it is remembered on their device.
-      </div>
-    </div>
   `;
+
+  document.body.classList.toggle("ros-driving", scrIsPrimary());
 
   const host = document.getElementById("scrDocs");
   if (host) host.innerHTML = scrDocsHtml(scriptState.docs || {});
@@ -6940,11 +7126,20 @@ function scrRender() {
   document.getElementById("scrGameSel").onchange = (e) => {
     scriptState.gameId = e.target.value;
     scriptState.full = null;
+    scriptState.cues = [];
     scriptState.modeChosen = false;
     scrSubscribe();
   };
   document.getElementById("scrSmaller").onclick = () => scrSetSize(-1);
   document.getElementById("scrBigger").onclick = () => scrSetSize(1);
+  document.getElementById("scrFullToggle").onclick = () => scrSetFullscreen(!scrFull);
+  document.getElementById("scrToRos").onclick = () => {
+    scrExitFullscreenIfNeeded();
+    rosState.gameId = scriptState.gameId;
+    mainState.view = "runofshow";
+    renderMainApp();
+  };
+
   const mf = document.getElementById("scrModeFull");
   const mc = document.getElementById("scrModeCue");
   if (mf) mf.onclick = () => { scriptState.mode = "full"; scriptState.modeChosen = true; scrRender(); };
@@ -6954,21 +7149,352 @@ function scrRender() {
   if (pOpen) pOpen.onclick = () => openScriptPaste(scriptState.gameId, null);
   const pEdit = document.getElementById("scrPasteEdit");
   if (pEdit) pEdit.onclick = () => openScriptPaste(scriptState.gameId, scriptState.full);
-  document.getElementById("scrToRos").onclick = () => {
-    rosState.gameId = scriptState.gameId;
-    mainState.view = "runofshow";
-    renderMainApp();
+  const sp = document.getElementById("scrSetPass");
+  if (sp) sp.onclick = scrSetPasscode;
+
+  // Transport. Anyone touching it is asking to read, so it takes the script
+  // first — exactly how the run of show hands over the show.
+  const prev = document.getElementById("scrPrev");
+  const next = document.getElementById("scrNext");
+  if (prev) prev.onclick = async () => {
+    if (!(await scrTryClaimPrimary())) return;
+    scrSetCurrent(scriptState.current - 1);
+  };
+  if (next) next.onclick = async () => {
+    if (!(await scrTryClaimPrimary())) return;
+    scrSetCurrent(scriptState.current + 1);
   };
 
-  // Bring the live cue into view, the same way the Run of Show does. An
-  // announcer who opens the page mid-show should land on the current read,
-  // not at the top of a two-hour document.
-  const live = inner.querySelector(".live");
-  if (live && live.scrollIntoView) {
-    try { live.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
+  const play = document.getElementById("scrPlay");
+  if (play) play.onclick = async () => {
+    if (!(await scrTryClaimPrimary())) return;
+    const p = scriptState.prompter || scrDefaultPrompter();
+    scrPromptWrite({ running: !p.running });
+  };
+  const slower = document.getElementById("scrSlower");
+  if (slower) slower.onclick = async () => {
+    if (!(await scrTryClaimPrimary())) return;
+    scrPromptWrite({ speed: Math.max(0.5, (Number((scriptState.prompter || {}).speed) || 2) - 0.5) });
+  };
+  const faster = document.getElementById("scrFaster");
+  if (faster) faster.onclick = async () => {
+    if (!(await scrTryClaimPrimary())) return;
+    scrPromptWrite({ speed: Math.min(12, (Number((scriptState.prompter || {}).speed) || 2) + 0.5) });
+  };
+  const toTop = document.getElementById("scrToTop");
+  if (toTop) toTop.onclick = () => {
+    scriptState.following = true;
+    scrUpdateFollowPill();
+    scrScrollToCurrent(true);
+  };
+
+  const pb = document.getElementById("scrPrimaryBtn");
+  if (pb) pb.onclick = async () => {
+    if (scrIsPrimary()) scrReleasePrimary();
+    else await scrTryClaimPrimary();
+    scrRender();
+  };
+
+  const pill = document.getElementById("scrFollowPill");
+  if (pill) pill.onclick = () => scrResumeFollowing();
+
+  // Tapping a cue moves everyone, so it claims the script the same way.
+  inner.querySelectorAll("[data-scrjump]").forEach((el) => {
+    el.onclick = async (e) => {
+      if (e.target.closest && e.target.closest("[data-scrgolive]")) return;
+      if (!(await scrTryClaimPrimary())) return;
+      scrSetCurrent(Number(el.getAttribute("data-scrjump")));
+    };
+  });
+  inner.querySelectorAll("[data-scrgolive]").forEach((el) => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      scriptState.following = true;
+      scrUpdateFollowPill();
+      scrScrollToCurrent(true);
+    };
+  });
+
+  scrUpdateFollowPill();
+  if (scriptState.mode === "cue" && !running) scrScrollToCurrent(false);
+}
+
+
+
+// ============================================================================
+// The script as a live show
+// ============================================================================
+// The Script tab is the Run of Show's twin: play/pause, speed, Next/Prev, a
+// shared scroll position and one person driving. The difference is WHO drives.
+// The producer drives the run of show. The announcer drives the script. Two
+// independent positions, so the announcer can sit on a read while the producer
+// moves on, and everybody else follows whichever page they are looking at.
+//
+// It lives at runOfShow/_scripts/{gameId}. Two reasons for that path:
+//   - it is a child of runOfShow, so the database rule already covers it and
+//     there is no new rule to forget on a show night;
+//   - a listener on runOfShow/{gameId} does NOT fire for it, so the announcer
+//     driving the script never re-renders the producer's run of show.
+function scrRef(gameId) { return db.ref(`runOfShow/_scripts/${gameId}`); }
+
+let scrFull = false;
+let scrPrimaryCode = null;
+let scrRaf = null;
+let scrIdleTimer = null;
+let scrDragTimer = null;
+
+function scrNow() { return Date.now() + rosClockOffset; }
+function scrDefaultPrompter() { return { running: false, speed: 2, anchor: 0, at: scrNow() }; }
+
+function scrIsPrimary() {
+  return !!(scriptState.primary && currentUser && scriptState.primary.uid === currentUser.uid);
+}
+
+async function scrWrite(patch) {
+  try {
+    await scrRef(scriptState.gameId).update(patch);
+  } catch (e) {
+    alert("Couldn't save: " + (e.message || "unknown error"));
   }
 }
 
+// Where the prompter says we are. Same anchor-and-speed maths as the run of
+// show, so a phone that slept wakes up in the right place.
+function scrPos(p, cues) {
+  if (!p) return 0;
+  const max = Math.max(0, cues.length - 1);
+  const raw = p.running ? p.anchor + (p.speed / 60000) * (scrNow() - p.at) : p.anchor;
+  return Math.max(0, Math.min(max, raw));
+}
+
+function scrVisualPos() {
+  const target = window.scrollY + ROS_TOP_GAP;
+  for (let i = (scriptState.cues || []).length - 1; i >= 0; i--) {
+    const el = document.getElementById("scrCue" + i);
+    if (!el || el.offsetTop > target) continue;
+    const next = document.getElementById("scrCue" + (i + 1));
+    const span = next ? (next.offsetTop - el.offsetTop) : el.offsetHeight;
+    return i + Math.max(0, Math.min(0.999, (target - el.offsetTop) / (span || 1)));
+  }
+  return 0;
+}
+
+function scrApplyScroll(pos) {
+  const i = Math.floor(pos);
+  const el = document.getElementById("scrCue" + i);
+  if (!el) return;
+  const next = document.getElementById("scrCue" + (i + 1));
+  const span = next ? (next.offsetTop - el.offsetTop) : el.offsetHeight;
+  window.scrollTo(0, Math.max(0, el.offsetTop + (pos - i) * span - ROS_TOP_GAP));
+}
+
+function scrScrollToCurrent(force) {
+  const p = scriptState.prompter;
+  if (!force && p && p.running) return;
+  const el = document.getElementById("scrCue" + scriptState.current);
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (force || r.top < 60 || r.bottom > window.innerHeight - 90) {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function scrStartLoop() {
+  if (scrRaf) return;
+  const step = () => {
+    scrRaf = null;
+    const p = scriptState.prompter;
+    if (mainState.view !== "script" || !p || !p.running) return;
+    if (scriptState.following) scrApplyScroll(scrPos(p, scriptState.cues));
+    scrRaf = requestAnimationFrame(step);
+  };
+  scrRaf = requestAnimationFrame(step);
+}
+
+function scrStopLoop() {
+  if (scrRaf) { cancelAnimationFrame(scrRaf); scrRaf = null; }
+  if (scrIdleTimer) { clearTimeout(scrIdleTimer); scrIdleTimer = null; }
+}
+
+function scrPromptWrite(patch) {
+  const p = scriptState.prompter || scrDefaultPrompter();
+  const next = Object.assign({}, p, { anchor: scrPos(p, scriptState.cues), at: scrNow() }, patch);
+  scriptState.prompter = next;
+  scrRender();
+  scrWrite({ prompter: next });
+}
+
+function scrSetCurrent(i) {
+  const n = (scriptState.cues || []).length;
+  if (!n) return;
+  const next = Math.max(0, Math.min(n - 1, i));
+  scriptState.current = next;      // move locally first so the tap feels instant
+  scriptState.following = true;
+  scrRender();
+  const patch = { current: next };
+  const p = scriptState.prompter;
+  if (p && p.running) {
+    const prompter = Object.assign({}, p, { anchor: next, at: scrNow() });
+    scriptState.prompter = prompter;
+    patch.prompter = prompter;
+  }
+  scrWrite(patch);
+}
+
+// ---- Who is reading --------------------------------------------------------
+// A separate passcode from the producer's, so taking the script does not hand
+// anyone the run of show.
+async function scrLoadPrimaryCode() {
+  try {
+    const v = await db.ref("showSettings/scriptCode").once("value");
+    scrPrimaryCode = v.val() || null;
+  } catch (e) {
+    scrPrimaryCode = null;
+  }
+  if (mainState.view === "script") scrRender();
+}
+
+async function scrSetPasscode() {
+  const cur = scrPrimaryCode ? `Current code: ${scrPrimaryCode}\n\n` : "";
+  const v = prompt(`${cur}Enter a new 4-digit passcode for taking the script as announcer.\n\nLeave blank to remove it and let anyone take it.`);
+  if (v === null) return;
+  const code = v.replace(/\D/g, "");
+  if (v.trim() && code.length !== 4) { alert("It needs to be exactly 4 digits."); return; }
+  try {
+    await db.ref("showSettings/scriptCode").set(code.length === 4 ? code : null);
+    scrPrimaryCode = code.length === 4 ? code : null;
+    alert(scrPrimaryCode ? `Announcer passcode set to ${scrPrimaryCode}.` : "Passcode removed — anyone can take the script now.");
+    scrRender();
+  } catch (e) {
+    alert("Couldn't save the passcode: " + (e.message || "unknown error"));
+  }
+}
+
+async function scrTryClaimPrimary() {
+  if (scrIsPrimary()) return true;
+  if (scrPrimaryCode) {
+    const entered = await rosAskPasscode();
+    if (entered === null) return false;
+    if (entered !== scrPrimaryCode) { alert("That passcode isn't right."); return false; }
+  }
+  const name = (myProfileForShifts && myProfileForShifts.legalName)
+    || (currentUser && (currentUser.displayName || currentUser.email)) || "";
+  const p = { uid: currentUser.uid, name, at: scrNow() };
+  scriptState.primary = p;
+  scrWrite({ primary: p });
+  return true;
+}
+
+function scrReleasePrimary() {
+  scriptState.primary = null;
+  scrRender();
+  scrWrite({ primary: null });
+}
+
+function scrUserTookOver() {
+  scriptState.lastTouch = Date.now();
+  if (scriptState.following) {
+    scriptState.following = false;
+    scrUpdateFollowPill();
+  }
+  if (scrIdleTimer) clearTimeout(scrIdleTimer);
+  scrIdleTimer = setTimeout(() => {
+    if (Date.now() - scriptState.lastTouch < ROS_RESUME_AFTER_MS - 50) return;
+    scrResumeFollowing();
+  }, ROS_RESUME_AFTER_MS);
+}
+
+function scrResumeFollowing() {
+  scriptState.following = true;
+  scrUpdateFollowPill();
+  const p = scriptState.prompter;
+  if (!p) return;
+  if (scrIsPrimary()) {
+    // The announcer scrolled. Wherever they stopped is the new shared place.
+    scrPromptWrite({ anchor: scrVisualPos() });
+    return;
+  }
+  if (p.running) {
+    const el = document.getElementById("scrCue" + Math.floor(scrPos(p, scriptState.cues)));
+    if (el) window.scrollTo({ top: Math.max(0, el.offsetTop - ROS_TOP_GAP), behavior: "smooth" });
+  }
+}
+
+function scrUpdateFollowPill() {
+  const pill = document.getElementById("scrFollowPill");
+  const p = scriptState.prompter;
+  if (pill) {
+    pill.style.display = (p && p.running && !scriptState.following && !scrIsPrimary()) ? "" : "none";
+  }
+  document.querySelectorAll(".scr-tally").forEach((t) => {
+    t.classList.toggle("off", !scriptState.following);
+  });
+}
+
+function scrBroadcastDrag() {
+  if (!scrIsPrimary()) return;
+  if (scrDragTimer) return;
+  scrDragTimer = setTimeout(() => {
+    scrDragTimer = null;
+    if (!scrIsPrimary() || scriptState.following) return;
+    const p = scriptState.prompter || scrDefaultPrompter();
+    const next = Object.assign({}, p, { anchor: scrVisualPos(), at: scrNow() });
+    scriptState.prompter = next;
+    scrWrite({ prompter: next });
+  }, 400);
+}
+
+// ---- The cue list ---------------------------------------------------------
+// Laid out like the run of show, but the read copy is the content rather than
+// an annotation, so it gets the announcer's type size.
+function scrShowListHtml(cues, cur) {
+  const offLive = !scriptState.following;
+  let lastSection = null;
+  return cues.map((c, i) => {
+    const head = c.section && c.section !== lastSection
+      ? `<div class="ros-section">${escapeHtml(c.section)}</div>` : "";
+    lastSection = c.section || lastSection;
+    const state = i < cur ? "ros-done" : i === cur ? "ros-now" : "";
+    return `
+      ${head}
+      <div class="ros-cue ${state}" data-scrjump="${i}" id="scrCue${i}">
+        ${i === cur ? `<button class="ros-tally scr-tally ${offLive ? "off" : ""}" data-scrgolive="1">
+          <span class="ros-tally-dot"></span>READING
+        </button>` : ""}
+        ${(c.time || c.heading) ? `
+          <div class="scr-head" style="margin-bottom:6px;">
+            ${c.time ? `<span class="scr-time">${escapeHtml(c.time)}</span>` : ""}
+            ${c.heading ? `<span class="scr-name">${escapeHtml(c.heading)}</span>` : ""}
+          </div>` : ""}
+        ${c.body ? `<div class="scr-read">${escapeHtml(c.body)}</div>` : ""}
+      </div>
+      ${i < cues.length - 1 ? (
+        i === cur
+          ? `<div class="ros-standby on">
+               <span class="ros-standby-tag">NEXT</span>
+               <span class="ros-standby-next">${escapeHtml(cues[i + 1].heading || cues[i + 1].time || "next")}</span>
+             </div>`
+          : `<div class="ros-standby"></div>`
+      ) : ""}`;
+  }).join("");
+}
+
+// Saving a generated cue list. Never touches runOfShow/{gameId}/cues.
+async function scrSaveCues(cues) {
+  scriptState.cues = cues;
+  scriptState.current = 0;
+  await scrRef(scriptState.gameId).update({ cues, current: 0 });
+}
+
+function scrSetFullscreen(on) {
+  scrFull = !!on;
+  document.body.classList.toggle("ros-fullscreen", scrFull);
+  scrRender();
+}
+
+function scrExitFullscreenIfNeeded() {
+  if (scrFull) { scrFull = false; document.body.classList.remove("ros-fullscreen"); }
+}
 
 // ---------------------------------------------------------------------------
 // Splitting the script into cues

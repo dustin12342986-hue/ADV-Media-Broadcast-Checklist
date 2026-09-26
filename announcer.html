@@ -276,7 +276,7 @@
            autocapitalize="none" spellcheck="false" placeholder="Type the company name" />
     <button id="gateGo" class="gate-btn">Enter</button>
     <div class="gate-err" id="gateErr"></div>
-    <div class="gate-foot">ADV Media Limited Company &middot; AN-6</div>
+    <div class="gate-foot">ADV Media Limited Company &middot; AN-7</div>
   </div>
 </div>
 
@@ -566,6 +566,7 @@ sel.onchange = () => {
   gameId = sel.value;
   cues = [];
   fullScript = null;
+  scriptRec = null;
   scrMode = null;
   scrModeChosen = false;
   applyBranding(GAMES.find((g) => g.id === gameId));
@@ -584,7 +585,18 @@ async function poll() {
     const data = await res.json();
     cues = (data && data.cues) || [];
     current = (data && typeof data.current === "number") ? data.current : 0;
-    fullScript = (data && data.script) || null;
+
+    // The script is its own record with its own position, because the announcer
+    // drives it and the producer drives the run of show. Two live positions.
+    try {
+      const sres = await fetch(`${DB}/runOfShow/_scripts/${gameId}.json`, { cache: "no-store" });
+      scriptRec = (await sres.json()) || null;
+    } catch (e2) {
+      scriptRec = null;
+    }
+    fullScript = (scriptRec && scriptRec.text)
+      ? { text: scriptRec.text, name: scriptRec.name || "Script" }
+      : ((data && data.script) || null);
     // Open on the whole script whenever there is one. Not just the first time:
     // the page polls every few seconds, and a script uploaded while it is open
     // has to appear rather than leave the announcer on the short cue reads.
@@ -603,7 +615,8 @@ async function poll() {
 // show means glancing; reading the script means reading. The monitor is
 // untouched by the switch, so the feed keeps playing either way.
 let viewMode = "show";
-let fullScript = null;   // { text, name, at, by } from runOfShow/<id>/script
+let fullScript = null;   // { text, name } for the Document view
+let scriptRec = null;    // the whole script record: cues, current, prompter, primary
 let scrMode = null;        // "full" | "cue"
 let scrModeChosen = false; // true once the announcer picks a side
 const VIEW_KEY = "advAnnouncerView";
@@ -755,6 +768,31 @@ function scriptCuesHtml(text) {
   return html;
 }
 
+// The script's own cue list, as the app stored it, with the cue being read
+// marked. Read-only here: control lives with whoever has taken the script.
+function scriptCueListHtml(cues, cur) {
+  let section = null, html = "";
+  cues.forEach((c, i) => {
+    if (!c) return;
+    if (c.section && c.section !== section) {
+      section = c.section;
+      html += `<div class="scr-sec">${esc(section)}</div>`;
+    }
+    const cls = i < cur ? "done" : i === cur ? "live" : "";
+    html += `
+      <div class="scr-cue ${cls}">
+        ${(c.time || c.heading) ? `
+          <div class="scr-head">
+            ${c.time ? `<span class="scr-time">${esc(c.time)}</span>` : ""}
+            ${c.heading ? `<span class="scr-name">${esc(c.heading)}</span>` : ""}
+            ${i === cur ? `<span class="scr-live-tag">Reading</span>` : ""}
+          </div>` : ""}
+        ${c.body ? `<div class="scr-read">${esc(c.body)}</div>` : ""}
+      </div>`;
+  });
+  return html;
+}
+
 function drawScript(root) {
   const spoken = cues.filter((c) => c && c.read).length;
 
@@ -778,16 +816,36 @@ function drawScript(root) {
     if (mc) mc.onclick = () => { scrMode = "cue"; scrModeChosen = true; draw(); };
   };
 
-  // Both views are built from the same full script: one cut into cues, one
-  // flowing. Neither shortens anything.
+  // Both views come from the same script: one cut into cues, one flowing.
+  // Neither shortens anything.
   if (fullScript) {
-    root.innerHTML = modeBar + sizeBar + `
+    // Cues and the live position come from the script record when there is one,
+    // so this page follows whoever is reading rather than the producer.
+    const sCues = (scriptRec && Array.isArray(scriptRec.cues) && scriptRec.cues.length)
+      ? scriptRec.cues : null;
+    const sCur = (scriptRec && typeof scriptRec.current === "number") ? scriptRec.current : 0;
+    const who = scriptRec && scriptRec.primary && scriptRec.primary.name;
+
+    const readingLine = who
+      ? `<div class="now" style="padding:10px 12px; margin-bottom:12px;">
+           <span class="tag">Reading</span>
+           <div class="now-event" style="font-size:15px;">${esc(who)}</div>
+         </div>`
+      : "";
+
+    root.innerHTML = modeBar + readingLine + sizeBar + `
       <div class="scr-doc" style="--scr-size:${scrSize}px;">
         ${scrMode === "full"
           ? `<div class="scr-read">${esc(fullScript.text || "")}</div>`
-          : scriptCuesHtml(fullScript.text || "")}
+          : (sCues ? scriptCueListHtml(sCues, sCur) : scriptCuesHtml(fullScript.text || ""))}
       </div>`;
     wireSize();
+
+    // Follow the reader: put the cue being read in the middle of the screen.
+    const live = root.querySelector(".scr-cue.live");
+    if (live && live.scrollIntoView) {
+      try { live.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
+    }
     return;
   }
 
