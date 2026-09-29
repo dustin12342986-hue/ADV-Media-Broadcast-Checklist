@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v86 · script runs like the show";
+const APP_BUILD = "build 2026-09-01 · v87 · payments";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1521,6 +1521,7 @@ const ADMIN_GROUPS = [
   { label: "Financial", items: [
     { view: "invoices", label: "Invoices" },
     { view: "qb", label: "QB Approval" },
+    { view: "payments", label: "Payments" },
   ]},
   { label: "Operations", items: [
     { view: "callTimes", label: "Call Times" },
@@ -1738,6 +1739,12 @@ function renderMainApp() {
 
   if (mainState.view === "crewRates" && admin) {
     renderCrewRatesAdmin();
+    return;
+  }
+
+  if (mainState.view === "payments" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderPaymentsAdmin();
     return;
   }
 
@@ -4232,6 +4239,229 @@ const RATE_POSITIONS = [
 ];
 function standardRateFor(pos) { return STANDARD_RATES[pos] || STANDARD_RATE_DEFAULT; }
 function rateKeyOf(text) { return String(text || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "_"); }
+
+
+// ============================================================================
+// Payments
+// ============================================================================
+// Who has been paid for a game and who hasn't. Admin only, in every sense:
+// it sits behind the Admin menu, the view refuses to draw for anyone else, and
+// the data lives at payments/{gameId} which the database rules read-gate to the
+// two owner accounts. Crew never see this node, so one person's rate is never
+// visible to another — the same rule that keeps Crew Rates private.
+//
+// A row is keyed by the position, not the person, because that is how the
+// roster is keyed. The name is stored alongside so a record still reads
+// correctly after someone is swapped off a shift months later.
+let paymentsState = { gameId: null };
+
+function paymentsRef(gameId) { return db.ref(`payments/${gameId}`); }
+
+// What this seat pays this person: their own rate if one is set for that
+// position, otherwise the standard rate for the seat.
+function payAmountFor(rates, uid, position) {
+  const mine = (uid && rates && rates[uid]) || {};
+  const own = mine[rateKeyOf(position)];
+  const n = Number(own);
+  return (own !== undefined && own !== null && own !== "" && !isNaN(n))
+    ? n : standardRateFor(position);
+}
+
+async function renderPaymentsAdmin() {
+  const inner = document.getElementById("innerRoot");
+  if (!isAdmin()) { inner.innerHTML = `<div class="footnote">Admins only.</div>`; return; }
+  inner.innerHTML = `<div class="footnote">Loading…</div>`;
+
+  await loadClientEvents();
+  const events = allShiftEvents()
+    .slice()
+    .sort((a, b) => String(b.id).localeCompare(String(a.id)));   // newest first
+  if (!events.length) { inner.innerHTML = `<div class="footnote">No events on the schedule.</div>`; return; }
+
+  // Default to the most recent event that has already happened — paying is
+  // something you do after a game, not before one.
+  if (!paymentsState.gameId || !events.some((g) => g.id === paymentsState.gameId)) {
+    const today = localDateId();
+    paymentsState.gameId =
+      (events.find((g) => String(g.id).split("__")[0] <= today) || events[0]).id;
+  }
+
+  const gameId = paymentsState.gameId;
+  let roster = {}, rates = {}, profiles = {}, paid = {};
+  try {
+    const [rosterAll, rSnap, pSnap] = await Promise.all([
+      loadLiveRoster(),
+      db.ref("crewRates").once("value"),
+      db.ref("profiles").once("value"),
+    ]);
+    roster = rosterAll[gameId] || {};
+    rates = rSnap.val() || {};
+    profiles = pSnap.val() || {};
+  } catch (e) {
+    inner.innerHTML = `<div class="error-msg">Couldn't load the crew for this game (${escapeHtml(e.message || "unknown error")}).</div>`;
+    return;
+  }
+
+  try {
+    const snap = await paymentsRef(gameId).once("value");
+    paid = snap.val() || {};
+  } catch (e) {
+    // Say exactly what to add rather than leaving a blank screen on a payday.
+    inner.innerHTML = `
+      <div class="error-msg">
+        Couldn't read the payment records (${escapeHtml(e.message || "unknown error")}).<br><br>
+        If that says permission denied, the database rules need a <b>payments</b> section.
+        In Firebase → Realtime Database → Rules, add this inside "rules":
+        <pre style="white-space:pre-wrap; margin-top:8px; font-size:12px;">"payments": {
+  ".read": "auth != null &amp;&amp; (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')",
+  ".write": "auth != null &amp;&amp; (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
+}</pre>
+        That read rule is what keeps pay private — without it nobody should be storing this here.
+      </div>`;
+    return;
+  }
+
+  // Everyone actually on the shift. Open seats are not owed anything.
+  const rows = visibleRosterRows(rosterRowsFor(gameId, roster))
+    .filter((r) => !r.open)
+    .map((r) => {
+      const entry = Object.entries(profiles).find(([, p]) =>
+        p && p.legalName && namesMatch(r.name, p.legalName, p.crewHandle));
+      const uid = entry ? entry[0] : null;
+      const key = r.role.replace(/[^A-Za-z0-9]/g, "_");
+      const rec = paid[key] || {};
+      return {
+        key, uid, name: r.name, position: r.role,
+        amount: rec.amount !== undefined ? Number(rec.amount) : payAmountFor(rates, uid, r.role),
+        paid: !!rec.paid, at: rec.at || "", by: rec.by || "", note: rec.note || "",
+      };
+    });
+
+  const game = eventById(gameId);
+  const total = rows.reduce((n, r) => n + r.amount, 0);
+  const done = rows.filter((r) => r.paid);
+  const owed = rows.filter((r) => !r.paid).reduce((n, r) => n + r.amount, 0);
+
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:12px;">
+      Who has been paid for a game. Only you and Aracely can open this — crew never see it, and nobody sees anyone else's rate.
+    </div>
+
+    <div class="field-block">
+      <div class="label">Game</div>
+      <select id="payGameSel">
+        ${events.map((g) => `
+          <option value="${escapeAttr(g.id)}" ${g.id === gameId ? "selected" : ""}>
+            ${escapeHtml(g.day)} ${escapeHtml(g.date)} — ${escapeHtml(g.opp)}
+          </option>`).join("")}
+      </select>
+    </div>
+
+    ${rows.length === 0 ? `
+      <div class="footnote">Nobody is assigned to ${escapeHtml(game ? game.opp : "this game")} yet.</div>
+    ` : `
+      <div class="shift-game-card" style="margin-bottom:14px;">
+        <div class="shift-game-header">${escapeHtml(game ? `${game.day} ${game.date} — ${game.opp}` : gameId)}</div>
+        <div class="log-reason" style="margin:-4px 0 0;">
+          ${done.length} of ${rows.length} paid ·
+          <b style="color:${owed > 0 ? "var(--amber)" : "var(--green)"};">
+            ${owed > 0 ? `$${owed.toLocaleString()} still owed` : "All paid"}
+          </b>
+          · $${total.toLocaleString()} total
+        </div>
+      </div>
+
+      ${rows.map((r) => `
+        <div class="shift-game-card" style="padding:12px 14px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="display:flex; align-items:center; gap:10px; flex:1; min-width:0; cursor:pointer;">
+              <input type="checkbox" data-paid="${escapeAttr(r.key)}" ${r.paid ? "checked" : ""}
+                style="width:22px; height:22px; margin:0; flex:0 0 auto;" />
+              <span style="flex:1; min-width:0;">
+                <span style="display:block; font-size:15px; font-weight:800; ${r.paid ? "opacity:.6;" : ""}">${escapeHtml(r.name)}</span>
+                <span class="log-reason" style="display:block; margin:0;">${escapeHtml(r.position)}</span>
+              </span>
+            </label>
+            <span style="flex:0 0 auto; text-align:right;">
+              <span style="display:block; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums;
+                           color:${r.paid ? "var(--green)" : "var(--text)"};">$${r.amount.toLocaleString()}</span>
+              <span class="log-reason" style="display:block; margin:0; font-size:11px;">
+                ${r.paid ? (r.at ? "Paid " + escapeHtml(shortWhen(r.at)) : "Paid") : "Not paid"}
+              </span>
+            </span>
+          </div>
+          <input type="text" data-note="${escapeAttr(r.key)}" value="${escapeAttr(r.note)}"
+            placeholder="How it was paid — cash, check #, Zelle…"
+            style="width:100%; margin-top:9px; font-family:inherit; font-size:12.5px; padding:7px 9px;" />
+        </div>`).join("")}
+
+      <button class="shift-btn shift-btn-ghost" id="payAll"
+        style="width:100%; margin-top:12px; padding:12px 0;" ${owed > 0 ? "" : "disabled"}>
+        ${owed > 0 ? `Mark the remaining ${rows.length - done.length} paid` : "Everyone is paid"}
+      </button>
+      <div class="footnote" id="payMsg" style="margin-top:8px;"></div>
+    `}
+  `;
+
+  document.getElementById("payGameSel").onchange = (e) => {
+    paymentsState.gameId = e.target.value;
+    renderPaymentsAdmin();
+  };
+
+  const say = (t) => { const el = document.getElementById("payMsg"); if (el) el.textContent = t; };
+  const who = () => (myProfileForShifts && myProfileForShifts.legalName)
+    || (currentUser && (currentUser.displayName || currentUser.email)) || "";
+
+  const write = async (row, patch) => {
+    try {
+      await paymentsRef(gameId).child(row.key).update(Object.assign({
+        name: row.name, position: row.position, amount: row.amount,
+      }, patch));
+      return true;
+    } catch (e) {
+      alert("Couldn't save that: " + (e.message || "unknown error"));
+      return false;
+    }
+  };
+
+  inner.querySelectorAll("[data-paid]").forEach((box) => {
+    box.onchange = async () => {
+      const row = rows.find((r) => r.key === box.getAttribute("data-paid"));
+      if (!row) return;
+      const on = box.checked;
+      box.disabled = true;
+      const ok = await write(row, on
+        ? { paid: true, at: new Date().toISOString(), by: who() }
+        : { paid: false, at: null, by: null });
+      box.disabled = false;
+      if (!ok) { box.checked = !on; return; }
+      renderPaymentsAdmin();
+    };
+  });
+
+  // The note saves when you leave the box, so typing never fights a re-render.
+  inner.querySelectorAll("[data-note]").forEach((el) => {
+    el.onblur = async () => {
+      const row = rows.find((r) => r.key === el.getAttribute("data-note"));
+      if (!row || el.value === row.note) return;
+      if (await write(row, { note: el.value.trim() })) say("Note saved.");
+    };
+  });
+
+  const all = document.getElementById("payAll");
+  if (all) all.onclick = async () => {
+    const left = rows.filter((r) => !r.paid);
+    if (!left.length) return;
+    if (!confirm(`Mark all ${left.length} remaining as paid? That's $${left.reduce((n, r) => n + r.amount, 0).toLocaleString()}.`)) return;
+    all.disabled = true;
+    say("Saving…");
+    const stamp = { paid: true, at: new Date().toISOString(), by: who() };
+    for (const r of left) {
+      if (!(await write(r, stamp))) { all.disabled = false; say(""); return; }
+    }
+    renderPaymentsAdmin();
+  };
+}
 
 async function renderCrewRatesAdmin() {
   const inner = document.getElementById("innerRoot");
