@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v87 · payments";
+const APP_BUILD = "build 2026-09-01 · v88 · QB approval amounts";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2031,12 +2031,31 @@ async function renderQbApproval() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading…</div>`;
   try {
-    const [archiveSnap, qbSnap] = await Promise.all([
+    // The Time Clock has no rates in it on purpose — it is open to anyone with
+    // the link, and putting pay there would show every tech what every other
+    // tech makes. So invoices arrive with no dollar figure, and the amount is
+    // worked out here, where rates are readable and admin-only.
+    const [archiveSnap, qbSnap, rateSnap, profSnap] = await Promise.all([
       db.ref("invoiceArchive").once("value"),
       db.ref("qbApprovals").once("value"),
+      db.ref("crewRates").once("value").catch(() => ({ val: () => ({}) })),
+      db.ref("profiles").once("value").catch(() => ({ val: () => ({}) })),
     ]);
     const byGame = archiveSnap.val() || {};
     const qbApproved = qbSnap.val() || {};
+    const crewRates = rateSnap.val() || {};
+    const profiles = profSnap.val() || {};
+
+    // A person's own rate for that seat if one is set, otherwise the standard
+    // rate for the seat. Same resolution the Payments page uses.
+    const suggestedFor = (inv) => {
+      if (inv.total !== undefined && inv.total !== null && inv.total !== "" && !isNaN(Number(inv.total))) {
+        return Number(inv.total);
+      }
+      const entry = Object.entries(profiles).find(([, p]) =>
+        p && p.legalName && namesMatch(inv.name || "", p.legalName, p.crewHandle));
+      return payAmountFor(crewRates, entry ? entry[0] : null, inv.position || "");
+    };
 
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
@@ -2052,7 +2071,14 @@ async function renderQbApproval() {
     const renderRow = (inv) => {
       const game = eventById(inv.gameId);
       const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
-      const amountStr = inv.total ? "$" + Number(inv.total).toFixed(2) : (inv.hours ? inv.hours + " hrs" : "—");
+      const suggested = suggestedFor(inv);
+      const approvedAmt = inv.qb && inv.qb.approvedAmount;
+      const shownAmt = approvedAmt !== undefined && approvedAmt !== null ? Number(approvedAmt) : suggested;
+      const amountStr = shownAmt ? "$" + Number(shownAmt).toFixed(2) : "—";
+      // A weather delay is the one thing that moves an invoice off the flat
+      // rate, and how much it adds is a judgement call, so it is flagged
+      // rather than guessed at.
+      const delay = Number(inv.delayHours) > 0 ? Number(inv.delayHours) : 0;
       const when = new Date(inv.submittedAt);
       const whenStr = isNaN(when) ? "" : when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       return `
@@ -2066,8 +2092,28 @@ async function renderQbApproval() {
           </div>
           ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
           ${inv.qb
-            ? `<div class="log-reason" style="color:${inv.qb.quickbooksBillCreated ? "var(--green)" : "var(--amber)"};">${inv.qb.quickbooksBillCreated ? `✓ QuickBooks Bill #${inv.qb.quickbooksBillId} created automatically` : "⚠ Approved, but needs manual entry in QuickBooks (see email)"} — by ${escapeHtml(inv.qb.approvedByName || inv.qb.approvedByEmail || "")}, ${new Date(inv.qb.approvedAt).toLocaleDateString()}</div>`
-            : `<button class="shift-btn shift-btn-pickup" style="margin-top:8px;" data-game="${inv.gameId}" data-key="${inv.key}" data-name="${escapeAttr(inv.name || "")}" data-position="${escapeAttr(inv.position || "")}" data-amount="${escapeAttr(amountStr)}" data-rawtotal="${inv.total || ""}" data-gamelabel="${escapeAttr(gameLabel)}">Approve for QuickBooks</button>`}
+            ? `<div class="log-reason" style="color:${inv.qb.quickbooksBillCreated ? "var(--green)" : "var(--amber)"};">${inv.qb.quickbooksBillCreated ? `✓ QuickBooks Bill #${inv.qb.quickbooksBillId} created automatically` : "⚠ Approved, but needs manual entry in QuickBooks (see email)"}${approvedAmt ? ` for $${Number(approvedAmt).toFixed(2)}` : ""} — by ${escapeHtml(inv.qb.approvedByName || inv.qb.approvedByEmail || "")}, ${new Date(inv.qb.approvedAt).toLocaleDateString()}</div>`
+            : `
+              ${delay ? `
+                <div class="log-reason" style="color:var(--amber); margin-top:6px;">
+                  ⚠ ${delay} hr weather delay on this one — the amount below is the flat rate only. Add the delay before approving.
+                </div>` : ""}
+              <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                <span style="flex:0 0 auto; font-size:15px; font-weight:800;">$</span>
+                <input type="number" step="0.01" min="0" inputmode="decimal"
+                  data-amt="${escapeAttr(inv.gameId + "|" + inv.key)}"
+                  value="${suggested ? Number(suggested).toFixed(2) : ""}"
+                  placeholder="Amount"
+                  style="flex:1; min-width:0; font-family:inherit; font-size:15px;
+                         font-weight:800; padding:8px 10px;" />
+              </div>
+              <div class="footnote" style="margin:5px 0 0;">
+                ${inv.total ? "From the invoice." : `Worked out from ${escapeHtml(inv.position || "the position")} rates. Change it if this one is different.`}
+              </div>
+              <button class="shift-btn shift-btn-pickup" style="margin-top:8px;"
+                data-game="${inv.gameId}" data-key="${inv.key}"
+                data-name="${escapeAttr(inv.name || "")}" data-position="${escapeAttr(inv.position || "")}"
+                data-gamelabel="${escapeAttr(gameLabel)}">Approve for QuickBooks</button>`}
         </div>
       `;
     };
@@ -2082,8 +2128,20 @@ async function renderQbApproval() {
 
     inner.querySelectorAll(".shift-btn-pickup[data-game]").forEach((btn) => {
       btn.onclick = async () => {
-        const { game: gameId, key, name, position, amount, rawtotal, gamelabel } = btn.dataset;
-        if (!confirm(`Approve this invoice for QuickBooks payment? This creates a real Bill in QuickBooks against the matching Vendor.`)) return;
+        const { game: gameId, key, name, position, gamelabel } = btn.dataset;
+
+        // QuickBooks cannot create a Bill without a figure, so this is the one
+        // thing that stops an approval going out.
+        const box = inner.querySelector(`[data-amt="${gameId}|${key}"]`);
+        const rawtotal = box ? Number(box.value) : NaN;
+        if (!box || !box.value.trim() || isNaN(rawtotal) || rawtotal <= 0) {
+          alert("Put a dollar amount in before approving — QuickBooks needs a figure to raise the Bill against.");
+          if (box) box.focus();
+          return;
+        }
+        const amount = "$" + rawtotal.toFixed(2);
+
+        if (!confirm(`Approve ${name} for ${amount}?\n\nThis creates a real Bill in QuickBooks against the matching Vendor.`)) return;
         btn.disabled = true;
         btn.textContent = "Approving…";
 
@@ -2113,7 +2171,7 @@ async function renderQbApproval() {
             qbError = e.message || "Couldn't reach the QuickBooks connection.";
           }
         } else {
-          qbError = "No dollar total on this invoice — can't create a QuickBooks Bill from hours alone.";
+          qbError = "No dollar amount — can't create a QuickBooks Bill without one.";
         }
 
         // Always send the email too — a guaranteed backup so the office
@@ -2142,6 +2200,7 @@ async function renderQbApproval() {
             approvedByEmail: currentUser.email || "",
             approvedByName: approverName,
             approvedAt: new Date().toISOString(),
+            approvedAmount: rawtotal,
             emailSent: emailOk,
             quickbooksBillCreated: !!qbResult,
             quickbooksBillId: qbResult ? qbResult.billId : null,
