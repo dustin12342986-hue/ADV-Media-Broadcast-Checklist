@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v89 · crew see paid";
+const APP_BUILD = "build 2026-09-01 · v90 · invoice PDFs";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1837,6 +1837,258 @@ async function renderAdminCrewList() {
 // ============================================================================
 // My Invoices — any signed-in user, but only entries matching their own name
 // ============================================================================
+// ============================================================================
+// A PDF, written by hand
+// ============================================================================
+// No library and no CDN. The stadium network blocks plenty, and an invoice a
+// crew member cannot download because a script host was unreachable is worse
+// than useless. This writes the PDF bytes directly: two built-in fonts, plain
+// text, and a correct cross-reference table.
+//
+// Lines are objects so a caller can mix sizes and weights:
+//   { text, size, bold, gap, rule }   — every field optional
+const ADV_PDF = {
+  W: 612, H: 792,          // US Letter, in points
+  L: 56,                   // left margin
+  TOP: 736,
+  BOTTOM: 56,
+};
+
+// PDF strings are Latin-1. Curly quotes and dashes come from Word documents all
+// the time, so they are folded to their ASCII shapes rather than dropped.
+function advPdfText(s) {
+  return String(s == null ? "" : s)
+    .replace(/[‘’‛]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/•/g, "-")
+    .replace(/·/g, "-")
+    .replace(/…/g, "...")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+// Helvetica is roughly 0.5 em average, bold a shade wider. Good enough to wrap
+// a line of prose without embedding metrics for 200 glyphs.
+function advPdfWrap(text, size, bold, maxWidth) {
+  const per = size * (bold ? 0.56 : 0.5);
+  const max = Math.max(8, Math.floor(maxWidth / per));
+  const out = [];
+  String(text == null ? "" : text).split("\n").forEach((para) => {
+    if (!para.trim()) { out.push(""); return; }
+    let line = "";
+    para.split(/\s+/).forEach((w) => {
+      if (!line) { line = w; return; }
+      if ((line + " " + w).length <= max) line += " " + w;
+      else { out.push(line); line = w; }
+    });
+    if (line) out.push(line);
+  });
+  return out;
+}
+
+function advBuildPdf(lines) {
+  const pages = [];
+  let content = "";
+  let y = ADV_PDF.TOP;
+
+  const newPage = () => {
+    if (content) pages.push(content);
+    content = "";
+    y = ADV_PDF.TOP;
+  };
+
+  lines.forEach((ln) => {
+    const size = ln.size || 10;
+    const gap = ln.gap === undefined ? size + 4 : ln.gap;
+
+    // Keep a block together: start a new page rather than orphan a heading
+    // from the lines that belong under it.
+    if (ln.minSpace) {
+      if (y - ln.minSpace < ADV_PDF.BOTTOM) newPage();
+      return;
+    }
+
+    if (ln.rule) {
+      if (y - 8 < ADV_PDF.BOTTOM) newPage();
+      content += `0.8 w 0.75 0.75 0.75 RG ${ADV_PDF.L} ${y} m ${ADV_PDF.W - ADV_PDF.L} ${y} l S\n`;
+      y -= (ln.gap === undefined ? 12 : ln.gap);
+      return;
+    }
+
+    const wrapped = advPdfWrap(ln.text, size, ln.bold, ADV_PDF.W - ADV_PDF.L * 2 - (ln.indent || 0));
+    wrapped.forEach((piece) => {
+      if (y - size < ADV_PDF.BOTTOM) newPage();
+      if (piece) {
+        const grey = ln.grey ? "0.42 0.42 0.42 rg " : "0 0 0 rg ";
+        content += `BT ${grey}/${ln.bold ? "F2" : "F1"} ${size} Tf 1 0 0 1 ${ADV_PDF.L + (ln.indent || 0)} ${y} Tm (${advPdfText(piece)}) Tj ET\n`;
+      }
+      y -= gap;
+    });
+  });
+  if (content) pages.push(content);
+  if (!pages.length) pages.push("");
+
+  // ---- assemble ------------------------------------------------------------
+  // Offsets have to be byte-exact, so the file is built as one string and each
+  // object's start position recorded as it is appended.
+  const objs = [];
+  const add = (body) => { objs.push(body); return objs.length; };
+
+  const catalogNo = 1, pagesNo = 2, fontNo = 3, fontBoldNo = 4;
+  objs.push(null, null, null, null);   // reserve 1..4
+
+  const kids = [];
+  pages.forEach((c) => {
+    const streamNo = add(`<< /Length ${c.length} >>\nstream\n${c}endstream`);
+    const pageNo = add(
+      `<< /Type /Page /Parent ${pagesNo} 0 R /MediaBox [0 0 ${ADV_PDF.W} ${ADV_PDF.H}] ` +
+      `/Resources << /Font << /F1 ${fontNo} 0 R /F2 ${fontBoldNo} 0 R >> >> /Contents ${streamNo} 0 R >>`
+    );
+    kids.push(`${pageNo} 0 R`);
+  });
+
+  objs[catalogNo - 1] = `<< /Type /Catalog /Pages ${pagesNo} 0 R >>`;
+  objs[pagesNo - 1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`;
+  objs[fontNo - 1] = `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`;
+  objs[fontBoldNo - 1] = `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`;
+
+  let out = "%PDF-1.4\n";
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  offsets.forEach((o) => { out += String(o).padStart(10, "0") + " 00000 n \n"; });
+  out += `trailer\n<< /Size ${objs.length + 1} /Root ${catalogNo} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+
+  // Latin-1 out: every byte is already in range after advPdfText.
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 0xff;
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+function advDownloadPdf(lines, filename) {
+  const blob = advBuildPdf(lines);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoked late: some browsers are still reading the blob when click returns.
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// ============================================================================
+// Invoices as PDFs
+// ============================================================================
+function invStatusLine(inv, approvals, myPaid) {
+  const key = String(inv.position || "").replace(/[^A-Za-z0-9]/g, "_");
+  const pd = (myPaid[inv.gameId] || {})[key];
+  if (pd && pd.paid) {
+    const w = pd.at ? new Date(pd.at) : null;
+    const when = w && !isNaN(w) ? w.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }) : "";
+    return "PAID" + (when ? " on " + when : "");
+  }
+  const ap = (approvals[inv.gameId] || {})[inv.key];
+  if (ap && ap.quickbooksBillCreated) return "Approved and entered in QuickBooks" + (ap.quickbooksBillId ? " (Bill #" + ap.quickbooksBillId + ")" : "");
+  if (ap) return "Approved - being entered in QuickBooks";
+  return "Submitted - waiting on approval";
+}
+
+function invAmountOf(inv, myRates) {
+  if (inv.total !== undefined && inv.total !== null && inv.total !== "" && !isNaN(Number(inv.total))) return Number(inv.total);
+  const pos = inv.position || "";
+  const mine = myRates[rateKeyOf(pos)];
+  return (mine != null && mine > 0) ? Number(mine) : standardRateFor(pos);
+}
+
+// One invoice, on its own page. This is the thing a crew member files away or
+// hands to whoever does their taxes, so it says who, what, when and how much
+// without needing anything else alongside it.
+function invoicePdfLines(profile, inv, approvals, myPaid, myRates) {
+  const game = eventById(inv.gameId);
+  const gameLabel = game ? `${game.day} ${game.date} - ${game.opp}` : inv.gameId;
+  const when = new Date(inv.submittedAt);
+  const whenStr = isNaN(when) ? "" : when.toLocaleString([], { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const amount = invAmountOf(inv, myRates);
+
+  return [
+    { text: "ADV MEDIA LIMITED COMPANY", size: 15, bold: true, gap: 19 },
+    { text: "Invoice record", size: 10, grey: true, gap: 16 },
+    { rule: true },
+    { text: profile.legalName || "", size: 13, bold: true, gap: 17 },
+    { text: gameLabel, size: 12, gap: 20 },
+    { text: "Position", size: 8.5, grey: true, gap: 12 },
+    { text: inv.position || "-", size: 11, gap: 18 },
+    { text: "Amount", size: 8.5, grey: true, gap: 17 },
+    { text: "$" + amount.toFixed(2), size: 15, bold: true, gap: 22 },
+    { text: "Status", size: 8.5, grey: true, gap: 12 },
+    { text: invStatusLine(inv, approvals, myPaid), size: 11, bold: true, gap: 18 },
+    { text: "Submitted", size: 8.5, grey: true, gap: 12 },
+    { text: whenStr || "-", size: 10, gap: 20 },
+    ...(inv.notes ? [
+      { text: "Notes", size: 8.5, grey: true, gap: 12 },
+      { text: inv.notes, size: 9.5, gap: 13 },
+    ] : []),
+    { rule: true, gap: 16 },
+    { text: "Generated " + new Date().toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" }) +
+            " from ADV Media Teams. This is the crew member's own copy; the office keeps the permanent record.",
+      size: 8, grey: true },
+  ];
+}
+
+// Everything at once, with what has been paid and what has not.
+function statementPdfLines(profile, entries, approvals, myPaid, myRates) {
+  let paidTotal = 0, openTotal = 0;
+  entries.forEach((inv) => {
+    const amt = invAmountOf(inv, myRates);
+    const key = String(inv.position || "").replace(/[^A-Za-z0-9]/g, "_");
+    const pd = (myPaid[inv.gameId] || {})[key];
+    if (pd && pd.paid) paidTotal += amt; else openTotal += amt;
+  });
+
+  const lines = [
+    { text: "ADV MEDIA LIMITED COMPANY", size: 15, bold: true, gap: 19 },
+    { text: "Invoice statement", size: 10, grey: true, gap: 16 },
+    { rule: true },
+    { text: profile.legalName || "", size: 13, bold: true, gap: 17 },
+    { text: `${entries.length} invoice${entries.length === 1 ? "" : "s"}  |  Paid $${paidTotal.toFixed(2)}  |  Outstanding $${openTotal.toFixed(2)}`,
+      size: 11, gap: 20 },
+    { rule: true, gap: 16 },
+  ];
+
+  entries.forEach((inv) => {
+    const game = eventById(inv.gameId);
+    const gameLabel = game ? `${game.day} ${game.date} - ${game.opp}` : inv.gameId;
+    lines.push({ minSpace: 64 });
+    lines.push({ text: gameLabel, size: 11, bold: true, gap: 14 });
+    lines.push({ text: `${inv.position || "-"}   $${invAmountOf(inv, myRates).toFixed(2)}`, size: 10, gap: 13 });
+    lines.push({ text: invStatusLine(inv, approvals, myPaid), size: 9, grey: true, gap: 13 });
+    lines.push({ rule: true, gap: 13 });
+  });
+
+  lines.push({ text: "Generated " + new Date().toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" }) +
+                     " from ADV Media Teams.", size: 8, grey: true });
+  return lines;
+}
+
+// A filename someone can find again six months later.
+function invPdfName(profile, inv) {
+  const who = String(profile.legalName || "crew").replace(/[^A-Za-z0-9]+/g, "-");
+  const game = eventById(inv && inv.gameId);
+  const bit = inv ? (game ? String(game.opp).replace(/[^A-Za-z0-9]+/g, "-") : String(inv.gameId)) : "statement";
+  const date = inv ? String(inv.gameId).split("__")[0] : new Date().toISOString().slice(0, 10);
+  return `ADV-${who}-${date}-${bit}.pdf`.replace(/-+/g, "-");
+}
+
 async function renderMyInvoices() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading your invoices…</div>`;
@@ -1899,6 +2151,8 @@ async function renderMyInvoices() {
     inner.innerHTML = `
       ${directDepositCardHtml(myProfile)}
       <div class="footnote" style="margin-bottom:12px;">Showing invoices matching "${escapeHtml(myProfile.legalName)}". Deleting one removes it from your view only — the office keeps a permanent copy regardless.</div>
+      <button class="shift-btn shift-btn-ghost" id="invPdfAll"
+        style="width:100%; margin-bottom:14px; padding:12px 0;">⬇ Download all ${entries.length} as one PDF</button>
       ${entries.map((inv) => {
         const game = eventById(inv.gameId);
         const gameLabel = game ? `${game.day} ${game.date} — ${game.opp}` : inv.gameId;
@@ -1959,11 +2213,40 @@ async function renderMyInvoices() {
               return `<div class="inv-status inv-waiting">Submitted \u2014 waiting on approval</div>`;
             })()}
             ${inv.notes ? `<div class="log-reason">${escapeHtml(inv.notes)}</div>` : ""}
-            <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-game="${inv.gameId}" data-key="${inv.key}">Delete</button>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="shift-btn shift-btn-ghost" data-pdf="${inv.gameId}|${inv.key}"
+                style="flex:1; padding:9px 0;">⬇ PDF</button>
+              <button class="shift-btn shift-btn-drop" style="flex:1; margin:0;"
+                data-game="${inv.gameId}" data-key="${inv.key}">Delete</button>
+            </div>
           </div>
         `;
       }).join("")}
     `;
+
+    const allBtn = document.getElementById("invPdfAll");
+    if (allBtn) allBtn.onclick = () => {
+      try {
+        advDownloadPdf(statementPdfLines(myProfile, entries, approvals, myPaid, myRates),
+                       invPdfName(myProfile, null));
+      } catch (e) {
+        alert("Couldn't build the PDF: " + (e.message || "unknown error"));
+      }
+    };
+
+    inner.querySelectorAll("[data-pdf]").forEach((btn) => {
+      btn.onclick = () => {
+        const [gameId, key] = btn.getAttribute("data-pdf").split("|");
+        const inv = entries.find((x) => x.gameId === gameId && x.key === key);
+        if (!inv) return;
+        try {
+          advDownloadPdf(invoicePdfLines(myProfile, inv, approvals, myPaid, myRates),
+                         invPdfName(myProfile, inv));
+        } catch (e) {
+          alert("Couldn't build the PDF: " + (e.message || "unknown error"));
+        }
+      };
+    });
 
     inner.querySelectorAll(".shift-btn-drop").forEach((btn) => {
       btn.onclick = async () => {
