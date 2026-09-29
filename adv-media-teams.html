@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v88 · QB approval amounts";
+const APP_BUILD = "build 2026-09-01 · v89 · crew see paid";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1872,6 +1872,14 @@ async function renderMyInvoices() {
       const mSnap = await db.ref(`crewRates/${currentUser.uid}`).once("value");
       myRates = mSnap.val() || {};
     } catch (e) { /* no entry, or not readable — fall back to the standard */ }
+
+    // Whether the money actually went out. Only this person's own branch is
+    // readable, so nobody learns anything about anyone else from it.
+    let myPaid = {};
+    try {
+      const pdSnap = await db.ref(`paidStatus/${currentUser.uid}`).once("value");
+      myPaid = pdSnap.val() || {};
+    } catch (e) { /* not readable yet — the rest of the page still works */ }
     const entries = [];
     for (const [gameId, pushes] of Object.entries(byGame)) {
       for (const [key, inv] of Object.entries(pushes)) {
@@ -1913,12 +1921,30 @@ async function renderMyInvoices() {
               return `<div class="inv-rate">$${escapeHtml(String(amount))} \u00b7 ${escapeHtml(pos)}</div>`;
             })()}
             ${(() => {
+              // Actually paid beats everything else on this row: it is the end
+              // of the process, and it is the thing people are looking for.
+              const pd = (myPaid[inv.gameId] || {})[String(inv.position || "").replace(/[^A-Za-z0-9]/g, "_")];
+              if (!pd || !pd.paid) return "";
+              const w = pd.at ? new Date(pd.at) : null;
+              const when = w && !isNaN(w) ? w.toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+              return `<div class="inv-status inv-paid">✓ PAID${pd.amount ? " · $" + Number(pd.amount).toFixed(2) : ""}${when ? " · " + escapeHtml(when) : ""}</div>`;
+            })()}
+            ${(() => {
               // Grey until the Bill exists in QuickBooks, green once it does.
               // Approved and actually-in-QuickBooks are different things, and
               // green is what people read as "this is being paid" — so it is
               // held back until the Bill is really there.
               const ap = (approvals[inv.gameId] || {})[inv.key];
               const paid = !!(ap && ap.quickbooksBillCreated);
+
+              // Already shown as paid above; this drops to a quiet footnote so
+              // the row does not read like two competing statuses.
+              const pd = (myPaid[inv.gameId] || {})[String(inv.position || "").replace(/[^A-Za-z0-9]/g, "_")];
+              if (pd && pd.paid) {
+                return ap
+                  ? `<div class="inv-sub">${ap.quickbooksBillCreated && ap.quickbooksBillId ? "QuickBooks Bill #" + escapeHtml(String(ap.quickbooksBillId)) : "Approved in QuickBooks"}</div>`
+                  : "";
+              }
 
               if (paid) {
                 const w = ap.approvedAt ? new Date(ap.approvedAt) : null;
@@ -4447,6 +4473,7 @@ async function renderPaymentsAdmin() {
               <span class="log-reason" style="display:block; margin:0; font-size:11px;">
                 ${r.paid ? (r.at ? "Paid " + escapeHtml(shortWhen(r.at)) : "Paid") : "Not paid"}
               </span>
+              ${!r.uid ? `<span class="log-reason" style="display:block; margin:0; font-size:10.5px; color:var(--amber);">no app profile — they won't see this</span>` : ""}
             </span>
           </div>
           <input type="text" data-note="${escapeAttr(r.key)}" value="${escapeAttr(r.note)}"
@@ -4476,6 +4503,22 @@ async function renderPaymentsAdmin() {
       await paymentsRef(gameId).child(row.key).update(Object.assign({
         name: row.name, position: row.position, amount: row.amount,
       }, patch));
+
+      // Show it to the person it belongs to. Without a uid there is no one to
+      // show it to — that is flagged on the row rather than failing quietly.
+      if (row.uid) {
+        const mine = db.ref(`paidStatus/${row.uid}/${gameId}/${row.key}`);
+        if (patch.paid) {
+          await mine.set({
+            paid: true,
+            amount: row.amount,
+            position: row.position,
+            at: patch.at || new Date().toISOString(),
+          });
+        } else if (patch.paid === false) {
+          await mine.remove();
+        }
+      }
       return true;
     } catch (e) {
       alert("Couldn't save that: " + (e.message || "unknown error"));
