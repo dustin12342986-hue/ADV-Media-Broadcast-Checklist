@@ -350,6 +350,51 @@ const POSITION_LABELS = [
   "Camera Lead", "Camera Operator", "Audio A1", "A2", "Utility",
 ];
 
+
+// ============================================================================
+// Did that work?
+// ============================================================================
+// Anything that writes to the database says so in the middle of the screen and
+// waits for a tap. A quiet line under a long form reads as "nothing happened",
+// which is how the same invoice ends up submitted three times.
+function advDone(title, detail, opts) {
+  const o = document.createElement("div");
+  o.className = "adv-done-overlay";
+  o.style.cssText =
+    "position:fixed; inset:0; z-index:100000; background:rgba(6,9,13,0.72); " +
+    "display:flex; align-items:center; justify-content:center; padding:24px;";
+  const bad = !!(opts && opts.bad);
+  o.innerHTML = `
+    <div style="max-width:340px; width:100%; background:var(--panel,#141B22);
+                border:2px solid ${bad ? "var(--red,#D65A4E)" : "var(--green,#33A870)"};
+                border-radius:16px; padding:26px 22px; text-align:center;
+                box-shadow:0 18px 50px rgba(0,0,0,.5);">
+      <div style="font-size:42px; line-height:1; margin-bottom:12px;">${bad ? "\u26a0\ufe0f" : "\u2705"}</div>
+      <div style="font-size:19px; font-weight:800; margin-bottom:8px;
+                  color:${bad ? "var(--red,#D65A4E)" : "var(--green,#33A870)"};">${title}</div>
+      ${detail ? `<div style="font-size:14px; line-height:1.55; color:var(--text-muted,#8A96A3);">${detail}</div>` : ""}
+      <button id="advDoneOk" style="width:100%; margin-top:20px; padding:13px; border:none;
+        border-radius:10px; background:var(--accent,#4A8FC0); color:#fff; font-size:15px;
+        font-weight:800; font-family:inherit; cursor:pointer;">OK</button>
+    </div>`;
+  document.body.appendChild(o);
+  const ok = o.querySelector("#advDoneOk");
+  ok.focus();
+  const close = () => { o.remove(); if (opts && opts.then) opts.then(); };
+  ok.onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+}
+
+// A button that has done its job should look like it. Left disabled on purpose:
+// the next legitimate submission comes after a reload or a re-render, and in
+// between there is nothing to tap twice.
+function advSpent(btn, label) {
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = label || "\u2713 Done";
+  btn.style.opacity = "0.75";
+}
+
 function clockPath(gameId) { return `clock/${gameId}`; }
 function clockArchivePath(gameId) { return `clockArchive/${gameId}`; }
 function invoicePath(gameId) { return `invoices/${gameId}`; }
@@ -618,7 +663,7 @@ function renderClockUI(entries) {
             <div class="roster-pos">${escapeHtml(e.position)}</div>
           </div>
           <div class="roster-time">In: ${fmtTime(e.clockInAt)}</div>
-          <button class="clock-out-btn" data-key="${key}">Clock Out</button>
+          <button class="clock-out-btn" data-key="${key}" data-who="${escapeAttr(e.name)}">Clock Out</button>
         </div>
       `;
     });
@@ -709,14 +754,25 @@ function renderClockUI(entries) {
 
     state.name = "";
     state.justClockedIn = true;
+    advSpent(btn, "\u2713 Clocked in");
+    advDone("You're clocked in",
+      `${escapeHtml(clockedInName)} \u00b7 ${escapeHtml(clockedInPosition)}<br />` +
+      `${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
+      { then: renderView });
   };
   root.querySelectorAll(".clock-out-btn").forEach((btn) => {
     btn.onclick = () => {
+      if (btn.disabled) return;          // no second tap while the first lands
       const key = btn.dataset.key;
+      const who = btn.dataset.who || "";
       const clockOutAt = new Date().toISOString();
+      advSpent(btn, "\u2713 Out");
       dbUpdate(`${clockPath(state.gameId)}/${key}`, { clockOutAt });
       db.ref(`${clockArchivePath(state.gameId)}/${key}`).update({ clockOutAt })
         .catch((err) => console.warn("Couldn't update clock archive:", err));
+      advDone("Clocked out",
+        `${escapeHtml(who)}<br />${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` +
+        `<br /><br />Submit your invoice when you're ready.`);
     };
   });
 }
@@ -914,15 +970,24 @@ function renderInvoiceUI(entries) {
     db.ref(`${invoiceArchivePath(state.gameId)}/${invKey}`).set(invEntry)
       .catch((err) => console.warn("Couldn't write invoice archive:", err));
 
-    submitBtn.disabled = false;
-    submitBtn.textContent = "Submit Invoice";
+    // Deliberately NOT re-enabled. A spent button is the clearest signal that
+    // the tap landed, and it removes the second tap entirely.
+    advSpent(submitBtn, "✓ Invoice submitted");
 
     if (emailOk) {
+      advDone("Invoice submitted",
+        `${escapeHtml(name)} · ${escapeHtml(position)}<br />Sent to the office. You don't need to send it again.`);
       msgEl.innerHTML = `<div class="invoice-success">✓ Sent to ${INVOICE_RECIPIENT}</div>`;
     } else if (FORMSPREE_ENDPOINT.includes("PASTE_YOUR_FORM_ID")) {
+      advDone("Invoice saved",
+        "It's in the shared log and the office can see it. The email step isn't set up on this device, so nothing was emailed.",
+        { bad: true });
       msgEl.innerHTML = `<div class="invoice-success" style="background:var(--bad-bg);border-color:var(--red);color:var(--bad-ink)">Saved to the shared log, but email isn't connected yet (see setup note above), so ${INVOICE_RECIPIENT} was not notified.</div>`;
     } else {
-      msgEl.innerHTML = `<div class="invoice-success" style="background:var(--bad-bg);border-color:var(--red);color:var(--bad-ink)">Saved to the shared log, but the email couldn't be sent right now. Try again, or let Dustin/Aracely know.</div>`;
+      advDone("Invoice saved",
+        "It's in the shared log and the office can see it, so it is not lost. The email didn't go through — let the office know if you don't hear back.",
+        { bad: true });
+      msgEl.innerHTML = `<div class="invoice-success" style="background:var(--bad-bg);border-color:var(--red);color:var(--bad-ink)">Saved to the shared log, but the email couldn't be sent right now. Try again, or let the office know.</div>`;
     }
 
     // Reset what still exists. The hours, rate and total inputs are gone —

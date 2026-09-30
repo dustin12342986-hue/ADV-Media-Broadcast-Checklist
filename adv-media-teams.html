@@ -1510,7 +1510,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v90 · invoice PDFs";
+const APP_BUILD = "build 2026-09-01 · v91 · clear submit confirmations";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -2631,6 +2631,51 @@ function venueMapLink() {
 
 // Wherever this app is actually deployed — so the confirm link in the text
 // keeps working if the file ever moves.
+
+// ============================================================================
+// Did that work?
+// ============================================================================
+// Anything that writes to the database says so in the middle of the screen and
+// waits for a tap. A quiet line under a long form reads as "nothing happened",
+// which is how the same invoice ends up submitted three times.
+function advDone(title, detail, opts) {
+  const o = document.createElement("div");
+  o.className = "adv-done-overlay";
+  o.style.cssText =
+    "position:fixed; inset:0; z-index:100000; background:rgba(6,9,13,0.72); " +
+    "display:flex; align-items:center; justify-content:center; padding:24px;";
+  const bad = !!(opts && opts.bad);
+  o.innerHTML = `
+    <div style="max-width:340px; width:100%; background:var(--panel,#141B22);
+                border:2px solid ${bad ? "var(--red,#D65A4E)" : "var(--green,#33A870)"};
+                border-radius:16px; padding:26px 22px; text-align:center;
+                box-shadow:0 18px 50px rgba(0,0,0,.5);">
+      <div style="font-size:42px; line-height:1; margin-bottom:12px;">${bad ? "\u26a0\ufe0f" : "\u2705"}</div>
+      <div style="font-size:19px; font-weight:800; margin-bottom:8px;
+                  color:${bad ? "var(--red,#D65A4E)" : "var(--green,#33A870)"};">${title}</div>
+      ${detail ? `<div style="font-size:14px; line-height:1.55; color:var(--text-muted,#8A96A3);">${detail}</div>` : ""}
+      <button id="advDoneOk" style="width:100%; margin-top:20px; padding:13px; border:none;
+        border-radius:10px; background:var(--accent,#4A8FC0); color:#fff; font-size:15px;
+        font-weight:800; font-family:inherit; cursor:pointer;">OK</button>
+    </div>`;
+  document.body.appendChild(o);
+  const ok = o.querySelector("#advDoneOk");
+  ok.focus();
+  const close = () => { o.remove(); if (opts && opts.then) opts.then(); };
+  ok.onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+}
+
+// A button that has done its job should look like it. Left disabled on purpose:
+// the next legitimate submission comes after a reload or a re-render, and in
+// between there is nothing to tap twice.
+function advSpent(btn, label) {
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = label || "\u2713 Done";
+  btn.style.opacity = "0.75";
+}
+
 function appLink() {
   return location.origin + location.pathname;
 }
@@ -2750,6 +2795,8 @@ async function renderConfirmCard(profile) {
         <div class="setup-warning" style="display:block; margin-bottom:16px; background:var(--good-bg); border-color:var(--green); color:var(--good-ink);">
           ✓ You're confirmed for ${escapeHtml(label)}. See you there.
         </div>`;
+      advDone("You're confirmed",
+        `${escapeHtml(label)}<br />You're on as ${escapeHtml(sched.position)}.`);
       // Remembered on the device so it still reads as confirmed after a
       // reload, even if this crew member cannot read the node back.
       try { localStorage.setItem(`advConfirmed:${confirmId}:${roleKey}`, "1"); } catch (e) {}
@@ -4150,6 +4197,9 @@ async function renderEquipmentSubmit() {
       });
       msgEl.innerHTML = `<div class="save-confirm">✓ Equipment report submitted</div>`;
       document.getElementById("eqNotes").value = "";
+      advSpent(btn, "✓ Report submitted");
+      advDone("Equipment report submitted",
+        `${escapeHtml(position)} · ${escapeHtml(condition)}<br />The office can see it. You don't need to send it again.`);
     } catch (e) {
       msgEl.innerHTML = `<div class="error-msg">Couldn't submit (${escapeHtml(e.message || "unknown error")}).</div>`;
     }
@@ -9356,6 +9406,7 @@ function renderProfileEditor(profile) {
       await db.ref(`profiles/${currentUser.uid}`).set(fullProfile);
       await db.ref(`publicProfiles/${currentUser.uid}`).set(publicProfile);
       msgEl.innerHTML = `<div class="save-confirm">✓ Profile saved</div>`;
+      advDone("Profile saved", "Your details are up to date.");
     } catch (e) {
       console.error(e);
       msgEl.innerHTML = `<div class="error-msg">Couldn't save (${escapeHtml(e.message || "unknown error")}). Make sure the database rules from the setup comment are published.</div>`;
