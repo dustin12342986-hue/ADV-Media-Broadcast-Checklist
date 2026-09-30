@@ -1510,7 +1510,14 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v91 · clear submit confirmations";
+const APP_BUILD = "build 2026-09-01 · v92 · pathfinder";
+
+// The stadium signal finder. It is its own self-contained app in its own
+// folder — eighty scanned sheets and the panel artwork, about 35MB. That
+// cannot be inlined here the way everything else is, so this tab frames it.
+// Same origin, relative path, no CDN: it loads on the stadium network like
+// the rest of the app.
+const PATHFINDER_SRC = "crowley-signal-finder/index.html";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -1553,6 +1560,7 @@ function renderMainApp() {
       <button class="tab-btn ${mainState.view === "runofshow" ? "active" : ""}" id="tabRunOfShow">Run of Show</button>
       <button class="tab-btn ${mainState.view === "script" ? "active" : ""}" id="tabScript">Script</button>
       <button class="tab-btn ${mainState.view === "cables" ? "active" : ""}" id="tabCables">Gear</button>
+      <button class="tab-btn ${mainState.view === "pathfinder" ? "active" : ""}" id="tabPathfinder">Pathfinder</button>
       <button class="tab-btn ${mainState.view === "shifts" ? "active" : ""}" id="tabShifts">Shifts</button>
       <button class="tab-btn ${mainState.view === "myinvoices" ? "active" : ""}" id="tabMyInvoices">My Invoices</button>
       <button class="tab-btn ${mainState.view === "equipment" ? "active" : ""}" id="tabEquipment">Equipment</button>
@@ -1581,7 +1589,7 @@ function renderMainApp() {
   // hunt for a tab is a link that gets ignored.
   if (!mainState.deepLinked) {
     const want = (location.hash || "").replace("#", "").toLowerCase();
-    const ok = ["today", "audio", "runofshow", "script", "cables", "shifts", "profile", "idcard"];
+    const ok = ["today", "audio", "runofshow", "script", "cables", "pathfinder", "shifts", "profile", "idcard"];
     if (ok.includes(want)) {
       mainState.deepLinked = true;
       if (mainState.view !== want) { mainState.view = want; renderMainApp(); return; }
@@ -1618,6 +1626,7 @@ function renderMainApp() {
   document.getElementById("tabRunOfShow").onclick = () => { mainState.view = "runofshow"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabScript").onclick = () => { mainState.view = "script"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabCables").onclick = () => { mainState.view = "cables"; mainState.adminMenuOpen = false; renderMainApp(); };
+  document.getElementById("tabPathfinder").onclick = () => { mainState.view = "pathfinder"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabShifts").onclick = () => { mainState.view = "shifts"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabMyInvoices").onclick = () => { mainState.view = "myinvoices"; mainState.adminMenuOpen = false; renderMainApp(); };
   document.getElementById("tabEquipment").onclick = () => { mainState.view = "equipment"; mainState.adminMenuOpen = false; renderMainApp(); };
@@ -1650,6 +1659,12 @@ function renderMainApp() {
   if (mainState.view === "cables") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderCablesView();
+    return;
+  }
+
+  if (mainState.view === "pathfinder") {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderPathfinderView();
     return;
   }
 
@@ -6178,6 +6193,99 @@ function showImportPreview(gameId, filename, parsed) {
     }
   };
  });
+}
+
+/* ---- Pathfinder ---------------------------------------------------------
+   The stadium signal finder, framed rather than inlined. Everything else in
+   this app lives in this one file on purpose, because the stadium network
+   blocks CDNs and a single file always loads. The finder cannot follow that
+   rule: it is eighty scanned sheets and the panel artwork, roughly 35MB, and
+   base64 would put this file past 45MB.
+
+   So it stays its own folder next to this one and gets framed. Same origin,
+   relative path, nothing fetched off-site, which keeps the property that
+   matters — it still loads on the stadium network.
+   ------------------------------------------------------------------------ */
+
+// The frame has to end at the bottom of the window, and the window is a phone
+// held sideways in a press box as often as it is a laptop. A fixed height is
+// wrong on both. Text size scales the whole page through zoom, so the measured
+// gap is divided back out or the frame overshoots at L and XL.
+function pathfinderFitFrame() {
+  const f = document.getElementById("pfFrame");
+  if (!f) return false;
+  let z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--fs"));
+  if (!z || isNaN(z)) z = 1;
+  const top = f.getBoundingClientRect().top;
+  const px = Math.max(420, (window.innerHeight - top - 18) / z);
+  f.style.height = px + "px";
+  return true;
+}
+
+// One listener for the life of the page. It removes itself the first time it
+// wakes up and finds the tab gone, so switching tabs does not leave a pile of
+// handlers measuring an element that no longer exists.
+function pathfinderWatchResize() {
+  if (window.__pfResizeWired) return;
+  window.__pfResizeWired = true;
+  window.addEventListener("resize", function onResize() {
+    if (!pathfinderFitFrame()) {
+      window.removeEventListener("resize", onResize);
+      window.__pfResizeWired = false;
+    }
+  });
+}
+
+async function renderPathfinderView() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:12px;">
+      Stadium signal paths. Search a jack, a panel, a rack or a room and it walks the whole
+      chain. Sheets are the 2022 record set, so confirm on the drawing before you re-terminate
+      anything.
+    </div>
+    <div style="margin-bottom:12px;">
+      <a class="ghost-pill" style="text-decoration:none; display:inline-block;"
+         href="${PATHFINDER_SRC}" target="_blank" rel="noopener">Open full screen ↗</a>
+    </div>
+    <div id="pfBody"><div class="footnote">Loading…</div></div>
+  `;
+
+  const body = document.getElementById("pfBody");
+
+  // Check it is there before framing it. A missing folder otherwise frames the
+  // host's own 404 page, and a crew member reading that concludes the app is
+  // broken rather than that a folder has not been uploaded yet.
+  let present = true;
+  try {
+    const res = await fetch(PATHFINDER_SRC, { method: "HEAD" });
+    present = res.ok;
+  } catch (e) {
+    // No network, or opened straight off the disk. Frame it and let the iframe
+    // have its own go rather than refusing on a guess.
+    present = true;
+  }
+
+  if (!present) {
+    body.innerHTML = `
+      <div class="footnote" style="background:var(--warn-bg); color:var(--warn-ink);
+           border:1px solid var(--border); border-radius:12px; padding:14px; line-height:1.5;">
+        <strong style="color:var(--warn-strong);">The signal finder is not on the server yet.</strong><br />
+        Upload the <code>crowley-signal-finder</code> folder next to this page, keeping the
+        <code>pages</code>, <code>thumbs</code> and <code>panels</code> folders inside it, and this
+        tab will pick it up. Nothing else needs changing.
+      </div>
+    `;
+    return;
+  }
+
+  body.innerHTML = `
+    <iframe id="pfFrame" title="Stadium signal finder" src="${PATHFINDER_SRC}"
+      style="width:100%; height:520px; border:1px solid var(--border);
+             border-radius:12px; background:var(--panel); display:block;"></iframe>
+  `;
+  pathfinderFitFrame();
+  pathfinderWatchResize();
 }
 
 async function renderCablesView() {
