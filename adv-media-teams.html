@@ -1510,14 +1510,16 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v93 · pathfinder link and code";
+const APP_BUILD = "build 2026-09-01 · v94 · pathfinder, one file";
 
-// The stadium signal finder. It is its own self-contained app in its own
-// folder — eighty scanned sheets and the panel artwork, about 35MB. That
-// cannot be inlined here the way everything else is, so this tab frames it.
-// Same origin, relative path, no CDN: it loads on the stadium network like
-// the rest of the app.
-const PATHFINDER_SRC = "crowley-signal-finder/index.html";
+// The stadium signal finder. One file, same as everything else here: the
+// eighty sheets and the panel artwork are inlined in it, so there is no folder
+// to keep beside it and nothing fetched at run time. Same origin, relative
+// path, no CDN, so it loads on the stadium network.
+//
+// It is framed rather than pasted into this file because it is 7.5MB and this
+// app is already 1MB. Nobody opening Today should pay for the drawings.
+const PATHFINDER_SRC = "crowley-signal-finder.html";
 
 const ADMIN_GROUPS = [
   { label: "Crew", items: [
@@ -6420,9 +6422,8 @@ async function renderPathfinderView() {
       <div class="footnote" style="background:var(--warn-bg); color:var(--warn-ink);
            border:1px solid var(--border); border-radius:12px; padding:14px; line-height:1.5;">
         <strong style="color:var(--warn-strong);">The signal finder is not on the server yet.</strong><br />
-        Upload the <code>crowley-signal-finder</code> folder next to this page, keeping the
-        <code>pages</code>, <code>thumbs</code> and <code>panels</code> folders inside it, and this
-        tab will pick it up. Nothing else needs changing.
+        Upload <code>crowley-signal-finder.html</code> next to this page and this tab picks it
+        up. One file, nothing else to change.
       </div>
     `;
     return;

@@ -39,8 +39,8 @@
 
      WHAT IT NEEDS NEXT TO IT
 
-     adv-theme.js, and the crowley-signal-finder folder with its pages, thumbs
-     and panels folders inside. No login, no database, no CDN.
+     adv-theme.js and crowley-signal-finder.html. Two files, nothing else. No
+     login, no database, no CDN.
      =========================================================================== -->
 
 <script src="adv-theme.js"></script>
@@ -127,7 +127,7 @@
 "use strict";
 
 /* ---- what it opens ---- */
-var FINDER_SRC = "crowley-signal-finder/index.html";
+var FINDER_SRC = "crowley-signal-finder.html";
 
 /* ---- the code ----------------------------------------------------------
    SHA-256 of the access code, upper-cased and trimmed. The code itself is
@@ -328,8 +328,7 @@ function mountFrame() {
       wrap.innerHTML =
         '<div class="notice" style="margin:auto;">' +
           '<strong>The signal finder is not on the server yet.</strong><br />' +
-          'Upload the <code>crowley-signal-finder</code> folder next to this page, keeping its ' +
-          '<code>pages</code>, <code>thumbs</code> and <code>panels</code> folders inside it.' +
+          'Upload <code>crowley-signal-finder.html</code> next to this page. One file, nothing else.' +
         '</div>';
     }).catch(frameIt);
   } catch (e) {
