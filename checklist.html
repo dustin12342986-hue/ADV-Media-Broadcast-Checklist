@@ -96,6 +96,37 @@
     text-decoration: none;
   }
   .header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  /* ---- timing ---- */
+  .tm-strip {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 13px; margin-bottom: 14px;
+  }
+  .tm-strip b { font-size: 13.5px; font-weight: 800; }
+  .tm-strip span { font-size: 12px; color: var(--text-muted); }
+  .tm-tag {
+    display: inline-block; font-size: 10.5px; font-weight: 900; letter-spacing: 0.4px;
+    border-radius: 999px; padding: 2px 8px; margin-left: 8px; white-space: nowrap;
+  }
+  .tm-ahead { background: var(--panel2); color: var(--text-faint); }
+  .tm-soon  { background: var(--info-bg); color: var(--info-ink); }
+  /* Past the clock uses the one accent, never red. It is information, not an
+     accusation, and half the time the item was done and not ticked. */
+  .tm-past  { background: var(--warn-bg); color: var(--warn-ink); }
+  .tm-done  { background: var(--good-bg); color: var(--good-ink); }
+  .tm-row {
+    display: flex; gap: 10px; align-items: center;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .tm-row:last-child { border-bottom: none; }
+  .tm-row-text { flex: 1 1 auto; min-width: 0; font-size: 13px; line-height: 1.45; }
+  .tm-row input {
+    width: 76px; flex: 0 0 auto; text-align: center;
+    padding: 9px 6px; border-radius: 9px; font-size: 14px;
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+  }
+  .tm-unit { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); width: 54px; }
+
   .setup-warning {
     background: #3A1A17; border: 1px solid var(--red); border-radius: 12px;
     padding: 12px 14px; margin-bottom: 16px; font-size: 12.5px; color: #FFB3AC; display: none;
@@ -249,6 +280,7 @@
   <div class="tabs">
     <button class="tab-btn active" id="tabMy">My Checklist</button>
     <button class="tab-btn" id="tabDash">Dashboard</button>
+    <button class="tab-btn" id="tabTimes">Edit Times</button>
   </div>
 
   <div class="field-block">
@@ -537,6 +569,59 @@ async function initFirebaseAndBoot() {
 }
 
 function chkPath(gameId, posKey, phase) { return `checklists/${gameId}/${posKey}/${phase}`; }
+
+// ---- timing ---------------------------------------------------------------
+// Times live apart from the ticks, keyed by position and phase, because they
+// belong to the checklist itself rather than to one night. Set them once and
+// every game that follows inherits them.
+//
+// Keyed by the item's index, the same way the ticks already are. An item with
+// no entry has no time, which is the normal case: timing is something you add
+// to the handful of items that have to happen by a certain point, not to all
+// forty.
+function timePath(posKey, phase) { return `checklistTimes/${posKey}/${phase}`; }
+function settingsPath(gameId) { return `gameSettings/${gameId}`; }
+function holdPath(gameId) { return `weatherHold/${gameId}`; }
+
+// Kickoff is the game's date from the id plus the time an admin set in the
+// crew app. No time set means no countdown anywhere, which is the right
+// default: a countdown against a guessed kickoff is worse than none.
+function kickoffFor(gameId, settings) {
+  const t = settings && settings.gameTime;
+  if (!gameId || !t) return null;
+  const d = new Date(gameId + "T" + t);
+  return isNaN(d) ? null : d;
+}
+
+function markAt(kickoff, minutesBefore) {
+  if (!kickoff || minutesBefore == null || minutesBefore === "") return null;
+  const n = Number(minutesBefore);
+  if (isNaN(n)) return null;
+  return new Date(kickoff.getTime() - n * 60000);
+}
+
+function clockText(d) {
+  return d ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+}
+
+// "in 42 min", "in 2 hr 10 min", or how long it has been. Plain words only.
+function awayText(ms) {
+  const mins = Math.round(Math.abs(ms) / 60000);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  const span = h ? (h + " hr" + (m ? " " + m + " min" : "")) : (m + " min");
+  return ms >= 0 ? "in " + span : span + " ago";
+}
+
+// Three states and nothing else: it is coming, it is close, or the clock has
+// gone past it and it is not ticked. No red, no "late".
+function markState(mark, done, now) {
+  if (!mark) return null;
+  const ms = mark.getTime() - now.getTime();
+  if (done) return { key: "done", label: clockText(mark) };
+  if (ms < 0) return { key: "past", label: "past the clock · " + clockText(mark) };
+  if (ms <= 15 * 60000) return { key: "soon", label: clockText(mark) + " · " + awayText(ms) };
+  return { key: "ahead", label: clockText(mark) + " · " + awayText(ms) };
+}
 function helpPath(gameId, posKey) { return `help/${gameId}/${posKey}`; }
 
 function emptyRecord(n) { return { checked: Array(n).fill(false), name: "", completedAt: null, issue: "", signalUp: false, signalUpAt: null }; }
@@ -561,6 +646,14 @@ function dbGetOnce(path) {
   if (!db) return Promise.resolve(null);
   return db.ref(path).once("value").then((snap) => snap.val());
 }
+function dbOnceValue(path) {
+  if (!db) return Promise.resolve(null);
+  return db.ref(path).once("value").then((s) => s.val()).catch((e) => {
+    console.error("Firebase read error on", path, e);
+    return null;
+  });
+}
+
 function dbListen(path, cb) {
   if (!db) { cb(null); return () => {}; }
   const ref = db.ref(path);
@@ -594,10 +687,17 @@ const state = {
   phase: "pre",
   showIssue: false,
   showHelpNote: false,
+  times: {},        // index -> minutes before kickoff, for the open list
+  kickoff: null,
+  holdOn: false,
 };
 
 let unsubMy = null;
 let unsubHelp = null;
+let unsubTimes = null;
+let unsubHold = null;
+let tickTimer = null;
+let lastRec = null;
 let unsubDash = [];
 
 // ============================================================================
@@ -612,9 +712,11 @@ function populateGameSelect() {
 
 document.getElementById("tabMy").onclick = () => { state.view = "my"; updateTabs(); renderView(); };
 document.getElementById("tabDash").onclick = () => { state.view = "dashboard"; updateTabs(); renderView(); };
+document.getElementById("tabTimes").onclick = () => { state.view = "times"; updateTabs(); renderView(); };
 function updateTabs() {
   document.getElementById("tabMy").classList.toggle("active", state.view === "my");
   document.getElementById("tabDash").classList.toggle("active", state.view === "dashboard");
+  document.getElementById("tabTimes").classList.toggle("active", state.view === "times");
 }
 
 function icon(name, color, size) {
@@ -636,6 +738,120 @@ function tallyLight(status, size) {
   size = size || 14;
   const s = STATUS[status];
   return `<span class="tally" style="width:${size}px;height:${size}px;background:${s.color};box-shadow:${status !== "none" ? "0 0 8px " + s.color + "99" : "none"}"></span>`;
+}
+
+
+// ============================================================================
+// Edit Times — optional countdown marks on checklist items
+// ============================================================================
+//
+// Timing is opt in, item by item. Leave a box empty and that item behaves
+// exactly as it always has. Put 90 in it and it becomes "90 minutes before
+// kickoff", shown on the checklist as a wall clock time counting down.
+//
+// A mark is stored against the position and phase, not against a game, so it
+// is set once and every game after it inherits it. Move kickoff in the crew
+// app and every mark moves with it, because nothing here stores a clock time,
+// only a distance from kickoff.
+
+function itemsFor(posKey, phase) {
+  const position = POSITIONS[posKey];
+  if (!position) return [];
+  const base = position[phase] || [];
+  const qc = (phase === "post" && position.qc) ? position.qc : [];
+  return base.concat(qc);
+}
+
+function renderTimesEditor() {
+  const root = document.getElementById("viewRoot");
+  const items = itemsFor(state.posKey, state.phase);
+
+  root.innerHTML = `
+    <div class="footnote" style="margin-bottom:14px; line-height:1.55;">
+      Put a number of minutes on any item that has to be done by a certain point before
+      kickoff. Leave the rest empty. Marks are saved for the position, so they carry to every
+      game, and they move on their own if kickoff moves.
+    </div>
+    <div class="field-block">
+      <div class="label">Position</div>
+      <select id="tmPos">
+        ${POSITION_KEYS.map(k => `<option value="${k}">${escapeHtml(POSITIONS[k].label)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field-block">
+      <div class="label">Shift</div>
+      <div class="shift-row">
+        <button class="shift-btn ${state.phase === "pre" ? "active" : ""}" data-tmphase="pre">Pre-Shift</button>
+        <button class="shift-btn ${state.phase === "post" ? "active" : ""}" data-tmphase="post">Post-Shift</button>
+      </div>
+    </div>
+    <div id="tmKick" class="footnote" style="margin-bottom:12px;"></div>
+    <div class="checklist-box" id="tmRows"><div class="footnote">Loading…</div></div>
+    <div id="tmMsg"></div>
+    <button class="shift-btn" id="tmSave" style="width:100%; margin-top:14px; padding:13px 0;">Save times</button>
+    <button class="shift-btn shift-btn-ghost" id="tmClear" style="width:100%; margin-top:8px; padding:11px 0;">Clear every time on this list</button>
+  `;
+
+  document.getElementById("tmPos").value = state.posKey;
+  document.getElementById("tmPos").onchange = (e) => { state.posKey = e.target.value; renderTimesEditor(); };
+  root.querySelectorAll("[data-tmphase]").forEach((b) => {
+    b.onclick = () => { state.phase = b.dataset.tmphase; renderTimesEditor(); };
+  });
+
+  // Kickoff is only shown so the person setting marks can see what they land
+  // on. Nothing here depends on it.
+  dbOnceValue(settingsPath(state.gameId)).then((settings) => {
+    const k = kickoffFor(state.gameId, settings);
+    const el = document.getElementById("tmKick");
+    if (!el) return;
+    el.textContent = k
+      ? "Kickoff for this game is " + clockText(k) + ". A mark of 90 lands at " + clockText(markAt(k, 90)) + "."
+      : "No kickoff time is set for this game yet, so marks will not show a clock time until one is. Set it in the crew app under Call Times.";
+  });
+
+  if (unsubTimes) { unsubTimes(); unsubTimes = null; }
+  unsubTimes = dbListen(timePath(state.posKey, state.phase), (val) => {
+    const times = val || {};
+    const host = document.getElementById("tmRows");
+    if (!host) return;
+    if (!items.length) { host.innerHTML = `<div class="footnote">This position has no items on this shift.</div>`; return; }
+    host.innerHTML = items.map((text, idx) => `
+      <div class="tm-row">
+        <input type="number" min="0" max="1440" step="5" inputmode="numeric"
+          data-tmidx="${idx}" value="${times[idx] == null ? "" : escapeAttr(String(times[idx]))}" placeholder="—" />
+        <div class="tm-unit">min before</div>
+        <div class="tm-row-text">${escapeHtml(text)}</div>
+      </div>`).join("");
+  });
+
+  document.getElementById("tmSave").onclick = async () => {
+    const btn = document.getElementById("tmSave");
+    const msg = document.getElementById("tmMsg");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const out = {};
+    document.querySelectorAll("[data-tmidx]").forEach((el) => {
+      const v = el.value.trim();
+      if (v === "") return;
+      const n = Number(v);
+      // A negative or absurd number is dropped rather than saved, so a typo
+      // cannot put a mark after kickoff or a week out.
+      if (isNaN(n) || n < 0 || n > 1440) return;
+      out[el.dataset.tmidx] = Math.round(n);
+    });
+    try {
+      await dbSet(timePath(state.posKey, state.phase), Object.keys(out).length ? out : null);
+      msg.innerHTML = `<div class="footnote" style="margin-top:10px; color:var(--green);">Saved. ${Object.keys(out).length} item${Object.keys(out).length === 1 ? "" : "s"} timed.</div>`;
+    } catch (e) {
+      msg.innerHTML = `<div class="footnote" style="margin-top:10px; color:var(--amber);">Couldn't save (${escapeHtml(e.message || "unknown")}).</div>`;
+    }
+    btn.disabled = false; btn.textContent = "Save times";
+  };
+
+  document.getElementById("tmClear").onclick = async () => {
+    if (!confirm("Clear every time on this list? The items stay, they just stop having a mark.")) return;
+    await dbSet(timePath(state.posKey, state.phase), null);
+    document.getElementById("tmMsg").innerHTML = `<div class="footnote" style="margin-top:10px;">Cleared.</div>`;
+  };
 }
 
 // ============================================================================
@@ -678,6 +894,30 @@ function renderMyChecklist() {
 
   if (unsubMy) unsubMy();
   if (unsubHelp) unsubHelp();
+  if (unsubTimes) { unsubTimes(); unsubTimes = null; }
+  if (unsubHold) { unsubHold(); unsubHold = null; }
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+
+  // Times, kickoff and any weather hold are read beside the ticks. All three
+  // are optional: none of them set and the list renders exactly as before.
+  state.times = {};
+  state.kickoff = null;
+  state.holdOn = false;
+  dbOnceValue(settingsPath(state.gameId)).then((settings) => {
+    state.kickoff = kickoffFor(state.gameId, settings);
+    redrawTimes();
+  });
+  unsubTimes = dbListen(timePath(state.posKey, state.phase), (val) => {
+    state.times = val || {};
+    redrawTimes();
+  });
+  unsubHold = dbListen(holdPath(state.gameId), (val) => {
+    state.holdOn = !!(val && val.active);
+    redrawTimes();
+  });
+  // One tick a minute. The marks are minute resolution, so a second timer
+  // would redraw sixty times for nothing.
+  tickTimer = setInterval(redrawTimes, 30000);
 
   unsubMy = dbListen(chkPath(state.gameId, state.posKey, state.phase), (val) => {
     const rec = Object.assign(emptyRecord(items.length), val || {});
@@ -686,6 +926,7 @@ function renderMyChecklist() {
       rec.checked.forEach((v, i) => { if (i < c.length) c[i] = v; });
       rec.checked = c;
     }
+    lastRec = rec;
     renderChecklistBody(rec, items, position);
   });
 
@@ -722,6 +963,54 @@ function renderHelpBlock(help) {
   const noteInput = document.getElementById("helpNote");
   if (nameInput) nameInput.oninput = (e) => { const v = e.target.value; debounceSave("helpName", () => dbSet(helpPath(state.gameId, state.posKey), Object.assign({}, help, { requestedBy: v }))); };
   if (noteInput) noteInput.oninput = (e) => { const v = e.target.value; debounceSave("helpNote", () => dbSet(helpPath(state.gameId, state.posKey), Object.assign({}, help, { note: v }))); };
+}
+
+
+// The strip only appears when something on this list is actually timed, so a
+// position with no marks sees the screen it has always seen.
+function timingStripHtml(rec, items) {
+  const marks = Object.keys(state.times || {});
+  if (!marks.length) return "";
+  if (!state.kickoff) {
+    return `<div class="tm-strip"><span>This list has timed items, but no kickoff time is set for
+      this game yet, so there is nothing to count down from.</span></div>`;
+  }
+  if (state.holdOn) {
+    return `<div class="tm-strip"><b>Weather hold</b><span>The clock is paused. Marks resume when
+      the hold ends.</span></div>`;
+  }
+  const now = new Date();
+  // The next thing due is the earliest unticked mark still ahead. Everything
+  // past the clock is counted separately, because that is the number a
+  // producer actually wants.
+  let next = null, past = 0;
+  marks.forEach((k) => {
+    const idx = Number(k);
+    if (idx >= items.length) return;
+    const at = markAt(state.kickoff, state.times[k]);
+    if (!at) return;
+    if (rec.checked[idx]) return;
+    if (at.getTime() < now.getTime()) { past++; return; }
+    if (!next || at.getTime() < next.at.getTime()) next = { at, text: items[idx] };
+  });
+  const bits = [`<b>Kickoff ${clockText(state.kickoff)}</b>`];
+  if (next) {
+    bits.push(`<span>Next: ${escapeHtml(next.text.slice(0, 54))}${next.text.length > 54 ? "…" : ""}
+      at ${clockText(next.at)}, ${awayText(next.at.getTime() - now.getTime())}</span>`);
+  } else if (!past) {
+    bits.push(`<span>Everything timed on this list is ticked.</span>`);
+  }
+  if (past) bits.push(`<span class="tm-tag tm-past">${past} past the clock</span>`);
+  return `<div class="tm-strip">${bits.join("")}</div>`;
+}
+
+// Called by the minute timer and whenever kickoff, the marks or the hold
+// arrive. Redraws from what is already in hand rather than reading again.
+function redrawTimes() {
+  if (state.view !== "my" || !lastRec) return;
+  const position = POSITIONS[state.posKey];
+  if (!position) return;
+  renderChecklistBody(lastRec, itemsFor(state.posKey, state.phase), position);
 }
 
 function renderChecklistBody(rec, items, position) {
@@ -761,15 +1050,20 @@ function renderChecklistBody(rec, items, position) {
 
   html += `<input id="nameInput" placeholder="Your name" value="${escapeAttr(rec.name)}" style="margin-bottom:14px" />`;
 
+  html = timingStripHtml(rec, items) + html;
+
   html += `<div class="checklist-box">`;
   items.forEach((text, idx) => {
     if (state.qcStart >= 0 && idx === state.qcStart) {
       html += `<div class="qc-head">Quality check</div>`;
     }
+    // A timed item carries its clock time. An untimed one is untouched, which
+    // is most of them.
+    const st = markState(markAt(state.kickoff, state.times[idx]), rec.checked[idx], new Date());
     html += `
       <div class="checklist-item ${rec.checked[idx] ? "checked" : ""}" data-idx="${idx}">
         <span class="icon">${rec.checked[idx] ? icon("check", "var(--green)", 19) : icon("circle", "var(--text-faint)", 19)}</span>
-        <span class="item-text">${escapeHtml(text)}</span>
+        <span class="item-text">${escapeHtml(text)}${st ? `<span class="tm-tag tm-${st.key}">${escapeHtml(st.label)}</span>` : ""}</span>
       </div>
     `;
   });
@@ -1073,6 +1367,7 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 function renderView() {
   if (unsubDash.length) { unsubDash.forEach(u => u()); unsubDash = []; }
+  if (state.view === "times") { renderTimesEditor(); return; }
   if (state.view === "my") renderMyChecklist();
   else renderDashboard();
 }
