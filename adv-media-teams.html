@@ -389,6 +389,48 @@
   }
   .id-card-title.inactive { background: var(--red); color: #fff; font-size: 12px; }
   .id-card-footer { text-align: center; border-top: 1px solid #ddd; padding-top: 14px; }
+
+  /* The cleared badge on the ID card. The card is the thing that gets held up
+     at a gate, so the badge belongs on it rather than buried in a menu. It is
+     only drawn when the check is current — an expired one shows nothing, which
+     is the honest answer. */
+  .id-card-badge {
+    display: inline-flex; align-items: center; gap: 6px; margin: 10px auto 0;
+    background: #10603A; color: #FFFFFF; border-radius: 999px;
+    padding: 6px 13px; font-size: 10.5px; font-weight: 900; letter-spacing: 0.8px;
+  }
+  .id-card-badge-date { font-weight: 700; opacity: 0.85; letter-spacing: 0.3px; }
+
+  /* ---- compliance ---- */
+  .cmp-chip {
+    display: inline-block; border-radius: 999px; padding: 3px 9px;
+    font-size: 10.5px; font-weight: 900; letter-spacing: 0.5px; white-space: nowrap;
+  }
+  .cmp-ok   { background: var(--good-bg); color: var(--good-ink); }
+  .cmp-soon { background: var(--warn-bg); color: var(--warn-ink); }
+  .cmp-bad  { background: var(--bad-bg);  color: var(--bad-ink); }
+  .cmp-none { background: var(--panel2);  color: var(--text-faint); }
+  .cmp-row {
+    display: flex; gap: 12px; align-items: flex-start; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px; padding: 13px 14px; margin-bottom: 10px;
+  }
+  .cmp-row-main { flex: 1 1 auto; min-width: 0; }
+  .cmp-name { font-size: 15px; font-weight: 800; margin-bottom: 5px; }
+  .cmp-line { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .cmp-tally {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .cmp-tally div {
+    flex: 1 1 110px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 12px;
+  }
+  .cmp-tally b { display: block; font-size: 21px; font-weight: 900; line-height: 1.15; }
+  .cmp-tally span { font-size: 11px; color: var(--text-faint); }
+  .cmp-warnbox {
+    background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; font-size: 12px; line-height: 1.55; margin-bottom: 14px;
+  }
+  .cmp-warnbox strong { color: var(--warn-strong); }
   .id-card-cisd-logo { width: 110px; object-fit: contain; }
   .footnote { font-size: 11px; color: var(--text-faint); margin-top: 10px; font-family: monospace; }
   .admin-crew-card {
@@ -1510,7 +1552,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v94 · pathfinder, one file";
+const APP_BUILD = "build 2026-09-01 · v97 · audit log";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1525,6 +1567,7 @@ const ADMIN_GROUPS = [
   { label: "Crew", items: [
     { view: "admin", label: "Crew Directory" },
     { view: "approvals", label: "Approvals" },
+    { view: "compliance", label: "Compliance" },
     { view: "laborRequests", label: "Labor Requests" },
   ]},
   { label: "Financial", items: [
@@ -1539,6 +1582,7 @@ const ADMIN_GROUPS = [
     { view: "equipmentAdmin", label: "Equipment Reports" },
     { view: "checkout", label: "Equipment Checkout" },
     { view: "log", label: "Shift Log" },
+    { view: "audit", label: "Audit Log" },
     { view: "locations", label: "Clock-In Locations" },
     { view: "reset", label: "Reset Clock-Ins" },
   ]},
@@ -1712,6 +1756,18 @@ function renderMainApp() {
     return;
   }
 
+  if (mainState.view === "audit" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderAuditLog();
+    return;
+  }
+
+  if (mainState.view === "compliance" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderComplianceAdmin();
+    return;
+  }
+
   if (mainState.view === "admin" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminCrewList();
@@ -1805,12 +1861,703 @@ function renderMainApp() {
 // ============================================================================
 // Admin: Crew list (Dustin & Aracely only)
 // ============================================================================
+// ============================================================================
+// Audit log — who changed money, time, access or clearance, and to what
+// ============================================================================
+//
+// APPEND ONLY, AND THAT IS ENFORCED IN THE RULES
+//
+// An entry can be created and never afterwards changed or removed. Not by a
+// crew member, not by an admin, not from the database console. A log an admin
+// can quietly tidy is not a log, it is a draft.
+//
+// THE CHANGE AND ITS ENTRY LAND TOGETHER
+//
+// The spec this came from was written for Firestore and used a batch. This app
+// is on the Realtime Database, which does the same job with a multi-path
+// update: one call carrying several paths, applied all or nothing. So the way
+// to use this is to build one object of paths, drop the audit entry into it
+// with auditInto, and send the whole thing in a single update. A rate that
+// changed with no entry beside it, or an entry for a change that never landed,
+// cannot happen.
+//
+// WHAT IS NOT LOGGED
+//
+// What crew do for themselves: picking up and dropping shifts, verifying,
+// reporting gear. Those already have their own history, and burying them in
+// here would drown the handful of entries that matter.
+
+function auditNewKey() { return db.ref("audit").push().key; }
+
+// Mutates the multi-path object it is given and hands it back, so a caller can
+// write `await db.ref().update(auditInto(updates, {...}))` in one line.
+function auditInto(updates, e) {
+  const key = auditNewKey();
+  updates["audit/" + key] = {
+    at: new Date().toISOString(),
+    byUid: (currentUser && currentUser.uid) || "",
+    byName: (currentUser && currentUser.email) || "",
+    action: e.action || "update",
+    area: e.area || "",
+    docId: e.docId || "",
+    field: e.field || "",
+    oldValue: e.oldValue === undefined || e.oldValue === null ? "" : String(e.oldValue),
+    newValue: e.newValue === undefined || e.newValue === null ? "" : String(e.newValue),
+    eventId: e.eventId || "",
+    subject: e.subject || "",
+    note: e.note || "",
+  };
+  return updates;
+}
+
+// For a change that is already written some other way and cannot be folded into
+// a multi-path update. Still atomic for the entry itself; just not tied to the
+// change. Prefer auditInto wherever the write can be reshaped.
+async function auditOnly(e) {
+  try { await db.ref().update(auditInto({}, e)); }
+  catch (err) { console.error("Audit:", err); }
+}
+
+const AUDIT_AREAS = {
+  crewRates: "Crew Rates",
+  gameSettings: "Call Times",
+  compliance: "Compliance",
+  complianceDocs: "Compliance",
+  complianceSettings: "Compliance",
+  approvedUsers: "Approvals",
+  payments: "Payments",
+  paidStatus: "Payments",
+  qbApprovals: "QB Approval",
+  liveRoster: "Shifts",
+  laborRequests: "Labor Requests",
+  clock: "Reset Clock-Ins",
+};
+
+function auditAreaLabel(a) { return AUDIT_AREAS[a] || a || "—"; }
+
+function auditWhen(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+let auditState = { rows: [], area: "", person: "", page: 0 };
+const AUDIT_PAGE = 100;
+
+async function renderAuditLog() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading the log…</div>`;
+  try {
+    // Newest first. limitToLast is the only index-free way to bound this, so
+    // the screen takes the last 1000 and pages through them in the browser.
+    const snap = await db.ref("audit").limitToLast(1000).once("value");
+    const val = snap.val() || {};
+    const rows = Object.keys(val).map((k) => Object.assign({ key: k }, val[k]));
+    rows.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+    auditState.rows = rows;
+    drawAuditLog();
+  } catch (e) {
+    console.error("Audit log:", e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load the audit log (${escapeHtml(e.message || "unknown error")}). Check that the database rules include the audit node.</div>`;
+  }
+}
+
+function drawAuditLog() {
+  const inner = document.getElementById("innerRoot");
+  const all = auditState.rows;
+  const areas = Array.from(new Set(all.map((r) => r.area).filter(Boolean))).sort();
+  const people = Array.from(new Set(all.map((r) => r.byName).filter(Boolean))).sort();
+
+  const rows = all.filter((r) =>
+    (!auditState.area || r.area === auditState.area) &&
+    (!auditState.person || r.byName === auditState.person));
+
+  const pages = Math.max(1, Math.ceil(rows.length / AUDIT_PAGE));
+  if (auditState.page >= pages) auditState.page = pages - 1;
+  const page = rows.slice(auditState.page * AUDIT_PAGE, (auditState.page + 1) * AUDIT_PAGE);
+
+  inner.innerHTML = `
+    <div class="footnote" style="margin-bottom:12px;">
+      Every admin change to money, time, access or clearance. Nothing here can be edited or
+      removed, by anyone, including you. ${all.length} entries held.
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+      <select id="auditArea" style="flex:1 1 150px; min-width:0;">
+        <option value="">Every screen</option>
+        ${areas.map((a) => `<option value="${escapeAttr(a)}" ${auditState.area === a ? "selected" : ""}>${escapeHtml(auditAreaLabel(a))}</option>`).join("")}
+      </select>
+      <select id="auditPerson" style="flex:1 1 150px; min-width:0;">
+        <option value="">Anyone</option>
+        ${people.map((n) => `<option value="${escapeAttr(n)}" ${auditState.person === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}
+      </select>
+    </div>
+    ${rows.length === 0 ? `<div class="footnote">Nothing recorded yet.</div>` : `
+      ${page.map((r) => `
+        <div class="cmp-row" style="margin-bottom:8px;">
+          <div class="cmp-row-main">
+            <div style="font-size:13.5px; font-weight:800;">
+              ${escapeHtml(auditAreaLabel(r.area))}${r.field ? ` · ${escapeHtml(r.field)}` : ""}
+            </div>
+            <div class="cmp-line">
+              ${escapeHtml(auditWhen(r.at))} · ${escapeHtml(r.byName || "unknown")}${r.subject ? ` · about ${escapeHtml(r.subject)}` : ""}
+            </div>
+            <div class="cmp-line">
+              ${r.action === "create" ? `set to <strong>${escapeHtml(r.newValue || "—")}</strong>`
+                : r.action === "delete" ? `removed <strong>${escapeHtml(r.oldValue || "—")}</strong>`
+                : `<strong>${escapeHtml(r.oldValue || "—")}</strong> to <strong>${escapeHtml(r.newValue || "—")}</strong>`}
+              ${r.note ? ` · ${escapeHtml(r.note)}` : ""}
+            </div>
+          </div>
+        </div>`).join("")}
+      ${pages > 1 ? `
+        <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:14px;">
+          <button class="ghost-pill" id="auditPrev" ${auditState.page === 0 ? "disabled" : ""}>← Newer</button>
+          <span class="footnote">${auditState.page + 1} of ${pages}</span>
+          <button class="ghost-pill" id="auditNext" ${auditState.page >= pages - 1 ? "disabled" : ""}>Older →</button>
+        </div>` : ""}
+    `}
+  `;
+
+  document.getElementById("auditArea").onchange = (e) => { auditState.area = e.target.value; auditState.page = 0; drawAuditLog(); };
+  document.getElementById("auditPerson").onchange = (e) => { auditState.person = e.target.value; auditState.page = 0; drawAuditLog(); };
+  const prev = document.getElementById("auditPrev"); if (prev) prev.onclick = () => { auditState.page--; drawAuditLog(); };
+  const next = document.getElementById("auditNext"); if (next) next.onclick = () => { auditState.page++; drawAuditLog(); };
+}
+
+// ============================================================================
+// Crew compliance — clearances and documents (admins only)
+// ============================================================================
+//
+// WHAT THIS DELIBERATELY DOES NOT HOLD
+//
+// The background check report itself. Not as a file, not as a result, not as a
+// note. The screening report is the most sensitive document the company
+// handles and it stays where Dustin keeps it, on his own machine and in Drive.
+// What lives here is the fact of a clearance and a line saying where the paper
+// is filed, which is all anyone ever actually needs to look up.
+//
+// The document locker below is for the harmless half: signed conduct forms,
+// lift and first aid cards, district badges. The upload screen says so out
+// loud, because the easiest way to end up with a screening report in a web
+// database is for it to be the obvious thing to drag in.
+//
+// WHY IT EXISTS
+//
+// Texas Education Code 22.0834 puts the duty on the contractor rather than the
+// school: a contract employee with continuing duties and direct contact with
+// students has to go through a national criminal history review, and the
+// obligation to keep that true runs for the whole time the services are being
+// provided. That last part is what bites, because a clearance done once goes
+// stale quietly. Every record carries the date it was done and the date it
+// runs out.
+//
+// WHO SEES WHAT
+//
+// Admins see everyone. A crew member sees their own line and their own
+// documents, nobody else's, enforced in the database rules rather than by
+// hiding buttons.
+
+function complianceRef(uid) { return db.ref(`compliance/${uid}`); }
+function complianceDocsRef(uid) { return db.ref(`complianceDocs/${uid}`); }
+function complianceSettingsRef() { return db.ref("complianceSettings"); }
+
+// A clearance is good for a year by default, which is what the screening
+// services sell and what the districts expect. The warning window is short on
+// purpose: against a yearly cycle a sixty-day banner reads like the clearance
+// is about to lapse, when it is simply the normal state of being nine months
+// in.
+const CMP_DEFAULT_YEARS = 1;
+const CMP_SOON_DAYS = 30;
+
+const CMP_PERIODS = [
+  { id: "1", label: "1 year" },
+  { id: "2", label: "2 years" },
+  { id: "3", label: "3 years" },
+  { id: "0", label: "Does not expire" },
+];
+
+// Dates are stored as plain YYYY-MM-DD. Comparing them as strings is exact and
+// avoids the timezone drift that comes from parsing a date-only string into a
+// Date, which lands on the previous evening in this timezone.
+function cmpDaysUntil(dateId) {
+  if (!dateId) return null;
+  const [y, m, d] = String(dateId).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const then = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((then - today) / 86400000);
+}
+
+function cmpAddYears(dateId, years) {
+  if (!dateId || !years) return "";
+  const [y, m, d] = String(dateId).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const t = new Date(y + Number(years), m - 1, d);
+  return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") +
+         "-" + String(t.getDate()).padStart(2, "0");
+}
+
+// One place decides what a record means, so the badge on the ID card, the chip
+// in the directory and the tally on the admin screen can never disagree.
+function cmpState(rec) {
+  rec = rec || {};
+  if (rec.bgStatus === "cleared") {
+    const left = cmpDaysUntil(rec.bgRenew);
+    if (left === null) return { key: "ok", label: "CLEARED", cls: "cmp-ok", current: true };
+    if (left < 0) return { key: "expired", label: "EXPIRED", cls: "cmp-bad", current: false, days: left };
+    if (left <= CMP_SOON_DAYS) return { key: "soon", label: `DUE IN ${left}D`, cls: "cmp-soon", current: true, days: left };
+    return { key: "ok", label: "CLEARED", cls: "cmp-ok", current: true, days: left };
+  }
+  if (rec.bgStatus === "submitted") return { key: "submitted", label: "SUBMITTED", cls: "cmp-soon", current: false };
+  return { key: "none", label: "NOT ON FILE", cls: "cmp-none", current: false };
+}
+
+function cmpChip(rec) {
+  const st = cmpState(rec);
+  return `<span class="cmp-chip ${st.cls}">${escapeHtml(st.label)}</span>`;
+}
+
+const CMP_STATUSES = [
+  { id: "none", label: "Not on file" },
+  { id: "submitted", label: "Submitted, waiting" },
+  { id: "cleared", label: "Cleared" },
+];
+
+// ---- the document locker --------------------------------------------------
+// Documents are stored in the database as data URIs, the same way crew photos
+// already are, because this app has no file storage behind it and adding one
+// would mean a second set of access rules to get right. That caps how big a
+// document can sensibly be, so pictures are shrunk on the way in and anything
+// still too large is refused with a reason rather than silently failing on a
+// write the database rejects.
+const CMP_DOC_MAX = 900 * 1024;          // after processing, before base64
+const CMP_IMG_MAX_EDGE = 1600;
+
+function cmpHumanSize(n) {
+  if (!n && n !== 0) return "";
+  return n < 1024 * 1024 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB";
+}
+
+// A data URI is about a third larger than the bytes it carries, so the check
+// has to happen on the encoded string, which is what actually gets written.
+function cmpDataBytes(dataUri) {
+  const i = String(dataUri).indexOf(",");
+  return i < 0 ? 0 : Math.round((dataUri.length - i - 1) * 3 / 4);
+}
+
+function cmpReadDoc(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("No file picked."));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Couldn't read that file."));
+    reader.onload = (ev) => {
+      const raw = ev.target.result;
+      // Only pictures can be shrunk. A PDF is handed over as it came.
+      if (!/^image\//.test(file.type)) {
+        if (cmpDataBytes(raw) > CMP_DOC_MAX) {
+          return reject(new Error(
+            `That file is ${cmpHumanSize(file.size)}. The limit here is about ${cmpHumanSize(CMP_DOC_MAX)}. ` +
+            `Photograph the page instead of scanning it, or keep this one in Drive and note where it is.`));
+        }
+        return resolve({ data: raw, mime: file.type || "application/octet-stream", bytes: cmpDataBytes(raw) });
+      }
+      const img = new Image();
+      img.onerror = () => reject(new Error("That image wouldn't open."));
+      img.onload = () => {
+        const scale = Math.min(1, CMP_IMG_MAX_EDGE / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        let q = 0.82, out = cv.toDataURL("image/jpeg", q);
+        // Walk the quality down rather than refusing a photo of a form.
+        while (cmpDataBytes(out) > CMP_DOC_MAX && q > 0.4) {
+          q -= 0.1; out = cv.toDataURL("image/jpeg", q);
+        }
+        if (cmpDataBytes(out) > CMP_DOC_MAX) {
+          return reject(new Error("That picture is still too big after shrinking. Try a tighter crop."));
+        }
+        resolve({ data: out, mime: "image/jpeg", bytes: cmpDataBytes(out) });
+      };
+      img.src = raw;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function renderComplianceAdmin() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading crew…</div>`;
+  try {
+    const [pSnap, cSnap, sSnap] = await Promise.all([
+      db.ref("profiles").once("value"),
+      db.ref("compliance").once("value"),
+      complianceSettingsRef().once("value"),
+    ]);
+    const profiles = pSnap.val() || {};
+    const comp = cSnap.val() || {};
+    const settings = sSnap.val() || {};
+
+    const rows = Object.keys(profiles)
+      .filter((uid) => profiles[uid] && profiles[uid].legalName)
+      .map((uid) => ({ uid, p: profiles[uid], c: comp[uid] || {} }))
+      .sort((a, b) => (a.p.legalName || "").localeCompare(b.p.legalName || ""));
+
+    if (!rows.length) {
+      inner.innerHTML = `<div class="footnote">No crew profiles yet.</div>`;
+      return;
+    }
+
+    const tally = { ok: 0, soon: 0, bad: 0, none: 0 };
+    rows.forEach((r) => {
+      const k = cmpState(r.c).key;
+      if (k === "ok") tally.ok++;
+      else if (k === "soon") tally.soon++;
+      else if (k === "expired") tally.bad++;
+      else tally.none++;
+    });
+    const outstanding = tally.soon + tally.bad + tally.none;
+
+    inner.innerHTML = `
+      <div class="cmp-warnbox">
+        <strong>The screening report never comes in here.</strong> Keep it where you keep it, on
+        your machine and in Drive. This screen holds whether someone is cleared, when it runs out,
+        and a line saying where the paper is filed. Nothing about what a check found goes anywhere
+        on this screen, including the note.
+      </div>
+
+      <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px;
+                  padding:13px 14px; margin-bottom:14px;">
+        <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+          <input type="checkbox" id="cmpBadgeToggle" ${settings.showBadge ? "checked" : ""}
+            style="margin-top:3px; width:18px; height:18px; flex:0 0 auto;" />
+          <span>
+            <span style="font-weight:800; font-size:13.5px;">Show the cleared badge on ID cards</span>
+            <span class="footnote" style="display:block; margin-top:4px;">
+              Off until you have worked through the roster. A badge that only some of the crew have
+              gets read as the rest having failed something, rather than as you not being finished.
+              ${outstanding ? `<strong>${outstanding}</strong> still outstanding.` : `All ${rows.length} are current.`}
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <div class="cmp-tally">
+        <div><b style="color:var(--green);">${tally.ok}</b><span>cleared</span></div>
+        <div><b style="color:var(--amber);">${tally.soon}</b><span>due within ${CMP_SOON_DAYS}d</span></div>
+        <div><b style="color:var(--red);">${tally.bad}</b><span>run out</span></div>
+        <div><b>${tally.none}</b><span>not on file</span></div>
+      </div>
+      <div class="footnote" style="margin-bottom:12px;">
+        ${rows.length} crew — visible to admins only
+      </div>
+      ${rows.map((r) => {
+        const bits = [];
+        if (r.c.bgDate) bits.push(`cleared ${escapeHtml(r.c.bgDate)}`);
+        if (r.c.bgRenew) bits.push(`good to ${escapeHtml(r.c.bgRenew)}`);
+        if (r.c.cocDate) bits.push(`conduct signed ${escapeHtml(r.c.cocDate)}`);
+        if (r.c.docCount) bits.push(`${r.c.docCount} document${r.c.docCount === 1 ? "" : "s"}`);
+        return `
+          <div class="cmp-row">
+            <div class="cmp-row-main">
+              <div class="cmp-name">${escapeHtml(r.p.legalName)} ${cmpChip(r.c)}</div>
+              ${bits.length ? `<div class="cmp-line">${bits.join(" · ")}</div>` : `<div class="cmp-line">Nothing recorded yet.</div>`}
+              ${(r.c.creds || []).length ? `<div class="cmp-line">${(r.c.creds || []).map((c) => {
+                const left = cmpDaysUntil(c.expires);
+                const flag = left !== null && left < 0 ? " (run out)" : (left !== null && left <= CMP_SOON_DAYS ? ` (${left}d)` : "");
+                return escapeHtml(c.label + (c.expires ? " to " + c.expires : "") + flag);
+              }).join(" · ")}</div>` : ""}
+              ${r.c.note ? `<div class="cmp-line" style="opacity:0.8;">${escapeHtml(r.c.note)}</div>` : ""}
+            </div>
+            <button class="ghost-pill" data-cmpedit="${escapeAttr(r.uid)}">Open</button>
+          </div>`;
+      }).join("")}
+    `;
+
+    const toggle = document.getElementById("cmpBadgeToggle");
+    toggle.onchange = async () => {
+      toggle.disabled = true;
+      try {
+        const bsUpdates = {};
+        bsUpdates["complianceSettings/showBadge"] = !!toggle.checked;
+        bsUpdates["complianceSettings/updatedBy"] = (currentUser && currentUser.email) || "";
+        bsUpdates["complianceSettings/updatedAt"] = new Date().toISOString();
+        auditInto(bsUpdates, {
+          action: "update", area: "complianceSettings", docId: "showBadge",
+          field: "ID card badge", oldValue: settings.showBadge ? "on" : "off",
+          newValue: toggle.checked ? "on" : "off",
+        });
+        await db.ref().update(bsUpdates);
+        settings.showBadge = !!toggle.checked;
+        advDone(toggle.checked ? "Badge on" : "Badge off",
+          toggle.checked
+            ? "Cleared crew will see it on their ID card from their next load."
+            : "The badge is hidden on every ID card.");
+      } catch (e) {
+        toggle.checked = !toggle.checked;
+        console.error("Badge setting:", e);
+      }
+      toggle.disabled = false;
+    };
+
+    inner.querySelectorAll("[data-cmpedit]").forEach((b) => {
+      b.onclick = () => renderComplianceEditor(b.dataset.cmpedit, profiles[b.dataset.cmpedit], comp[b.dataset.cmpedit] || {});
+    });
+  } catch (e) {
+    console.error("Compliance:", e);
+    inner.innerHTML = `<div class="error-msg">Couldn't load compliance (${escapeHtml(e.message || "unknown error")}). Check that the database rules include the compliance, complianceDocs and complianceSettings nodes.</div>`;
+  }
+}
+
+async function renderComplianceEditor(uid, profile, rec) {
+  const inner = document.getElementById("innerRoot");
+  profile = profile || {}; rec = rec || {};
+  const creds = (rec.creds || []).slice();
+
+  inner.innerHTML = `
+    <button class="ghost-pill" id="cmpBack" style="margin-bottom:14px;">← All crew</button>
+    <div class="cmp-name" style="font-size:18px; margin-bottom:12px;">${escapeHtml(profile.legalName || "Crew member")}</div>
+
+    <div class="field-block">
+      <div class="label">Background check</div>
+      <select id="cmpStatus">
+        ${CMP_STATUSES.map((o) => `<option value="${o.id}" ${(rec.bgStatus || "none") === o.id ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field-block">
+      <div class="label">Date cleared</div>
+      <input type="date" id="cmpDate" value="${escapeAttr(rec.bgDate || "")}" />
+    </div>
+    <div class="field-block">
+      <div class="label">Good for</div>
+      <select id="cmpPeriod">
+        ${CMP_PERIODS.map((o) => `<option value="${o.id}" ${String(rec.bgYears === undefined ? CMP_DEFAULT_YEARS : rec.bgYears) === o.id ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+      </select>
+      <div class="footnote">Sets the date below from the date cleared. Change that date directly if a particular check runs to its own schedule.</div>
+    </div>
+    <div class="field-block">
+      <div class="label">Good until</div>
+      <input type="date" id="cmpRenew" value="${escapeAttr(rec.bgRenew || "")}" />
+    </div>
+    <div class="field-block">
+      <div class="label">Where the report is filed</div>
+      <input id="cmpFiled" placeholder="e.g. Drive › ADV Compliance › 2026 › Smith" value="${escapeAttr(rec.bgFiled || "")}" />
+      <div class="footnote">A pointer, not the document. The report itself stays on your machine and in Drive.</div>
+    </div>
+
+    <div class="field-block">
+      <div class="label">Code of conduct signed</div>
+      <input type="date" id="cmpCoc" value="${escapeAttr(rec.cocDate || "")}" />
+    </div>
+
+    <div class="field-block">
+      <div class="label">Other credentials</div>
+      <div id="cmpCreds"></div>
+      <button class="ghost-pill" id="cmpAddCred" style="margin-top:8px;">+ Add one</button>
+      <div class="footnote">Lift, first aid, district badge, anything with a date on it.</div>
+    </div>
+
+    <div class="field-block">
+      <div class="label">Note (admins only)</div>
+      <input id="cmpNote" placeholder="e.g. submitted through the district portal" value="${escapeAttr(rec.note || "")}" />
+      <div class="footnote">Scheduling and paperwork only. Never anything about what a check found.</div>
+    </div>
+
+    <div id="cmpMsg"></div>
+    <button class="primary-btn" id="cmpSave">Save</button>
+
+    <div class="label" style="margin:26px 0 8px;">Documents</div>
+    <div class="cmp-warnbox" style="margin-bottom:12px;">
+      Signed conduct forms, lift and first aid cards, district badges. <strong>Not the background
+      check report.</strong> Anything here sits in the same database the crew app reads from, so it
+      holds the paperwork you would not mind a person seeing about themselves, and nothing more.
+    </div>
+    <div id="cmpDocs"><div class="footnote">Loading documents…</div></div>
+    <input type="file" id="cmpDocFile" accept="image/*,application/pdf" style="display:none" />
+    <div style="display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+      <input id="cmpDocLabel" placeholder="What it is, e.g. Signed conduct form"
+        style="flex:1 1 200px; min-width:0;" />
+      <button class="ghost-pill" id="cmpDocPick">Choose a file</button>
+    </div>
+    <div id="cmpDocMsg"></div>
+  `;
+
+  function drawCreds() {
+    const host = document.getElementById("cmpCreds");
+    host.innerHTML = creds.map((c, i) => `
+      <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+        <input data-credlabel="${i}" placeholder="What it is" value="${escapeAttr(c.label || "")}"
+          style="flex:2 1 120px; min-width:0;" />
+        <input data-credexp="${i}" type="date" value="${escapeAttr(c.expires || "")}"
+          style="flex:1 1 140px; min-width:0;" />
+        <button class="ghost-pill" data-creddel="${i}" title="Remove">✕</button>
+      </div>`).join("");
+    host.querySelectorAll("[data-credlabel]").forEach((el) => {
+      el.oninput = () => { creds[+el.dataset.credlabel].label = el.value; };
+    });
+    host.querySelectorAll("[data-credexp]").forEach((el) => {
+      el.oninput = () => { creds[+el.dataset.credexp].expires = el.value; };
+    });
+    host.querySelectorAll("[data-creddel]").forEach((el) => {
+      el.onclick = () => { creds.splice(+el.dataset.creddel, 1); drawCreds(); };
+    });
+  }
+  drawCreds();
+
+  // Picking a period fills the end date in. Typing the end date directly is
+  // still allowed, because a check that came back on its own schedule should
+  // not have to be argued with.
+  const dateEl = document.getElementById("cmpDate");
+  const periodEl = document.getElementById("cmpPeriod");
+  const renewEl = document.getElementById("cmpRenew");
+  function recomputeRenew() {
+    const years = Number(periodEl.value);
+    if (!years) { renewEl.value = ""; return; }
+    const d = cmpAddYears(dateEl.value, years);
+    if (d) renewEl.value = d;
+  }
+  dateEl.onchange = recomputeRenew;
+  periodEl.onchange = recomputeRenew;
+
+  document.getElementById("cmpAddCred").onclick = () => { creds.push({ label: "", expires: "" }); drawCreds(); };
+  document.getElementById("cmpBack").onclick = () => renderComplianceAdmin();
+
+  document.getElementById("cmpSave").onclick = async () => {
+    const btn = document.getElementById("cmpSave");
+    if (btn.disabled) return;
+    const status = document.getElementById("cmpStatus").value;
+    const date = dateEl.value;
+
+    // Cleared with no date is the record that quietly rots: it looks fine on
+    // every screen and nobody can say when it was done.
+    if (status === "cleared" && !date) {
+      document.getElementById("cmpMsg").innerHTML =
+        `<div class="footnote" style="color:var(--red);">Put the date it cleared in, or the record can't be stood behind later.</div>`;
+      return;
+    }
+
+    advSpent(btn, "Saving…");
+    try {
+      const cmpWas = (await complianceRef(uid).once("value")).val() || {};
+      const cmpNext = {
+        bgStatus: status,
+        bgDate: date || "",
+        bgYears: Number(periodEl.value),
+        bgRenew: renewEl.value || "",
+        bgFiled: document.getElementById("cmpFiled").value.trim(),
+        cocDate: document.getElementById("cmpCoc").value || "",
+        creds: creds.filter((c) => (c.label || "").trim()),
+        note: document.getElementById("cmpNote").value.trim(),
+        updatedBy: (currentUser && currentUser.email) || "",
+        updatedAt: new Date().toISOString(),
+      };
+      const cmpUpdates = {};
+      Object.keys(cmpNext).forEach((k) => { cmpUpdates[`compliance/${uid}/${k}`] = cmpNext[k]; });
+      // One line per field that moved. A clearance date that quietly shifted is
+      // exactly the thing someone needs to be able to find later.
+      [["bgStatus", "clearance"], ["bgDate", "date cleared"], ["bgRenew", "good until"],
+       ["cocDate", "conduct signed"]].forEach(([f, label]) => {
+        const was = cmpWas[f] == null ? "" : String(cmpWas[f]);
+        const now = cmpNext[f] == null ? "" : String(cmpNext[f]);
+        if (was === now) return;
+        auditInto(cmpUpdates, {
+          action: "update", area: "compliance", docId: uid, field: label,
+          subject: profile.legalName || uid, oldValue: was, newValue: now,
+        });
+      });
+      await db.ref().update(cmpUpdates);
+      advDone("Saved", `${profile.legalName || "That record"} is updated.`);
+      renderComplianceAdmin();
+    } catch (e) {
+      console.error("Compliance save:", e);
+      btn.disabled = false; btn.textContent = "Save"; btn.style.opacity = "1";
+      document.getElementById("cmpMsg").innerHTML =
+        `<div class="error-msg">Couldn't save (${escapeHtml(e.message || "unknown error")}).</div>`;
+    }
+  };
+
+  // ---- documents ----
+  async function drawDocs() {
+    const host = document.getElementById("cmpDocs");
+    try {
+      const docs = (await complianceDocsRef(uid).once("value")).val() || {};
+      const keys = Object.keys(docs);
+      if (!keys.length) { host.innerHTML = `<div class="footnote">Nothing on file.</div>`; return; }
+      host.innerHTML = keys.sort((a, b) => (docs[b].at || "").localeCompare(docs[a].at || "")).map((k) => {
+        const d = docs[k];
+        return `
+          <div class="cmp-row" style="margin-bottom:8px;">
+            <div class="cmp-row-main">
+              <div style="font-weight:800; font-size:13.5px;">${escapeHtml(d.label || d.name || "Document")}</div>
+              <div class="cmp-line">${escapeHtml(cmpHumanSize(d.bytes))}${d.at ? " · added " + escapeHtml(String(d.at).slice(0, 10)) : ""}</div>
+            </div>
+            <a class="ghost-pill" href="${d.data}" target="_blank" rel="noopener"
+               download="${escapeAttr(d.name || d.label || "document")}">Open</a>
+            <button class="ghost-pill" data-docdel="${escapeAttr(k)}" title="Remove">✕</button>
+          </div>`;
+      }).join("");
+      host.querySelectorAll("[data-docdel]").forEach((el) => {
+        el.onclick = async () => {
+          el.disabled = true;
+          try {
+            await complianceDocsRef(uid).child(el.dataset.docdel).remove();
+            await complianceRef(uid).update({ docCount: Math.max(0, keys.length - 1) });
+            drawDocs();
+          } catch (e) {
+            el.disabled = false;
+            console.error("Doc delete:", e);
+          }
+        };
+      });
+    } catch (e) {
+      host.innerHTML = `<div class="footnote" style="color:var(--red);">Couldn't load documents (${escapeHtml(e.message || "unknown")}).</div>`;
+    }
+  }
+  drawDocs();
+
+  const fileEl = document.getElementById("cmpDocFile");
+  document.getElementById("cmpDocPick").onclick = () => fileEl.click();
+  fileEl.onchange = async () => {
+    const file = fileEl.files && fileEl.files[0];
+    const msg = document.getElementById("cmpDocMsg");
+    const labelEl = document.getElementById("cmpDocLabel");
+    fileEl.value = "";
+    if (!file) return;
+    const label = labelEl.value.trim() || file.name;
+    msg.innerHTML = `<div class="footnote">Reading ${escapeHtml(file.name)}…</div>`;
+    try {
+      const out = await cmpReadDoc(file);
+      await complianceDocsRef(uid).push({
+        label, name: file.name, mime: out.mime, bytes: out.bytes, data: out.data,
+        at: new Date().toISOString(), by: (currentUser && currentUser.email) || "",
+      });
+      const n = Object.keys((await complianceDocsRef(uid).once("value")).val() || {}).length;
+      await complianceRef(uid).update({ docCount: n });
+      labelEl.value = "";
+      msg.innerHTML = "";
+      advDone("Added", `${label} is on file (${cmpHumanSize(out.bytes)}).`);
+      drawDocs();
+    } catch (e) {
+      msg.innerHTML = `<div class="error-msg">${escapeHtml(e.message || "Couldn't add that file.")}</div>`;
+    }
+  };
+}
+
 async function renderAdminCrewList() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading crew…</div>`;
   try {
     const snap = await db.ref("profiles").once("value");
     const all = snap.val() || {};
+    // The directory is where he already goes to look someone up, so the
+    // compliance state rides along rather than living only on its own screen.
+    let comp = {};
+    try { comp = (await db.ref("compliance").once("value")).val() || {}; }
+    catch (e) { /* directory still works without it */ }
+    const byName = {};
+    Object.keys(all).forEach((uid) => { if (all[uid] && all[uid].legalName) byName[all[uid].legalName] = comp[uid]; });
     const entries = Object.values(all).filter((p) => p && p.legalName);
     entries.sort((a, b) => (a.legalName || "").localeCompare(b.legalName || ""));
 
@@ -1827,7 +2574,7 @@ async function renderAdminCrewList() {
             ${p.photoData ? `<img src="${p.photoData}" />` : `<div class="admin-crew-photo-placeholder"></div>`}
           </div>
           <div class="admin-crew-info">
-            <div class="admin-crew-name">${escapeHtml(p.legalName)}</div>
+            <div class="admin-crew-name">${escapeHtml(p.legalName)} ${cmpChip(byName[p.legalName])}</div>
             ${p.crewHandle ? `<div class="admin-crew-handle">"${escapeHtml(p.crewHandle)}"</div>` : ""}
             <div class="admin-crew-skills">
               ${(p.skills || []).map((s) => `<span class="admin-skill-tag">${escapeHtml(s)}</span>`).join("")}
@@ -2570,14 +3317,14 @@ async function renderAdminApprovals() {
       ${pendingEntries.length === 0 ? `<div class="footnote" style="margin-bottom:16px;">Nobody's waiting right now.</div>` : pendingEntries.map(([uid, p]) => `
         <div class="log-entry">
           <div class="log-entry-body"><strong>${escapeHtml(p.displayName || "Unknown")}</strong> — ${escapeHtml(p.email || "")}</div>
-          <button class="shift-btn shift-btn-pickup" style="margin-top:8px;" data-uid="${uid}" data-action="approve">Approve</button>
+          <button class="shift-btn shift-btn-pickup" style="margin-top:8px;" data-uid="${uid}" data-who="${escapeAttr(p.displayName || p.email || uid)}" data-action="approve">Approve</button>
         </div>
       `).join("")}
       <div class="section-heading" style="font-size:12px; font-weight:800; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; margin:18px 0 8px;">Previously approved (${approvedEntries.length})</div>
       ${approvedEntries.length === 0 ? `<div class="footnote">Nobody else has been approved yet.</div>` : approvedEntries.map(([uid, p]) => `
         <div class="log-entry">
           <div class="log-entry-body"><strong>${escapeHtml(p.displayName || "Unknown")}</strong> — ${escapeHtml(p.email || "")}</div>
-          <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-uid="${uid}" data-action="revoke">Revoke Access</button>
+          <button class="shift-btn shift-btn-drop" style="margin-top:8px;" data-uid="${uid}" data-who="${escapeAttr(p.displayName || p.email || uid)}" data-action="revoke">Revoke Access</button>
         </div>
       `).join("")}
     `;
@@ -2587,7 +3334,14 @@ async function renderAdminApprovals() {
         btn.disabled = true;
         btn.textContent = "Approving…";
         try {
-          await db.ref(`approvedUsers/${btn.dataset.uid}`).set(true);
+          const apUpdates = {};
+          apUpdates[`approvedUsers/${btn.dataset.uid}`] = true;
+          auditInto(apUpdates, {
+            action: "approve", area: "approvedUsers", docId: btn.dataset.uid,
+            subject: btn.dataset.who || btn.dataset.uid,
+            oldValue: "", newValue: "approved",
+          });
+          await db.ref().update(apUpdates);
           renderAdminApprovals();
         } catch (e) {
           alert("Couldn't approve: " + (e.message || "unknown error"));
@@ -2602,7 +3356,14 @@ async function renderAdminApprovals() {
         btn.disabled = true;
         btn.textContent = "Revoking…";
         try {
-          await db.ref(`approvedUsers/${btn.dataset.uid}`).remove();
+          const rvUpdates = {};
+          rvUpdates[`approvedUsers/${btn.dataset.uid}`] = null;
+          auditInto(rvUpdates, {
+            action: "revoke", area: "approvedUsers", docId: btn.dataset.uid,
+            subject: btn.dataset.who || btn.dataset.uid,
+            oldValue: "approved", newValue: "",
+          });
+          await db.ref().update(rvUpdates);
           renderAdminApprovals();
         } catch (e) {
           alert("Couldn't revoke: " + (e.message || "unknown error"));
@@ -4850,25 +5611,50 @@ async function renderPaymentsAdmin() {
 
   const write = async (row, patch) => {
     try {
-      await paymentsRef(gameId).child(row.key).update(Object.assign({
+      // The payment row, the copy the crew member sees, and the audit entry
+      // all go up in one multi-path update. Money is the one place where a
+      // half-landed write is worth real argument later.
+      const payUpdates = {};
+      const payValue = Object.assign({
         name: row.name, position: row.position, amount: row.amount,
-      }, patch));
+      }, patch);
+      Object.keys(payValue).forEach((k) => {
+        payUpdates[`payments/${gameId}/${row.key}/${k}`] = payValue[k];
+      });
 
       // Show it to the person it belongs to. Without a uid there is no one to
       // show it to — that is flagged on the row rather than failing quietly.
       if (row.uid) {
-        const mine = db.ref(`paidStatus/${row.uid}/${gameId}/${row.key}`);
+        const minePath = `paidStatus/${row.uid}/${gameId}/${row.key}`;
         if (patch.paid) {
-          await mine.set({
+          payUpdates[minePath] = {
             paid: true,
             amount: row.amount,
             position: row.position,
             at: patch.at || new Date().toISOString(),
-          });
+          };
         } else if (patch.paid === false) {
-          await mine.remove();
+          payUpdates[minePath] = null;
         }
       }
+
+      if (patch.paid !== undefined) {
+        auditInto(payUpdates, {
+          action: "update", area: "payments", docId: row.key, eventId: gameId,
+          field: "paid", subject: row.name || "",
+          oldValue: patch.paid ? "not paid" : "paid",
+          newValue: patch.paid ? `paid $${row.amount}` : "not paid",
+          note: patch.note || "",
+        });
+      } else if (patch.note !== undefined) {
+        auditInto(payUpdates, {
+          action: "update", area: "payments", docId: row.key, eventId: gameId,
+          field: "payment note", subject: row.name || "",
+          oldValue: row.note || "", newValue: patch.note || "",
+        });
+      }
+
+      await db.ref().update(payUpdates);
       return true;
     } catch (e) {
       alert("Couldn't save that: " + (e.message || "unknown error"));
@@ -5017,8 +5803,19 @@ function openRateEditor(uid, name, rates) {
       if (!isNaN(v) && v > 0) out[rateKeyOf(p)] = v;
     });
     try {
-      if (Object.keys(out).length) await db.ref(`crewRates/${uid}`).set(out);
-      else await db.ref(`crewRates/${uid}`).remove();
+      // The rate and its audit entry go up as one multi-path update, so a
+      // changed rate with nothing saying who changed it cannot happen.
+      const wasRates = (await db.ref(`crewRates/${uid}`).once("value")).val() || {};
+      const had = Object.keys(wasRates).length, now = Object.keys(out).length;
+      const rateUpdates = {};
+      rateUpdates[`crewRates/${uid}`] = now ? out : null;
+      auditInto(rateUpdates, {
+        action: now ? (had ? "update" : "create") : "delete",
+        area: "crewRates", docId: uid, field: "custom rates", subject: name || "",
+        oldValue: had ? JSON.stringify(wasRates) : "",
+        newValue: now ? JSON.stringify(out) : "",
+      });
+      await db.ref().update(rateUpdates);
       close();
       renderCrewRatesAdmin();
     } catch (e) {
@@ -5137,13 +5934,33 @@ function openCallTimeEditor(gameId) {
 
     btn.disabled = true;
     try {
-      await db.ref(`gameSettings/${gameId}`).set({
+      const wasCall = (await db.ref(`gameSettings/${gameId}`).once("value")).val() || {};
+      const ctValue = {
         gameTime: gameTime || null,
         call: call || null,
         roleCalls: Object.keys(roleCalls).length ? roleCalls : null,
         updatedBy: currentUser.email || "",
         updatedAt: new Date().toISOString(),
+      };
+      // Call times are the one change crew plan their evening around, so each
+      // field that moved gets its own line in the log rather than one blob.
+      const ctUpdates = {};
+      ctUpdates[`gameSettings/${gameId}`] = ctValue;
+      const ctWas = (f) => (f === "roleCalls"
+        ? JSON.stringify(wasCall.roleCalls || {})
+        : (wasCall[f] == null ? "" : String(wasCall[f])));
+      const ctNow = (f) => (f === "roleCalls"
+        ? JSON.stringify(ctValue.roleCalls || {})
+        : (ctValue[f] == null ? "" : String(ctValue[f])));
+      ["gameTime", "call", "roleCalls"].forEach((f) => {
+        if (ctWas(f) === ctNow(f)) return;
+        auditInto(ctUpdates, {
+          action: "update", area: "gameSettings", docId: gameId, eventId: gameId,
+          field: f === "gameTime" ? "kickoff" : f === "call" ? "general call" : "position calls",
+          oldValue: ctWas(f), newValue: ctNow(f),
+        });
       });
+      await db.ref().update(ctUpdates);
       close();
       renderCallTimesAdmin();
     } catch (e) {
@@ -9559,6 +10376,7 @@ function renderProfileEditor(profile) {
   const inner = document.getElementById("innerRoot");
   const skills = profile.skills || [];
   inner.innerHTML = `
+    <div id="cmpMine"></div>
     ${directDepositCardHtml(profile)}
     <div class="photo-upload-box" id="photoBox">
       ${profile.photoData ? `<img src="${profile.photoData}" />` : `<div class="photo-upload-hint">Tap to add a photo</div>`}
@@ -9601,6 +10419,48 @@ function renderProfileEditor(profile) {
 
   let pendingPhotoData = profile.photoData || null;
   let selectedSkills = new Set(skills);
+
+  // Their own line, and only their own. The database rules allow a read of
+  // compliance/<own uid> and nothing else, so this cannot show anyone else's
+  // even if the code asked for it.
+  (async () => {
+    try {
+      const rec = (await complianceRef(currentUser.uid).once("value")).val();
+      const host = document.getElementById("cmpMine");
+      if (!host) return;
+      const st = cmpState(rec);
+      const bits = [];
+      if (rec && rec.bgDate) bits.push(`cleared ${escapeHtml(rec.bgDate)}`);
+      if (rec && rec.bgRenew) bits.push(`good to ${escapeHtml(rec.bgRenew)}`);
+
+      // Their own documents, so a person can see what the company holds about
+      // them. The rules allow a read of their own branch and nothing else.
+      let docs = {};
+      try { docs = (await complianceDocsRef(currentUser.uid).once("value")).val() || {}; }
+      catch (e) { /* the card is worth drawing without them */ }
+      const docKeys = Object.keys(docs);
+
+      host.innerHTML = `
+        <div style="background:var(--panel2); border:1px solid var(--border); border-radius:12px;
+                    padding:12px 14px; margin-bottom:14px;">
+          <div style="font-size:12px; font-weight:800; color:var(--text-faint);
+                      text-transform:uppercase; letter-spacing:0.7px; margin-bottom:7px;">Clearance</div>
+          <div>${cmpChip(rec)}</div>
+          <div class="footnote" style="margin-top:7px;">
+            ${bits.length ? bits.join(" · ") + ". " : ""}${st.key === "none"
+              ? "Nothing on file yet. Dustin or Aracely records this."
+              : "Only you and the admins can see this."}
+          </div>
+          ${docKeys.length ? `
+            <div class="footnote" style="margin-top:10px; margin-bottom:5px;">On file for you:</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${docKeys.map((k) => `<a class="ghost-pill" style="text-decoration:none; font-size:12px; padding:7px 11px;"
+                 href="${docs[k].data}" target="_blank" rel="noopener"
+                 download="${escapeAttr(docs[k].name || "document")}">${escapeHtml(docs[k].label || docs[k].name || "Document")}</a>`).join("")}
+            </div>` : ""}
+        </div>`;
+    } catch (e) { /* the profile page matters more than this card */ }
+  })();
 
   document.getElementById("photoBox").onclick = () => document.getElementById("photoInput").click();
   document.getElementById("photoInput").onchange = (e) => {
@@ -11108,6 +11968,27 @@ async function renderIdCard(profile) {
   }
   const scheduled = await findScheduledEvent(profile.legalName, profile.crewHandle);
 
+  // The card is what gets held up at a gate, so the cleared badge goes on it.
+  // It stays off until the roster has actually been worked through, because a
+  // badge only some of the crew have gets read as the rest having failed
+  // something. One switch on the admin screen turns it on for everybody at
+  // once; until then nobody's card shows it, cleared or not.
+  //
+  // Each person can only read their own compliance record, so this is a read of
+  // their own row and nothing else. If either read fails — rules not published
+  // yet, offline — the card still draws. A missing badge is not worth an ID
+  // card that will not render.
+  let cmp = null, cmpOn = false;
+  try {
+    const [cSnap, sSnap] = await Promise.all([
+      complianceRef(currentUser.uid).once("value"),
+      complianceSettingsRef().once("value"),
+    ]);
+    cmp = cSnap.val();
+    cmpOn = !!(sSnap.val() || {}).showBadge;
+  } catch (e) { /* badge is optional; the card is not */ }
+  const cmpSt = cmp ? cmpState(cmp) : null;
+
   inner.innerHTML = `
     <div class="id-card ${scheduled ? "" : "id-card-unauthorized"}">
       ${scheduled ? "" : `<div class="id-card-watermark">NOT SCHEDULED TODAY</div>`}
@@ -11122,6 +12003,13 @@ async function renderIdCard(profile) {
       <div class="id-card-title ${scheduled ? "" : "inactive"}">
         ${scheduled ? escapeHtml(scheduled.position) : "Not Scheduled Today"}
       </div>
+      ${cmpOn && cmpSt && cmpSt.current ? `
+        <div style="text-align:center;">
+          <div class="id-card-badge">
+            ✓ CLEARED
+            ${cmp.bgDate ? `<span class="id-card-badge-date">${escapeHtml(cmp.bgDate)}</span>` : ""}
+          </div>
+        </div>` : ""}
       <div class="id-card-footer">
         <img src="${CISD_LOGO}" class="id-card-cisd-logo" />
       </div>
