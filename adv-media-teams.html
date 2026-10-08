@@ -1552,7 +1552,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-09-01 · v97 · audit log";
+const APP_BUILD = "build 2026-09-01 · v99 · five clearance states";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -2103,6 +2103,10 @@ function cmpAddYears(dateId, years) {
 // in the directory and the tally on the admin screen can never disagree.
 function cmpState(rec) {
   rec = rec || {};
+  // Not cleared is a decision someone made, so it outranks the date maths.
+  if (rec.bgStatus === "rejected") {
+    return { key: "rejected", label: "NOT CLEARED", cls: "cmp-bad", current: false };
+  }
   if (rec.bgStatus === "cleared") {
     const left = cmpDaysUntil(rec.bgRenew);
     if (left === null) return { key: "ok", label: "CLEARED", cls: "cmp-ok", current: true };
@@ -2110,8 +2114,9 @@ function cmpState(rec) {
     if (left <= CMP_SOON_DAYS) return { key: "soon", label: `DUE IN ${left}D`, cls: "cmp-soon", current: true, days: left };
     return { key: "ok", label: "CLEARED", cls: "cmp-ok", current: true, days: left };
   }
-  if (rec.bgStatus === "submitted") return { key: "submitted", label: "SUBMITTED", cls: "cmp-soon", current: false };
-  return { key: "none", label: "NOT ON FILE", cls: "cmp-none", current: false };
+  if (rec.bgStatus === "submitted") return { key: "submitted", label: "WAITING ON ME", cls: "cmp-soon", current: false };
+  if (rec.bgStatus === "started") return { key: "started", label: "IN PROGRESS", cls: "cmp-soon", current: false };
+  return { key: "none", label: "NOTHING STARTED", cls: "cmp-none", current: false };
 }
 
 function cmpChip(rec) {
@@ -2119,10 +2124,16 @@ function cmpChip(rec) {
   return `<span class="cmp-chip ${st.cls}">${escapeHtml(st.label)}</span>`;
 }
 
+// Five states, not three. The two added ones are the ones that were being
+// faked before: a person part way through, and a person who was looked at and
+// did not clear. Both used to sit under "not on file", which read as nobody
+// having got to them yet.
 const CMP_STATUSES = [
-  { id: "none", label: "Not on file" },
-  { id: "submitted", label: "Submitted, waiting" },
-  { id: "cleared", label: "Cleared" },
+  { id: "none",      label: "Nothing started" },
+  { id: "started",   label: "Started, documents outstanding" },
+  { id: "submitted", label: "Submitted, waiting on me" },
+  { id: "cleared",   label: "Cleared" },
+  { id: "rejected",  label: "Not cleared" },
 ];
 
 // ---- the document locker --------------------------------------------------
@@ -8129,6 +8140,15 @@ async function renderTodayView() {
         </div>` : ""}
       <div id="todayWeather" class="footnote">Loading weather…</div>
       ${ros ? `<button class="ros-btn" id="rosOpenBtn">📋 Run of Show</button>` : ""}
+      ${isAdmin() ? `
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <button class="shift-btn" data-todaytext="${escapeAttr(gameId)}"
+            style="flex:1; min-width:140px; padding:11px 0;">📱 Text crew</button>
+          <button class="shift-btn shift-btn-ghost" data-todayremind="${escapeAttr(gameId)}"
+            style="flex:1; min-width:140px; padding:11px 0;">Remind who hasn't confirmed</button>
+          ${openCount ? `<button class="shift-btn shift-btn-ghost" data-todayalert="${escapeAttr(gameId)}"
+            style="flex:1 1 100%; padding:11px 0;">Alert the crew to ${openCount} open spot${openCount === 1 ? "" : "s"}</button>` : ""}
+        </div>` : ""}
     </div>
     <div class="footnote" style="margin:14px 0 8px;">
       ${isTomorrow ? "Working tomorrow" : "Working today"} (${assignedCount})${openCount ? ` · ${openCount} open` : ""}
@@ -8149,6 +8169,21 @@ async function renderTodayView() {
       mainState.view = "runofshow";
       renderMainApp();
     };
+  }
+
+  // The same message builders the Confirmations screen uses, pointed at the
+  // event this card is already showing. Today is where you look to see who is
+  // working, so it is where you reach for the text, rather than going back out
+  // to the Admin menu to find the same event again.
+  {
+    const oops = (e) => alert("Couldn't build that message: " + (e.message || "unknown error"));
+    const wire = (attr, fn) => {
+      const b = document.querySelector(`[${attr}]`);
+      if (b) b.onclick = () => fn(b.getAttribute(attr)).catch(oops);
+    };
+    wire("data-todaytext", (id) => textCrewFor("call", id));
+    wire("data-todayremind", (id) => textCrewFor("remind", id));
+    wire("data-todayalert", (id) => openShiftAlert(id));
   }
 
   const weather = await getVenueWeather();
