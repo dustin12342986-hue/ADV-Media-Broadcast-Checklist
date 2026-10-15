@@ -1,40 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="manifest" href="cmo37-ros.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CMO37" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="theme-color" content="#0E1114" />
 <title>CMO37 Run of Show</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   /* Layout: one screen, no scrolling to find the cue. Current item owns the
      middle, controls sit under the thumbs, the running order drops down over
      the top when you want it. Dark first, because it lives at a desk in a
      dark ballroom. */
+  /* Colors read off the client's mark: the iridescent ramp runs magenta to
+     violet to periwinkle to cyan on near-black. b1 b2 b3 are that ramp and
+     carry the gradient; the states borrow from it rather than inventing a
+     red or a green that is not in the brand. */
   :root {
-    --bg: #0E1114;
-    --panel: #171B21;
-    --panel-2: #1E242C;
-    --line: #2B323B;
-    --text: #EDF0F3;
-    --muted: #98A1AB;
-    --faint: #69727C;
-    --accent: #D79A46;
-    --accent-soft: rgba(215, 154, 70, 0.15);
-    --live: #6FBF8A;
-    --hold: #D79A46;
-    --over: #E08A7A;
+    --b1: #F1B2F9;
+    --b2: #C9BDFF;
+    --b3: #9CDEFF;
+    --go-text: #0B0C10;
+    --bg: #0B0C10;
+    --panel: #14161D;
+    --panel-2: #1B1E27;
+    --line: #2A2E3A;
+    --text: #ECEEF5;
+    --muted: #99A0B0;
+    --faint: #6A7183;
+    --accent: #9CDEFF;
+    --accent-soft: rgba(156, 222, 255, 0.14);
+    --live: #9CDEFF;
+    --hold: #DFC2FF;
+    --over: #F1B2F9;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     color-scheme: dark;
   }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
-      --bg: #F2F1EE; --panel: #FFFFFF; --panel-2: #F7F6F3; --line: #DCD9D2;
-      --text: #1C1F24; --muted: #646A72; --faint: #8D939B; --accent: #9A6516;
-      --accent-soft: rgba(154, 101, 22, 0.12); --live: #2F7D4F; --hold: #9A6516;
-      --over: #B4432F; color-scheme: light;
+      --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8; --go-text: #FFFFFF;
+      --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+      --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
+      --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
+      --over: #9B2FA8; color-scheme: light;
     }
   }
   :root[data-theme="light"] {
-    --bg: #F2F1EE; --panel: #FFFFFF; --panel-2: #F7F6F3; --line: #DCD9D2;
-    --text: #1C1F24; --muted: #646A72; --faint: #8D939B; --accent: #9A6516;
-    --accent-soft: rgba(154, 101, 22, 0.12); --live: #2F7D4F; --hold: #9A6516;
-    --over: #B4432F; color-scheme: light;
+    --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8; --go-text: #FFFFFF;
+    --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+    --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
+    --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
+    --over: #9B2FA8; color-scheme: light;
   }
 
   html, body { height: 100%; }
@@ -81,10 +102,16 @@
 
   /* the cue */
   .cue {
+    position: relative;
     flex: 1 1 auto; min-height: 0; background: var(--panel);
-    border: 1px solid var(--line); border-left: 4px solid var(--accent);
-    border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column;
-    gap: 8px; overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 20px 16px 24px; display: flex;
+    flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  /* the mark's ramp, standing on its end */
+  .cue::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: linear-gradient(180deg, var(--b1), var(--b2) 50%, var(--b3));
   }
   .cue .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   .cue h1 {
@@ -131,12 +158,13 @@
   .controls { flex: none; display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 9px; }
   .controls button { min-height: 58px; font-size: 16px; font-weight: 600; }
   .controls .go {
-    background: var(--accent); border-color: var(--accent); color: #12161A;
-    font-size: 19px;
+    background: linear-gradient(100deg, var(--b1), var(--b2) 55%, var(--b3));
+    border-color: transparent; color: var(--go-text); font-size: 19px;
   }
-  :root[data-theme="light"] .controls .go,
-  .controls .go { color: #12161A; }
-  .controls .holding { background: var(--hold); border-color: var(--hold); color: #12161A; }
+  .controls .holding {
+    background: var(--hold); border-color: var(--hold); color: var(--go-text);
+    background-image: none;
+  }
 
   /* running order */
   .list {
@@ -166,7 +194,8 @@
 
   .hint { color: var(--faint); font-size: 12px; }
 </style>
-
+</head>
+<body>
 <div class="screen">
   <div class="top">
     <span class="dot" id="dot"></span>
@@ -367,16 +396,27 @@
     else if (ev.key === "Escape") $("list").hidden = true;
   });
 
-  $("fs").addEventListener("click", function () {
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!req) { $("fs").textContent = "Add to Home Screen"; return; }
-    try {
-      Promise.resolve(req.call(el)).catch(function () {
-        $("fs").textContent = "Add to Home Screen";
-      });
-    } catch (e) { $("fs").textContent = "Add to Home Screen"; }
-  });
+  // Installed to the home screen there is no browser chrome to escape, so the
+  // button has nothing to do and the phone's own full screen notice never
+  // appears. In a tab it still works, with that notice, which belongs to the
+  // browser and cannot be dismissed from here.
+  const standalone = (window.matchMedia &&
+      window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches) ||
+    window.navigator.standalone === true;
+  if (standalone) {
+    $("fs").hidden = true;
+  } else {
+    $("fs").addEventListener("click", function () {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { $("fs").textContent = "Add to Home Screen"; return; }
+      try {
+        Promise.resolve(req.call(el)).catch(function () {
+          $("fs").textContent = "Add to Home Screen";
+        });
+      } catch (e) { $("fs").textContent = "Add to Home Screen"; }
+    });
+  }
 
   // Keep the screen awake while the page is up. Refused is fine.
   let lock = null;
@@ -517,3 +557,5 @@
   setInterval(function () { tickReadouts(); clock(); }, 1000);
 })();
 </script>
+</body>
+</html>
