@@ -239,6 +239,28 @@
   .controls[hidden], .controls.follow[hidden] { display: none; }
   .item.viewing { border-color: var(--b2); }
 
+  .note { margin-top: 10px; }
+  .note[hidden] { display: none; }
+  .note .tag { display: block; margin-bottom: 3px; }
+  .note textarea {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 15px;
+    line-height: 1.35; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
+    resize: vertical; min-height: 54px; max-height: 120px;
+  }
+  .note textarea:focus { outline: 2px solid var(--b2); outline-offset: 1px; }
+  .note p {
+    margin: 0; font-size: 15px; line-height: 1.35; color: var(--text);
+    border-left: 3px solid var(--b2); padding-left: 10px; white-space: pre-wrap;
+    max-height: 120px; overflow: auto;
+  }
+  .item .noteline {
+    font: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box;
+    padding: 7px 9px; border-radius: 8px; background: var(--panel-2);
+    border: 1px solid var(--line); color: var(--text); min-height: 38px;
+  }
+  .item .hasnote { color: var(--b2); font-size: 12px; margin-top: 2px; white-space: pre-wrap; }
+
   .nudge { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .nudge[hidden] { display: none; }
   .nudge .tag { margin-right: 2px; }
@@ -283,6 +305,12 @@
     <h1 id="cueTitle">&mdash;</h1>
     <p class="sub" id="cueSub"></p>
     <div class="after" id="after"></div>
+    <div class="note" id="noteWrap" hidden>
+      <span class="tag">Note</span>
+      <textarea id="noteBox" rows="2" placeholder="Note for this cue" hidden></textarea>
+      <p id="noteRead" hidden></p>
+    </div>
+
     <div class="nudge" id="nudge" hidden>
       <span class="tag">Add or take time</span>
       <button class="small" data-n="-300">&minus;5</button>
@@ -446,7 +474,8 @@
 
   let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0 };
   let control = { by: "", name: "", at: 0 };
-  let fb = null, stateRef = null, controlRef = null, sheetRef = null;
+  let fb = null, stateRef = null, controlRef = null, sheetRef = null, notesRef = null;
+  let NOTES = {};
   let editing = false;
   let signedIn = null, online = false;
   let localView = null, browseUntil = 0;
@@ -503,11 +532,13 @@
       stateRef = fb.ref(SHOW_PATH + "/state");
       controlRef = fb.ref(SHOW_PATH + "/control");
       sheetRef = fb.ref(SHOW_PATH + "/times");
+      notesRef = fb.ref(SHOW_PATH + "/notes");
 
       firebase.auth().onAuthStateChanged(function (u) { signedIn = u || null; paintConn(); render(); });
       fb.ref(".info/connected").on("value", function (sn) { online = !!sn.val(); paintConn(); });
       stateRef.on("value", function (sn) { const v = sn.val(); if (v) adopt(v); });
       sheetRef.on("value", function (sn) { adoptTimes(sn.val()); });
+      notesRef.on("value", function (sn) { NOTES = sn.val() || {}; render(); });
       controlRef.on("value", function (sn) {
         control = sn.val() || { by: "", name: "", at: 0 };
         paintConn(); render();
@@ -534,6 +565,21 @@
   }
   function releaseControl() {
     if (controlRef && amController()) controlRef.set({ by: "", name: "", at: 0 });
+  }
+
+  // Notes hang off the cue they belong to, in their own record. Saved a
+  // moment after typing stops rather than on every keystroke, so a long note
+  // is one write and not fifty.
+  let noteHold = null;
+  function noteFor(i) { return (NOTES && NOTES[String(i)]) || ""; }
+  function saveNote(i, text) {
+    NOTES = Object.assign({}, NOTES);
+    if (text) NOTES[String(i)] = text; else delete NOTES[String(i)];
+    if (notesRef && amController()) notesRef.set(NOTES);
+  }
+  function queueNote(i, text) {
+    clearTimeout(noteHold);
+    noteHold = setTimeout(function () { saveNote(i, text); }, 600);
   }
 
   // Times live in their own record so changing them never fights with the
@@ -620,6 +666,14 @@
   $("back").addEventListener("click", function () { goTo(S.i - 1, false); });
   $("reset").addEventListener("click", resetCue);
   $("resetShow").addEventListener("click", resetShow);
+  $("noteBox").addEventListener("input", function () {
+    queueNote(parseInt($("noteBox").getAttribute("data-i") || "0", 10), $("noteBox").value.trim());
+  });
+  $("noteBox").addEventListener("blur", function () {
+    clearTimeout(noteHold);
+    saveNote(parseInt($("noteBox").getAttribute("data-i") || "0", 10), $("noteBox").value.trim());
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll("#nudge [data-n]"), function (bt) {
     bt.addEventListener("click", function () {
       nudgeClock(parseInt(bt.getAttribute("data-n"), 10));
@@ -677,7 +731,8 @@
   }
 
   document.addEventListener("keydown", function (ev) {
-    if ((ev.target.tagName || "").toLowerCase() === "input") return;
+    const tag = (ev.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
     if (ev.key === "Escape") { $("list").hidden = true; return; }
     if (!amController() && fb && online) return;
     if (ev.key === " ") { ev.preventDefault(); primary(); }
@@ -759,6 +814,23 @@
     $("followBar").hidden = driving;
     $("reset").hidden = !driving;
     $("resetShow").hidden = !driving;
+    // The note for whatever cue is on screen. The driver types it, everyone
+    // else reads it. An empty note is simply not there for a follower.
+    const noteText = noteFor(idx);
+    const box = $("noteBox"), ro = $("noteRead");
+    if (driving) {
+      $("noteWrap").hidden = false;
+      box.hidden = false; ro.hidden = true;
+      box.setAttribute("data-i", String(idx));
+      if (document.activeElement !== box && box.value !== noteText) box.value = noteText;
+    } else if (noteText) {
+      $("noteWrap").hidden = false;
+      box.hidden = true; ro.hidden = false;
+      ro.textContent = noteText;
+    } else {
+      $("noteWrap").hidden = true;
+    }
+
     $("nudge").hidden = !(driving && S.status !== "standby" && onLive);
     $("editbar").hidden = !driving;
     $("pushbar").hidden = !driving;
@@ -899,16 +971,26 @@
             "<span>to</span>" +
             '<input type="time" data-e="' + i + '" value="' + field(mins(b.e)) + '" aria-label="End" />' +
             '<span class="len">' + durMin(b) + " min</span>" +
-          "</div></div>";
+          "</div>" +
+          '<input class="noteline" data-note="' + i + '" value="' + esc(noteFor(i)) +
+          '" placeholder="Note" aria-label="Note" /></div>';
       }
       return '<div class="item' + cls + '">' +
         '<div class="cl">' + esc(b.s) + "<br>" + durMin(b) + " min</div>" +
         '<div class="w"><div class="ti">' + esc(b.t) +
         (b.pair ? ' <span class="pairmark">two rooms</span>' : "") +
         (i === S.i ? ' <span class="pairmark">live</span>' : "") + "</div>" +
-        '<div class="pi">' + esc(b.p || "") + "</div></div>" +
+        '<div class="pi">' + esc(b.p || "") + "</div>" +
+        (noteFor(i) ? '<div class="hasnote">' + esc(noteFor(i)) + "</div>" : "") + "</div>" +
         '<button class="small" data-go="' + i + '">' + (driving ? "Go" : "View") + "</button></div>";
     }).join("");
+    Array.prototype.forEach.call($("items").querySelectorAll("input[data-note]"), function (inp) {
+      inp.addEventListener("change", function () {
+        saveNote(parseInt(inp.getAttribute("data-note"), 10), inp.value.trim());
+        render();
+      });
+    });
+
     // A changed time writes the whole set, so every device agrees.
     Array.prototype.forEach.call($("items").querySelectorAll("input[type=time]"), function (inp) {
       inp.addEventListener("change", function () {
