@@ -55,6 +55,8 @@
     --live: #9CDEFF;
     --hold: #DFC2FF;
     --over: #F1B2F9;
+    --alarm: #FF6257;
+    --alarm-soft: rgba(255, 98, 87, 0.13);
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     color-scheme: dark;
@@ -65,7 +67,8 @@
       --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
       --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
       --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
-      --over: #9B2FA8; color-scheme: light;
+      --over: #9B2FA8; --alarm: #C42114; --alarm-soft: rgba(196, 33, 20, 0.10);
+      color-scheme: light;
     }
   }
   :root[data-theme="light"] {
@@ -73,7 +76,8 @@
     --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
     --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
     --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
-    --over: #9B2FA8; color-scheme: light;
+    --over: #9B2FA8; --alarm: #C42114; --alarm-soft: rgba(196, 33, 20, 0.10);
+    color-scheme: light;
   }
 
   html, body { height: 100%; }
@@ -192,6 +196,19 @@
   }
   .read.over b { color: var(--over); }
   .read.hold b { color: var(--hold); }
+  /* Past the end of the block. This one is allowed to shout: red, a red
+     edge, and a slow pulse you catch out of the corner of your eye from
+     across the room. */
+  .read.alarm {
+    border-color: var(--alarm); background: var(--alarm-soft);
+    animation: overrun 2s ease-in-out infinite;
+  }
+  .read.alarm b, .read.alarm .tag { color: var(--alarm); }
+  @keyframes overrun {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 98, 87, 0); }
+    50% { box-shadow: 0 0 0 3px var(--alarm-soft); }
+  }
+  @media (prefers-reduced-motion: reduce) { .read.alarm { animation: none; } }
 
   /* next */
   .next {
@@ -1026,9 +1043,9 @@
       lw.querySelector(".tag").textContent = "Left in block";
       lw.className = "read";
     } else {
-      lw.querySelector("b").textContent = mmss(-left);
+      lw.querySelector("b").textContent = "−" + mmss(-left);
       lw.querySelector(".tag").textContent = "Over the block";
-      lw.className = "read over";
+      lw.className = "read alarm";
     }
 
     // Where the day sits against the printed sheet.
