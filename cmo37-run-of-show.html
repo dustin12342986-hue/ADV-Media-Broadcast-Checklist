@@ -238,6 +238,25 @@
   .controls.follow { grid-template-columns: 1fr; }
   .controls[hidden], .controls.follow[hidden] { display: none; }
   .item.viewing { border-color: var(--b2); }
+
+  .nudge { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .nudge[hidden] { display: none; }
+  .nudge .tag { margin-right: 2px; }
+  .nudge button { min-height: 34px; padding: 4px 11px; font-family: var(--mono); }
+
+  .editbar, .pushbar {
+    display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .editbar[hidden], .pushbar[hidden] { display: none; }
+  .item.editing { grid-template-columns: 1fr; gap: 8px; }
+  .item .times { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .item .times input {
+    font: inherit; font-family: var(--mono); font-size: 14px; padding: 7px 9px;
+    border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); min-height: 38px;
+  }
+  .item .times span { color: var(--faint); font-size: 12px; }
+  .item .len { font-family: var(--mono); font-size: 12px; color: var(--b2); }
 </style>
 </head>
 <body>
@@ -264,6 +283,13 @@
     <h1 id="cueTitle">&mdash;</h1>
     <p class="sub" id="cueSub"></p>
     <div class="after" id="after"></div>
+    <div class="nudge" id="nudge" hidden>
+      <span class="tag">Add or take time</span>
+      <button class="small" data-n="-300">&minus;5</button>
+      <button class="small" data-n="-60">&minus;1</button>
+      <button class="small" data-n="60">+1</button>
+      <button class="small" data-n="300">+5</button>
+    </div>
     <div class="readouts">
       <div class="read" id="rElapsed"><span class="tag">Elapsed</span><b>0:00</b></div>
       <div class="read" id="rLeft"><span class="tag">Left in block</span><b>&mdash;</b></div>
@@ -303,6 +329,18 @@
     <span class="tag">Running order &middot; Day One, October 15</span>
     <button class="small" id="closeList" style="margin-left:auto">Close</button>
   </div>
+  <div class="editbar" id="editbar" hidden>
+    <button class="small" id="editToggle">Change times</button>
+    <span class="tag" id="editNote"></span>
+  </div>
+  <div class="pushbar" id="pushbar" hidden>
+    <span class="tag">Push this cue and everything after it</span>
+    <button class="small" data-push="-15">&minus;15</button>
+    <button class="small" data-push="-5">&minus;5</button>
+    <button class="small" data-push="5">+5</button>
+    <button class="small" data-push="15">+15</button>
+    <button class="small" id="restoreTimes">Back to the printed times</button>
+  </div>
   <div id="items"></div>
   <p class="hint" id="listHint"></p>
   <button class="small" id="resetShow" hidden style="align-self:flex-start">Reset the show to the top</button>
@@ -340,6 +378,11 @@
     { s: "7:30 PM", e: "8:45 PM", t: "Dinner and Game Show", p: "Dinner service, then the game show" }
   ];
 
+  // DAY is the printed sheet and never changes. SHEET is what is in force:
+  // the same items with whatever times the producer has set, shared with
+  // everyone through the database.
+  let SHEET = DAY.map(function (b) { return Object.assign({}, b); });
+
   const $ = function (id) { return document.getElementById(id); };
 
   function mins(str) {
@@ -351,6 +394,25 @@
     return h * 60 + mi;
   }
   function durMin(b) { return mins(b.e) - mins(b.s); }
+  // "13:25" from an <input type=time> to "1:25 PM", and back again.
+  function label(m) {
+    m = ((Math.round(m) % 1440) + 1440) % 1440;
+    let h = Math.floor(m / 60); const mi = m % 60;
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + String(mi).padStart(2, "0") + " " + ap;
+  }
+  function field(m) {
+    m = ((Math.round(m) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function fromField(v) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || "").trim());
+    if (!m) return null;
+    const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+    if (h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+  }
   function esc(t) {
     return String(t == null ? "" : t).replace(/&/g, "&amp;")
       .replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -384,7 +446,8 @@
 
   let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0 };
   let control = { by: "", name: "", at: 0 };
-  let fb = null, stateRef = null, controlRef = null;
+  let fb = null, stateRef = null, controlRef = null, sheetRef = null;
+  let editing = false;
   let signedIn = null, online = false;
   let localView = null, browseUntil = 0;
 
@@ -421,7 +484,7 @@
   function adopt(o) {
     if (!o || typeof o.i !== "number") return;
     S = {
-      i: Math.max(0, Math.min(DAY.length - 1, o.i)),
+      i: Math.max(0, Math.min(SHEET.length - 1, o.i)),
       status: o.status === "running" || o.status === "hold" ? o.status : "standby",
       startedAt: Number(o.startedAt) || 0,
       heldAt: Number(o.heldAt) || 0
@@ -439,10 +502,12 @@
       fb = firebase.database();
       stateRef = fb.ref(SHOW_PATH + "/state");
       controlRef = fb.ref(SHOW_PATH + "/control");
+      sheetRef = fb.ref(SHOW_PATH + "/times");
 
       firebase.auth().onAuthStateChanged(function (u) { signedIn = u || null; paintConn(); render(); });
       fb.ref(".info/connected").on("value", function (sn) { online = !!sn.val(); paintConn(); });
       stateRef.on("value", function (sn) { const v = sn.val(); if (v) adopt(v); });
+      sheetRef.on("value", function (sn) { adoptTimes(sn.val()); });
       controlRef.on("value", function (sn) {
         control = sn.val() || { by: "", name: "", at: 0 };
         paintConn(); render();
@@ -471,10 +536,51 @@
     if (controlRef && amController()) controlRef.set({ by: "", name: "", at: 0 });
   }
 
+  // Times live in their own record so changing them never fights with the
+  // cue pointer. Anything missing falls back to the printed sheet.
+  function adoptTimes(v) {
+    SHEET = DAY.map(function (b, i) {
+      const o = Object.assign({}, b);
+      const row = v && v[i];
+      if (row && row.s && row.e) { o.s = row.s; o.e = row.e; }
+      return o;
+    });
+    render();
+  }
+  function saveTimes() {
+    if (!sheetRef || !amController()) return;
+    sheetRef.set(SHEET.map(function (b) { return { s: b.s, e: b.e }; }));
+  }
+
+  // Moves this cue and every cue after it by the same number of minutes,
+  // which is what happens when a block runs long.
+  function pushFrom(i, deltaMin) {
+    if (!amController() && fb && online) return;
+    for (let k = i; k < SHEET.length; k++) {
+      SHEET[k].s = label(mins(SHEET[k].s) + deltaMin);
+      SHEET[k].e = label(mins(SHEET[k].e) + deltaMin);
+    }
+    saveTimes(); render();
+  }
+  function restoreTimes() {
+    if (!amController() && fb && online) return;
+    SHEET = DAY.map(function (b) { return Object.assign({}, b); });
+    if (sheetRef && amController()) sheetRef.set(null);
+    render();
+  }
+  // Adds or takes time from the cue that is running, by moving when it
+  // started. Plus gives the block more room, minus takes it away.
+  function nudgeClock(seconds) {
+    if (!amController() && fb && online) return;
+    if (S.status === "standby" || !S.startedAt) return;
+    S.startedAt += seconds * 1000;
+    render(); push();
+  }
+
   // ---- actions (controller only) -----------------------------------------
   function goTo(i, run) {
     if (!amController() && fb && online) return;
-    S.i = Math.max(0, Math.min(DAY.length - 1, i));
+    S.i = Math.max(0, Math.min(SHEET.length - 1, i));
     S.status = run ? "running" : "standby";
     S.startedAt = run ? Date.now() : 0;
     S.heldAt = 0;
@@ -514,6 +620,23 @@
   $("back").addEventListener("click", function () { goTo(S.i - 1, false); });
   $("reset").addEventListener("click", resetCue);
   $("resetShow").addEventListener("click", resetShow);
+  Array.prototype.forEach.call(document.querySelectorAll("#nudge [data-n]"), function (bt) {
+    bt.addEventListener("click", function () {
+      nudgeClock(parseInt(bt.getAttribute("data-n"), 10));
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#pushbar [data-push]"), function (bt) {
+    bt.addEventListener("click", function () {
+      pushFrom(S.i, parseInt(bt.getAttribute("data-push"), 10));
+    });
+  });
+  $("restoreTimes").addEventListener("click", restoreTimes);
+  $("editToggle").addEventListener("click", function () {
+    editing = !editing;
+    $("editToggle").textContent = editing ? "Done changing times" : "Change times";
+    $("editToggle").classList.toggle("on", editing);
+    paintList();
+  });
   $("openList").addEventListener("click", function () { $("list").hidden = false; paintList(); });
   $("closeList").addEventListener("click", function () { $("list").hidden = true; });
 
@@ -607,11 +730,11 @@
   function render() {
     const idx = viewIndex();
     const onLive = idx === S.i;
-    const b = DAY[idx];
-    const n = DAY[idx + 1];
+    const b = SHEET[idx];
+    const n = SHEET[idx + 1];
     const driving = amController() || !fb || !online;
 
-    $("cueNo").textContent = "Cue " + (idx + 1) + " of " + DAY.length +
+    $("cueNo").textContent = "Cue " + (idx + 1) + " of " + SHEET.length +
       (b.pair ? " · two rooms" : "");
     $("cueSched").textContent = b.s + " to " + b.e + " · " + durMin(b) + " min";
     $("cueState").textContent = !onLive ? "Looking ahead"
@@ -622,7 +745,7 @@
     $("cueSub").textContent = b.p || "";
 
     // what is coming after next, so the caller is not guessing
-    $("after").innerHTML = DAY.slice(idx + 2, idx + 5).map(function (x) {
+    $("after").innerHTML = SHEET.slice(idx + 2, idx + 5).map(function (x) {
       return '<div><span class="wt">' + esc(x.s) + '</span><span class="wn">' +
         esc(x.t) + (x.p ? " · " + esc(x.p) : "") + "</span></div>";
     }).join("");
@@ -636,13 +759,18 @@
     $("followBar").hidden = driving;
     $("reset").hidden = !driving;
     $("resetShow").hidden = !driving;
+    $("nudge").hidden = !(driving && S.status !== "standby" && onLive);
+    $("editbar").hidden = !driving;
+    $("pushbar").hidden = !driving;
+    $("editNote").textContent = timesChanged()
+      ? "Changed from the printed sheet" : "Matching the printed sheet";
     $("takeBtn").textContent = controlLive() && !amController()
       ? "Take control from " + (control.name || "the producer") : "Take control";
 
     if (driving) {
       $("go").textContent = S.status === "standby" ? "Start"
-        : S.status === "hold" ? "Resume" : (n && S.i + 1 < DAY.length ? "Next" : "End");
-      $("go").disabled = S.status === "running" && S.i + 1 >= DAY.length;
+        : S.status === "hold" ? "Resume" : (n && S.i + 1 < SHEET.length ? "Next" : "End");
+      $("go").disabled = S.status === "running" && S.i + 1 >= SHEET.length;
       $("hold").textContent = S.status === "hold" ? "Holding" : "Hold";
       $("hold").classList.toggle("holding", S.status === "hold");
       $("hold").disabled = S.status === "standby";
@@ -652,6 +780,13 @@
     paintBanner();
     tickReadouts();
     if (!$("list").hidden) paintList();
+  }
+
+  function timesChanged() {
+    for (let i = 0; i < SHEET.length; i++) {
+      if (SHEET[i].s !== DAY[i].s || SHEET[i].e !== DAY[i].e) return true;
+    }
+    return false;
   }
 
   // Says who is driving and, when this device has wandered off, how long
@@ -679,7 +814,7 @@
   function tickReadouts() {
     const idx = viewIndex();
     const onLive = idx === S.i;
-    const b = DAY[idx];
+    const b = SHEET[idx];
     const el = onLive ? elapsedMs() : 0;
     if (!onLive) {
       // Looking at a cue that is not the one being called: no clock to show.
@@ -690,7 +825,7 @@
       $("rLeft").querySelector("b").textContent = mmss(durMin(b) * 60000);
       $("rLeft").querySelector(".tag").textContent = "Block length";
       $("rPlan").className = "read";
-      $("rPlan").querySelector("b").textContent = DAY[S.i].t;
+      $("rPlan").querySelector("b").textContent = SHEET[S.i].t;
       $("rPlan").querySelector(".tag").textContent = "Live cue";
       return;
     }
@@ -752,9 +887,20 @@
     $("listHint").textContent = driving
       ? "Go puts the whole crew on that item. Space starts or advances, H holds."
       : "View shows you that item on this device only. It goes back to the producer ten seconds after you stop touching it.";
-    $("items").innerHTML = DAY.map(function (b, i) {
+    $("items").innerHTML = SHEET.map(function (b, i) {
       const cls = (i === S.i ? " cur" : (i < S.i ? " past" : "")) +
         (!driving && i === viewing && i !== S.i ? " viewing" : "");
+      if (driving && editing) {
+        return '<div class="item editing' + cls + '">' +
+          '<div class="ti">' + esc(b.t) +
+          (i === S.i ? ' <span class="pairmark">live</span>' : "") + "</div>" +
+          '<div class="times">' +
+            '<input type="time" data-s="' + i + '" value="' + field(mins(b.s)) + '" aria-label="Start" />' +
+            "<span>to</span>" +
+            '<input type="time" data-e="' + i + '" value="' + field(mins(b.e)) + '" aria-label="End" />' +
+            '<span class="len">' + durMin(b) + " min</span>" +
+          "</div></div>";
+      }
       return '<div class="item' + cls + '">' +
         '<div class="cl">' + esc(b.s) + "<br>" + durMin(b) + " min</div>" +
         '<div class="w"><div class="ti">' + esc(b.t) +
@@ -763,6 +909,23 @@
         '<div class="pi">' + esc(b.p || "") + "</div></div>" +
         '<button class="small" data-go="' + i + '">' + (driving ? "Go" : "View") + "</button></div>";
     }).join("");
+    // A changed time writes the whole set, so every device agrees.
+    Array.prototype.forEach.call($("items").querySelectorAll("input[type=time]"), function (inp) {
+      inp.addEventListener("change", function () {
+        const si = inp.getAttribute("data-s"), ei = inp.getAttribute("data-e");
+        const m = fromField(inp.value);
+        if (m === null) { paintList(); return; }
+        const i = parseInt(si === null ? ei : si, 10);
+        if (si !== null) {
+          SHEET[i].s = label(m);
+          if (mins(SHEET[i].e) <= m) SHEET[i].e = label(m + 5);
+        } else {
+          SHEET[i].e = label(m);
+          if (m <= mins(SHEET[i].s)) SHEET[i].s = label(m - 5);
+        }
+        saveTimes(); render();
+      });
+    });
     Array.prototype.forEach.call($("items").querySelectorAll("[data-go]"), function (bt) {
       bt.addEventListener("click", function () {
         const i = parseInt(bt.getAttribute("data-go"), 10);
