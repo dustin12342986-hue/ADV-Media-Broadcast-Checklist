@@ -133,14 +133,26 @@
   }
   .cue .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   .cue h1 {
-    margin: 0; font-size: clamp(26px, 5.2vw, 52px); line-height: 1.05;
+    flex: none;
+    margin: 0; font-size: clamp(24px, 5vw, 48px); line-height: 1.05;
     letter-spacing: -0.025em; text-wrap: balance;
   }
-  .cue .sub {
-    margin: 0; color: var(--muted); font-size: clamp(14px, 1.8vw, 19px);
-    line-height: 1.3; overflow: hidden;
+  /* Everything between the title and the readouts shares one scrolling
+     region. Without it, flex squeezes the subtitle down to a few pixels and
+     the coming-up list spills over whatever sits under it. */
+  .cuemid {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 8px;
   }
-  .after { margin-top: 14px; display: grid; gap: 6px; align-content: start; min-height: 0; }
+  .cue .sub {
+    flex: none;
+    margin: 0; color: var(--muted); font-size: clamp(14px, 1.8vw, 19px);
+    line-height: 1.3;
+  }
+  .after {
+    flex: none; margin-top: 4px; display: grid; gap: 6px; align-content: start;
+    min-height: 0; overflow: hidden;
+  }
   .after div {
     display: grid; grid-template-columns: 78px 1fr; gap: 12px; align-items: baseline;
     color: var(--faint); font-size: 13.5px; min-width: 0;
@@ -149,7 +161,8 @@
   .after .wn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .readouts {
-    margin-top: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;
+    flex: none; margin-top: 12px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;
   }
   .read {
     background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
@@ -157,7 +170,25 @@
   }
   .read b {
     display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
-    font-size: clamp(24px, 4.4vw, 42px); line-height: 1.1; letter-spacing: -0.02em;
+    font-size: clamp(22px, 4.2vw, 40px); line-height: 1.1; letter-spacing: -0.02em;
+  }
+  /* On a short or narrow screen the three readouts were stacking three high
+     and leaving the cue and its note a few pixels. One row instead. */
+  @media (max-height: 820px), (max-width: 470px) {
+    .readouts { flex-wrap: nowrap; gap: 7px; margin-top: 8px; }
+    .read { flex: 1 1 0; min-width: 0; padding: 6px 9px; }
+    .read b { font-size: clamp(17px, 5vw, 26px); }
+    .read .tag {
+      font-size: 9.5px; letter-spacing: 0.06em; display: block;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cue { padding: 12px 14px 12px 18px; }
+    .screen { gap: 8px; }
+    .nudge { gap: 5px; margin-top: 4px; }
+    .nudge button { padding: 4px 9px; min-height: 32px; }
+    .nudge .tag { font-size: 9.5px; }
+    .next { padding: 8px 12px; }
+    .controls button { min-height: 50px; }
   }
   .read.over b { color: var(--over); }
   .read.hold b { color: var(--hold); }
@@ -239,7 +270,7 @@
   .controls[hidden], .controls.follow[hidden] { display: none; }
   .item.viewing { border-color: var(--b2); }
 
-  .note { margin-top: 10px; }
+  .note { flex: none; margin-top: 2px; }
   .note[hidden] { display: none; }
   .note .tag { display: block; margin-bottom: 3px; }
   .note textarea {
@@ -261,7 +292,7 @@
   }
   .item .hasnote { color: var(--b2); font-size: 12px; margin-top: 2px; white-space: pre-wrap; }
 
-  .nudge { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .nudge { flex: none; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .nudge[hidden] { display: none; }
   .nudge .tag { margin-right: 2px; }
   .nudge button { min-height: 34px; padding: 4px 11px; font-family: var(--mono); }
@@ -303,12 +334,14 @@
       <span class="tag" id="cueState"></span>
     </div>
     <h1 id="cueTitle">&mdash;</h1>
-    <p class="sub" id="cueSub"></p>
-    <div class="after" id="after"></div>
-    <div class="note" id="noteWrap" hidden>
-      <span class="tag">Note</span>
-      <textarea id="noteBox" rows="2" placeholder="Note for this cue" hidden></textarea>
-      <p id="noteRead" hidden></p>
+    <div class="cuemid">
+      <p class="sub" id="cueSub"></p>
+      <div class="note" id="noteWrap" hidden>
+        <span class="tag">Note</span>
+        <textarea id="noteBox" rows="2" placeholder="Note for this cue" hidden></textarea>
+        <p id="noteRead" hidden></p>
+      </div>
+      <div class="after" id="after"></div>
     </div>
 
     <div class="nudge" id="nudge" hidden>
@@ -538,10 +571,24 @@
       fb.ref(".info/connected").on("value", function (sn) { online = !!sn.val(); paintConn(); });
       stateRef.on("value", function (sn) { const v = sn.val(); if (v) adopt(v); });
       sheetRef.on("value", function (sn) { adoptTimes(sn.val()); });
-      notesRef.on("value", function (sn) { NOTES = sn.val() || {}; render(); });
+      notesRef.on("value", function (sn) {
+        NOTES = sn.val() || {};
+        const a = document.activeElement;
+        // Somebody else's note landing should not yank the field this device
+        // is typing in. Everything else redraws.
+        if (a && (a.id === "noteBox" || a.hasAttribute("data-note"))) { paintCueNoteOnly(); return; }
+        render();
+      });
       controlRef.on("value", function (sn) {
-        control = sn.val() || { by: "", name: "", at: 0 };
-        paintConn(); render();
+        const v = sn.val() || { by: "", name: "", at: 0 };
+        // The controller writes its heartbeat every ten seconds. That is not
+        // news and must not redraw the screen: a redraw while somebody is
+        // typing a note throws away what they have typed.
+        const same = v.by === control.by && v.name === control.name;
+        const wasLive = controlLive();
+        control = v;
+        paintConn();
+        if (!same || wasLive !== controlLive()) render();
       });
     } catch (e) { fb = null; paintConn(); }
   })();
@@ -687,11 +734,14 @@
   $("restoreTimes").addEventListener("click", restoreTimes);
   $("editToggle").addEventListener("click", function () {
     editing = !editing;
+    listSig = "";
     $("editToggle").textContent = editing ? "Done changing times" : "Change times";
     $("editToggle").classList.toggle("on", editing);
     paintList();
   });
-  $("openList").addEventListener("click", function () { $("list").hidden = false; paintList(); });
+  $("openList").addEventListener("click", function () {
+    $("list").hidden = false; listSig = ""; paintList();
+  });
   $("closeList").addEventListener("click", function () { $("list").hidden = true; });
 
   // ---- taking the chair ---------------------------------------------------
@@ -854,6 +904,19 @@
     if (!$("list").hidden) paintList();
   }
 
+  // Used when a note arrives while this device is typing: update the rest of
+  // the screen without rebuilding the field under the cursor.
+  function paintCueNoteOnly() {
+    const idx = viewIndex();
+    const ro = $("noteRead");
+    if (!ro.hidden) ro.textContent = noteFor(idx);
+    Array.prototype.forEach.call($("items").querySelectorAll("input[data-note]"), function (inp) {
+      if (inp === document.activeElement) return;
+      const v = noteFor(parseInt(inp.getAttribute("data-note"), 10));
+      if (inp.value !== v) inp.value = v;
+    });
+  }
+
   function timesChanged() {
     for (let i = 0; i < SHEET.length; i++) {
       if (SHEET[i].s !== DAY[i].s || SHEET[i].e !== DAY[i].e) return true;
@@ -953,11 +1016,40 @@
     }
   }
 
+  // The rows are only rebuilt when the rows themselves change: who is
+  // driving, the mode, which cue is live, or the times. A note landing while
+  // the producer types never rebuilds anything, so the keyboard stays up and
+  // the cursor stays put. For a follower, who never types in here, a note
+  // landing does redraw, because they need to see it.
+  let listSig = "";
+  function listSignature(driving) {
+    return [driving, editing, S.i, viewIndex(), SHEET.length,
+            SHEET.map(function (b) { return b.s + "-" + b.e; }).join(","),
+            driving ? "" : JSON.stringify(NOTES)].join("#");
+  }
+  function refreshRowsInPlace() {
+    Array.prototype.forEach.call($("items").children, function (row, i) {
+      const inp = row.querySelector("input[data-note]");
+      if (inp && inp !== document.activeElement) {
+        const v = noteFor(i);
+        if (inp.value !== v) inp.value = v;
+      }
+      const ro = row.querySelector(".hasnote");
+      if (ro) ro.textContent = noteFor(i);
+    });
+  }
+
   function paintList() {
     const driving = amController() || !fb || !online;
+    const sig = listSignature(driving);
+    if (sig === listSig && $("items").children.length === SHEET.length) {
+      refreshRowsInPlace();
+      return;
+    }
+    listSig = sig;
     const viewing = viewIndex();
     $("listHint").textContent = driving
-      ? "Go puts the whole crew on that item. Space starts or advances, H holds."
+      ? "Type a note on any cue here. It saves on its own and does not touch the cue that is running. Go moves the whole crew to that item."
       : "View shows you that item on this device only. It goes back to the producer ten seconds after you stop touching it.";
     $("items").innerHTML = SHEET.map(function (b, i) {
       const cls = (i === S.i ? " cur" : (i < S.i ? " past" : "")) +
@@ -971,9 +1063,7 @@
             "<span>to</span>" +
             '<input type="time" data-e="' + i + '" value="' + field(mins(b.e)) + '" aria-label="End" />' +
             '<span class="len">' + durMin(b) + " min</span>" +
-          "</div>" +
-          '<input class="noteline" data-note="' + i + '" value="' + esc(noteFor(i)) +
-          '" placeholder="Note" aria-label="Note" /></div>';
+          "</div></div>";
       }
       return '<div class="item' + cls + '">' +
         '<div class="cl">' + esc(b.s) + "<br>" + durMin(b) + " min</div>" +
@@ -981,13 +1071,22 @@
         (b.pair ? ' <span class="pairmark">two rooms</span>' : "") +
         (i === S.i ? ' <span class="pairmark">live</span>' : "") + "</div>" +
         '<div class="pi">' + esc(b.p || "") + "</div>" +
-        (noteFor(i) ? '<div class="hasnote">' + esc(noteFor(i)) + "</div>" : "") + "</div>" +
+        (driving
+          ? '<input class="noteline" data-note="' + i + '" value="' + esc(noteFor(i)) +
+            '" placeholder="Note for this cue" aria-label="Note for ' + esc(b.t) + '" />'
+          : (noteFor(i) ? '<div class="hasnote">' + esc(noteFor(i)) + "</div>" : "")) +
+        "</div>" +
         '<button class="small" data-go="' + i + '">' + (driving ? "Go" : "View") + "</button></div>";
     }).join("");
+    // Typing here never touches the cue that is running. It saves a moment
+    // after you stop, and the list is not rebuilt while you are still in the
+    // field, so the keyboard stays up and the cursor stays put.
     Array.prototype.forEach.call($("items").querySelectorAll("input[data-note]"), function (inp) {
+      const i = parseInt(inp.getAttribute("data-note"), 10);
+      inp.addEventListener("input", function () { queueNote(i, inp.value.trim()); });
       inp.addEventListener("change", function () {
-        saveNote(parseInt(inp.getAttribute("data-note"), 10), inp.value.trim());
-        render();
+        clearTimeout(noteHold);
+        saveNote(i, inp.value.trim());
       });
     });
 
