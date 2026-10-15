@@ -1,0 +1,519 @@
+<title>CMO37 Run of Show</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: one screen, no scrolling to find the cue. Current item owns the
+     middle, controls sit under the thumbs, the running order drops down over
+     the top when you want it. Dark first, because it lives at a desk in a
+     dark ballroom. */
+  :root {
+    --bg: #0E1114;
+    --panel: #171B21;
+    --panel-2: #1E242C;
+    --line: #2B323B;
+    --text: #EDF0F3;
+    --muted: #98A1AB;
+    --faint: #69727C;
+    --accent: #D79A46;
+    --accent-soft: rgba(215, 154, 70, 0.15);
+    --live: #6FBF8A;
+    --hold: #D79A46;
+    --over: #E08A7A;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #F2F1EE; --panel: #FFFFFF; --panel-2: #F7F6F3; --line: #DCD9D2;
+      --text: #1C1F24; --muted: #646A72; --faint: #8D939B; --accent: #9A6516;
+      --accent-soft: rgba(154, 101, 22, 0.12); --live: #2F7D4F; --hold: #9A6516;
+      --over: #B4432F; color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F2F1EE; --panel: #FFFFFF; --panel-2: #F7F6F3; --line: #DCD9D2;
+    --text: #1C1F24; --muted: #646A72; --faint: #8D939B; --accent: #9A6516;
+    --accent-soft: rgba(154, 101, 22, 0.12); --live: #2F7D4F; --hold: #9A6516;
+    --over: #B4432F; color-scheme: light;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 16px; line-height: 1.35;
+    -webkit-text-size-adjust: 100%; overflow: hidden;
+  }
+  .screen {
+    height: 100%; display: flex; flex-direction: column; gap: 10px;
+    padding-block: 10px 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box; max-width: 1400px; margin: 0 auto; width: 100%;
+  }
+
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  /* top */
+  .top { display: flex; align-items: center; gap: 12px; flex: none; }
+  .top .name { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+  .top .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .clock { font-family: var(--mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--faint);
+    display: inline-block; flex: none;
+  }
+  .dot.on { background: var(--live); }
+  .dot.local { background: var(--hold); }
+
+  button {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 9px 13px;
+    cursor: pointer; font-size: 14px; min-height: 42px;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.small { min-height: 34px; padding: 5px 10px; font-size: 12.5px; }
+
+  /* the cue */
+  .cue {
+    flex: 1 1 auto; min-height: 0; background: var(--panel);
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column;
+    gap: 8px; overflow: hidden;
+  }
+  .cue .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .cue h1 {
+    margin: 0; font-size: clamp(26px, 5.2vw, 52px); line-height: 1.05;
+    letter-spacing: -0.025em; text-wrap: balance;
+  }
+  .cue .sub {
+    margin: 0; color: var(--muted); font-size: clamp(14px, 1.8vw, 19px);
+    line-height: 1.3; overflow: hidden;
+  }
+  .after { margin-top: 14px; display: grid; gap: 6px; align-content: start; min-height: 0; }
+  .after div {
+    display: grid; grid-template-columns: 78px 1fr; gap: 12px; align-items: baseline;
+    color: var(--faint); font-size: 13.5px; min-width: 0;
+  }
+  .after .wt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .after .wn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .readouts {
+    margin-top: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;
+  }
+  .read {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
+    padding: 9px 14px; flex: 1 1 150px; min-width: 0;
+  }
+  .read b {
+    display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: clamp(24px, 4.4vw, 42px); line-height: 1.1; letter-spacing: -0.02em;
+  }
+  .read.over b { color: var(--over); }
+  .read.hold b { color: var(--hold); }
+
+  /* next */
+  .next {
+    flex: none; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 11px; padding: 10px 14px; display: flex; gap: 14px;
+    align-items: baseline; min-width: 0;
+  }
+  .next .t { font-weight: 600; font-size: 15px; }
+  .next .p { color: var(--muted); font-size: 13.5px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+
+  /* controls */
+  .controls { flex: none; display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 9px; }
+  .controls button { min-height: 58px; font-size: 16px; font-weight: 600; }
+  .controls .go {
+    background: var(--accent); border-color: var(--accent); color: #12161A;
+    font-size: 19px;
+  }
+  :root[data-theme="light"] .controls .go,
+  .controls .go { color: #12161A; }
+  .controls .holding { background: var(--hold); border-color: var(--hold); color: #12161A; }
+
+  /* running order */
+  .list {
+    position: fixed; inset: 0; background: var(--bg); z-index: 20;
+    padding-block: 12px 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    overflow-y: auto; display: flex; flex-direction: column; gap: 7px;
+  }
+  /* a class selector beats the browser's own [hidden] rule, so say it here */
+  .list[hidden] { display: none; }
+  .list .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .item {
+    display: grid; grid-template-columns: 82px 1fr auto; gap: 12px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; min-width: 0;
+  }
+  .item.cur { border-color: var(--accent); background: var(--accent-soft); }
+  .item.past { opacity: 0.5; }
+  .item .w { min-width: 0; }
+  .item .ti { font-weight: 600; font-size: 14.5px; }
+  .item .pi { color: var(--muted); font-size: 12.5px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .item .cl { font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums; }
+  .pairmark { color: var(--accent); }
+
+  .hint { color: var(--faint); font-size: 12px; }
+</style>
+
+<div class="screen">
+  <div class="top">
+    <span class="dot" id="dot"></span>
+    <a class="name" href="corporate.html" style="color:inherit; text-decoration:none;"
+       title="Back to Corporate">&#8249; CMO37 &middot; Day One</a>
+    <span class="tag" id="mode"></span>
+    <div class="right">
+      <span class="clock" id="clock">--:--</span>
+      <button class="small" id="openList">Running order</button>
+      <button class="small" id="fs">Full screen</button>
+    </div>
+  </div>
+
+  <div class="cue">
+    <div class="head">
+      <span class="tag" id="cueNo">Cue</span>
+      <span class="tag mono" id="cueSched"></span>
+      <span class="tag" id="cueState"></span>
+    </div>
+    <h1 id="cueTitle">&mdash;</h1>
+    <p class="sub" id="cueSub"></p>
+    <div class="after" id="after"></div>
+    <div class="readouts">
+      <div class="read" id="rElapsed"><span class="tag">Elapsed</span><b>0:00</b></div>
+      <div class="read" id="rLeft"><span class="tag">Left in block</span><b>&mdash;</b></div>
+      <div class="read" id="rPlan"><span class="tag">Against plan</span><b>&mdash;</b></div>
+    </div>
+  </div>
+
+  <div class="next">
+    <span class="tag">Next</span>
+    <span class="t mono" id="nextTime">&mdash;</span>
+    <span class="p" id="nextTitle"></span>
+  </div>
+
+  <div class="controls">
+    <button id="back">Back</button>
+    <button id="hold">Hold</button>
+    <button class="go" id="go">Start</button>
+  </div>
+</div>
+
+<div class="list" id="list" hidden>
+  <div class="bar">
+    <span class="tag">Running order &middot; Day One, October 15</span>
+    <button class="small" id="closeList" style="margin-left:auto">Close</button>
+  </div>
+  <div id="items"></div>
+  <p class="hint">Go puts the whole crew on that item. Space starts or advances, H holds.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // The day, exactly as the Assembly at a Glance sheet lists it.
+  const DAY = [
+    { s: "9:30 AM",  e: "11:00 AM", t: "Registration and Snacks", p: "Doors open, snacks out" },
+    { s: "11:00 AM", e: "11:55 AM", t: "AI Power Hours 1 and 2", pair: true,
+      p: "Room 1: Branding and AI · Room 2: Leading AI Adoption: The Power of Communication, Positioning, and Influence" },
+    { s: "12:05 PM", e: "12:50 PM", t: "Opening Vendor Keynote",
+      p: "From Data Silos to Revenue Growth: How AI-First CRM Is Redefining Growth Marketing for B2C Brands" },
+    { s: "12:55 PM", e: "1:25 PM", t: "Workshop 1",
+      p: "The Whole Argument: The Race Is Won Before the Answer Appears" },
+    { s: "1:30 PM", e: "2:00 PM", t: "Workshop 2",
+      p: "The AI-Powered CMO: Turning Audience Intelligence into Strategic Advantage" },
+    { s: "2:05 PM", e: "2:35 PM", t: "Workshop 3",
+      p: "Addressing Waning Public Confidence: Opportunities and Limits for CCOs" },
+    { s: "2:40 PM", e: "3:10 PM", t: "Workshop 4",
+      p: "Brand Fidelity Through Growth and AI: Why Every Brand Needs a System for Type" },
+    { s: "3:20 PM", e: "4:05 PM", t: "Afternoon Vendor Keynote",
+      p: "The Full-Funnel Creator Strategy for the AI Search Era" },
+    { s: "4:10 PM", e: "4:40 PM", t: "Workshop 5",
+      p: "The Small Moments That Carry the Brand: Why Customers Judge the Whole Brand by a Handful of Everyday Interactions" },
+    { s: "4:45 PM", e: "5:15 PM", t: "Workshop 6", p: "Owning the Second Layer of AI Search" },
+    { s: "5:20 PM", e: "5:50 PM", t: "Workshop 7",
+      p: "2026's Buzziest Consumer Product Launches, as Revealed by Verified Buyers" },
+    { s: "5:55 PM", e: "6:25 PM", t: "Workshop 8",
+      p: "The New CMO: Leading Growth Beyond the Marketing Function" },
+    { s: "6:30 PM", e: "7:30 PM", t: "Cocktail Hour", p: "Reception" },
+    { s: "7:30 PM", e: "8:45 PM", t: "Dinner and Game Show", p: "Dinner service, then the game show" }
+  ];
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  function mins(str) {
+    const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(str.trim());
+    let h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  function durMin(b) { return mins(b.e) - mins(b.s); }
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function mmss(ms) {
+    const neg = ms < 0;
+    let s = Math.floor(Math.abs(ms) / 1000);
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    const core = (h ? h + ":" + String(m).padStart(2, "0") : String(m)) +
+      ":" + String(s).padStart(2, "0");
+    return (neg ? "-" : "") + core;
+  }
+
+  // ---- shared state ------------------------------------------------------
+  // i          which item the show is on
+  // status     "standby" | "running" | "hold"
+  // startedAt  epoch ms the current item actually started
+  // heldAt     epoch ms the hold began, while holding
+  let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0 };
+  let db = null, ref = null, writable = true, pending = false;
+
+  function paintConn() {
+    const d = $("dot"), m = $("mode");
+    if (db && writable) { d.className = "dot on"; m.textContent = "Shared"; }
+    else if (db && !writable) { d.className = "dot on"; m.textContent = "Following"; }
+    else { d.className = "dot local"; m.textContent = "This device only"; }
+  }
+
+  async function push() {
+    if (!db || !ref || !writable || pending) return;
+    pending = true;
+    try {
+      await ref.set({ i: S.i, status: S.status, startedAt: S.startedAt, heldAt: S.heldAt });
+    } catch (err) {
+      if (err && err.code === "invalid_argument") { writable = false; paintConn(); }
+    } finally {
+      pending = false;
+    }
+  }
+
+  function adopt(o) {
+    if (!o || typeof o.i !== "number") return;
+    S = {
+      i: Math.max(0, Math.min(DAY.length - 1, o.i)),
+      status: o.status === "running" || o.status === "hold" ? o.status : "standby",
+      startedAt: Number(o.startedAt) || 0,
+      heldAt: Number(o.heldAt) || 0
+    };
+    render();
+  }
+
+  (async function connect() {
+    try {
+      db = await window.claude?.use?.("db");
+    } catch (e) { db = null; }
+    if (!db) { paintConn(); return; }
+    try {
+      const user = await window.claude?.use?.("user");
+      const can = user ? await user.can("data.write") : null;
+      if (can === false) writable = false;
+    } catch (e) { /* keep the controls, a refused write settles it */ }
+    ref = db.doc("show/state");
+    paintConn();
+    ref.onSnapshot(function (snap) {
+      if (snap.exists) adopt(snap.data());
+    }, function () { db = null; paintConn(); });
+  })();
+
+  // ---- actions -----------------------------------------------------------
+  function goTo(i, run) {
+    S.i = Math.max(0, Math.min(DAY.length - 1, i));
+    S.status = run ? "running" : "standby";
+    S.startedAt = run ? Date.now() : 0;
+    S.heldAt = 0;
+    render(); push();
+  }
+  function primary() {
+    if (S.status === "standby") { goTo(S.i, true); return; }
+    if (S.status === "hold") { toggleHold(); return; }
+    goTo(S.i + 1, true);
+  }
+  function toggleHold() {
+    if (S.status === "running") { S.status = "hold"; S.heldAt = Date.now(); }
+    else if (S.status === "hold") {
+      S.startedAt += Date.now() - (S.heldAt || Date.now());
+      S.status = "running"; S.heldAt = 0;
+    } else return;
+    render(); push();
+  }
+
+  $("go").addEventListener("click", primary);
+  $("hold").addEventListener("click", toggleHold);
+  $("back").addEventListener("click", function () { goTo(S.i - 1, false); });
+  $("openList").addEventListener("click", function () { $("list").hidden = false; paintList(); });
+  $("closeList").addEventListener("click", function () { $("list").hidden = true; });
+
+  document.addEventListener("keydown", function (ev) {
+    if ((ev.target.tagName || "").toLowerCase() === "input") return;
+    if (ev.key === " ") { ev.preventDefault(); primary(); }
+    else if (ev.key === "h" || ev.key === "H") toggleHold();
+    else if (ev.key === "ArrowLeft") goTo(S.i - 1, false);
+    else if (ev.key === "ArrowRight") goTo(S.i + 1, false);
+    else if (ev.key === "Escape") $("list").hidden = true;
+  });
+
+  $("fs").addEventListener("click", function () {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) { $("fs").textContent = "Add to Home Screen"; return; }
+    try {
+      Promise.resolve(req.call(el)).catch(function () {
+        $("fs").textContent = "Add to Home Screen";
+      });
+    } catch (e) { $("fs").textContent = "Add to Home Screen"; }
+  });
+
+  // Keep the screen awake while the page is up. Refused is fine.
+  let lock = null;
+  async function wake() {
+    try {
+      if (navigator.wakeLock && !lock) lock = await navigator.wakeLock.request("screen");
+    } catch (e) { lock = null; }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) { lock = null; wake(); }
+  });
+  wake();
+
+  // ---- render ------------------------------------------------------------
+  function elapsedMs() {
+    if (S.status === "running") return Date.now() - S.startedAt;
+    if (S.status === "hold") return (S.heldAt || Date.now()) - S.startedAt;
+    return 0;
+  }
+
+  function render() {
+    const b = DAY[S.i];
+    const n = DAY[S.i + 1];
+
+    $("cueNo").textContent = "Cue " + (S.i + 1) + " of " + DAY.length +
+      (b.pair ? " · two rooms" : "");
+    $("cueSched").textContent = b.s + " to " + b.e + " · " + durMin(b) + " min";
+    $("cueState").textContent =
+      S.status === "running" ? "Running" : S.status === "hold" ? "Holding" : "Standby";
+    $("cueState").style.color =
+      S.status === "running" ? "var(--live)" : S.status === "hold" ? "var(--hold)" : "";
+    $("cueTitle").textContent = b.t;
+    $("cueSub").textContent = b.p || "";
+
+    // what is coming after next, so the caller is not guessing
+    $("after").innerHTML = DAY.slice(S.i + 2, S.i + 5).map(function (x) {
+      return '<div><span class="wt">' + esc(x.s) + '</span><span class="wn">' +
+        esc(x.t) + (x.p ? " · " + esc(x.p) : "") + "</span></div>";
+    }).join("");
+
+    $("nextTime").textContent = n ? n.s : "—";
+    $("nextTitle").textContent = n ? n.t + (n.p ? " · " + n.p : "") : "End of day";
+
+    $("go").textContent = S.status === "standby" ? "Start"
+      : S.status === "hold" ? "Resume" : (n ? "Next" : "End");
+    $("go").disabled = S.status === "running" && !n;
+    $("hold").textContent = S.status === "hold" ? "Holding" : "Hold";
+    $("hold").classList.toggle("holding", S.status === "hold");
+    $("hold").disabled = S.status === "standby";
+    $("back").disabled = S.i === 0;
+
+    tickReadouts();
+    if (!$("list").hidden) paintList();
+  }
+
+  function tickReadouts() {
+    const b = DAY[S.i];
+    const el = elapsedMs();
+    const planned = durMin(b) * 60000;
+
+    $("rElapsed").querySelector("b").textContent = S.status === "standby" ? "0:00" : mmss(el);
+    $("rElapsed").className = "read" + (S.status === "hold" ? " hold" : "");
+
+    const left = planned - el;
+    const lw = $("rLeft");
+    if (S.status === "standby") {
+      lw.querySelector("b").textContent = mmss(planned);
+      lw.querySelector(".tag").textContent = "Block length";
+      lw.className = "read";
+    } else if (left >= 0) {
+      lw.querySelector("b").textContent = mmss(left);
+      lw.querySelector(".tag").textContent = "Left in block";
+      lw.className = "read";
+    } else {
+      lw.querySelector("b").textContent = mmss(-left);
+      lw.querySelector(".tag").textContent = "Over the block";
+      lw.className = "read over";
+    }
+
+    // Where the day sits against the printed sheet.
+    const pw = $("rPlan");
+    if (S.status === "standby" || !S.startedAt) {
+      pw.querySelector("b").textContent = "—";
+      pw.querySelector(".tag").textContent = "Against plan";
+      pw.className = "read";
+    } else {
+      const d = new Date(S.startedAt);
+      const startedMin = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+      const off = Math.round(startedMin - mins(b.s));
+      if (Math.abs(off) >= 60) {
+        // An hour out either way means the item was called off the sheet
+        // entirely. The clock time it actually started is the useful fact.
+        let hh = d.getHours();
+        const ap = hh >= 12 ? "PM" : "AM";
+        hh = hh % 12 || 12;
+        pw.querySelector("b").textContent =
+          hh + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+        pw.querySelector(".tag").textContent = "Actually started";
+        pw.className = "read";
+      } else {
+        pw.querySelector("b").textContent =
+          off === 0 ? "On plan" : (off > 0 ? "+" : "−") + Math.abs(off) + " min";
+        pw.querySelector(".tag").textContent =
+          off === 0 ? "Against plan" : off > 0 ? "After plan" : "Ahead of plan";
+        pw.className = "read" + (off > 5 ? " over" : "");
+      }
+    }
+  }
+
+  function paintList() {
+    $("items").innerHTML = DAY.map(function (b, i) {
+      const cls = i === S.i ? " cur" : (i < S.i ? " past" : "");
+      return '<div class="item' + cls + '">' +
+        '<div class="cl">' + esc(b.s) + "<br>" + durMin(b) + " min</div>" +
+        '<div class="w"><div class="ti">' + esc(b.t) +
+        (b.pair ? ' <span class="pairmark">two rooms</span>' : "") + "</div>" +
+        '<div class="pi">' + esc(b.p || "") + "</div></div>" +
+        '<button class="small" data-go="' + i + '">Go</button></div>';
+    }).join("");
+    Array.prototype.forEach.call($("items").querySelectorAll("[data-go]"), function (bt) {
+      bt.addEventListener("click", function () {
+        goTo(parseInt(bt.getAttribute("data-go"), 10), true);
+        $("list").hidden = true;
+      });
+    });
+  }
+
+  function clock() {
+    const d = new Date();
+    let h = d.getHours();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    $("clock").textContent = h + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+  }
+
+  render();
+  clock();
+  setInterval(function () { tickReadouts(); clock(); }, 1000);
+})();
+</script>

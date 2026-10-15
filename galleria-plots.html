@@ -1,0 +1,714 @@
+<title>Galleria Ballroom Plots</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: a drafting sheet. Fixed toolbar, the plot fills the middle,
+     the parts bin sits under it. One accent, used only for selection. */
+  :root {
+    --bg: #F2F1EE;
+    --panel: #FFFFFF;
+    --line: #D6D3CC;
+    --line-soft: #E7E4DE;
+    --text: #23262B;
+    --muted: #6E737B;
+    --floor: #FBFAF8;
+    --grid: #E3E0D8;
+    --grid-major: #CFCBC1;
+    --wall: #3A3F46;
+    --accent: #B4792B;
+    --accent-soft: rgba(180, 121, 43, 0.14);
+    --danger: #B4342C;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181C; --panel: #1C2026; --line: #2E343C; --line-soft: #252A31;
+      --text: #E7EAEE; --muted: #939BA5; --floor: #11141800; --grid: #272D35;
+      --grid-major: #39414B; --wall: #AEB6C0; --accent: #D79A46;
+      --accent-soft: rgba(215, 154, 70, 0.18); --danger: #E8857C; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181C; --panel: #1C2026; --line: #2E343C; --line-soft: #252A31;
+    --text: #E7EAEE; --muted: #939BA5; --floor: #00000000; --grid: #272D35;
+    --grid-major: #39414B; --wall: #AEB6C0; --accent: #D79A46;
+    --accent-soft: rgba(215, 154, 70, 0.18); --danger: #E8857C; color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    min-height: 100%; display: flex; flex-direction: column; gap: 14px;
+    padding-block: 14px 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    max-width: 1180px; margin: 0 auto;
+  }
+
+  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select, input {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px;
+  }
+  button { cursor: pointer; font-size: 14px; }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  button.on { border-color: var(--accent); background: var(--accent-soft); }
+  button.danger { color: var(--danger); }
+  select { padding-right: 8px; }
+  input.num { width: 64px; font-family: var(--mono); text-align: right; }
+
+  .sheet {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px; min-width: 0;
+  }
+  svg.plot { display: block; width: 100%; height: auto; max-width: 100%; touch-action: none; }
+  g.it .hit { fill: transparent; stroke: none; pointer-events: all; }
+  g.it[data-on="1"] .body { fill: var(--accent-soft); }
+  g.it[data-on="1"] rect:not(.hit), g.it[data-on="1"] circle, g.it[data-on="1"] line { stroke: var(--accent); }
+  g.it[data-on="1"] text { fill: var(--accent); }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; align-items: start; }
+  @media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .card + .card { margin-top: 12px; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; font-family: var(--mono);
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+  dl.facts { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+  dl.facts dt { color: var(--muted); font-size: 13px; }
+  dl.facts dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; }
+
+  .bin { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bin button {
+    padding: 9px 11px; font-size: 13px; border-radius: 6px; min-height: 38px;
+    display: inline-flex; gap: 7px; align-items: baseline;
+  }
+  .bin button span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .note strong { color: var(--text); font-weight: 600; }
+  .sel {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  footer { color: var(--muted); font-size: 12px; }
+</style>
+
+<div class="wrap">
+  <div>
+    <a href="corporate.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--line); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--muted);">&#8249; Corporate</a>
+  </div>
+
+  <header>
+    <div class="eyebrow">JW Marriott Houston by The Galleria</div>
+    <h1>Grand Ballroom plots</h1>
+    <p class="sub">Drawn to scale from the published room dimensions. Drop gear on the floor, drag it where it goes.</p>
+  </header>
+
+  <div class="bar">
+    <select id="room" aria-label="Room"></select>
+    <span id="customBox" hidden>
+      <input class="num" id="cw" type="number" min="5" max="400" step="1" value="40" aria-label="Width in feet">
+      <span class="eyebrow">× </span>
+      <input class="num" id="cd" type="number" min="5" max="400" step="1" value="60" aria-label="Depth in feet">
+      <span class="eyebrow">ft</span>
+    </span>
+    <button id="mirror">Mirror room</button>
+    <button id="cov" class="on">Coverage</button>
+    <button id="spkplan">Speaker plan</button>
+    <button id="clear" class="danger">Clear plot</button>
+  </div>
+
+  <div class="cols">
+    <div class="sheet">
+      <svg class="plot" id="plot" role="img" aria-label="Scaled room plot"></svg>
+      <div class="bar" style="margin-top:10px">
+        <span class="sel" id="selInfo">Nothing selected</span>
+        <button id="rot" disabled>Rotate</button>
+        <button id="dup" disabled>Duplicate</button>
+        <button id="del" class="danger" disabled>Delete</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Drop on the floor</h2>
+        <div class="bin" id="bin"></div>
+        <p class="note">Footprints are real. Tap to drop at center, then drag. Arrow keys nudge one foot.</p>
+      </div>
+
+      <div class="card">
+        <h2 id="roomName">Room</h2>
+        <dl class="facts" id="facts"></dl>
+        <p class="note" id="roomNote"></p>
+      </div>
+    </div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- rooms -------------------------------------------------------------
+  // Widths and depths are the published room dimensions. A/B at 74 ft and
+  // Salon C at 33 ft add to 107, which is the full ballroom's published
+  // width, so the three salons run side by side across that 107 ft.
+  const ROOMS = {
+    a: {
+      name: "Salon A, wall closed", w: 37, d: 78, sqft: 2886, ceil: 18, caps: [],
+      edge: "A | B air wall, closed.",
+      note: "One salon with the A|B wall shut. 37 ft is half the published 74. The venue publishes A and B only as a pair, so there is no capacity figure for one of them on its own.",
+      plan: [
+        { k: "screen", x: 15.5, y: 11, r: 90 },
+        { k: "screen", x: 15.5, y: 63, r: 90 },
+        { k: "stage",  x: 9.5, y: 37, r: 90 },
+        { k: "podium", x: 12.5, y: 34, r: 0 },
+        { k: "proj",   x: 6, y: 10, r: 90 },
+        { k: "proj",   x: 6, y: 61, r: 90 },
+        { k: "vv",     x: 6, y: 23, r: 90 },
+        { k: "foh",    x: 30, y: 6, r: 0 },
+        { k: "cam",    x: 30, y: 35, r: 270 },
+        { k: "cam",    x: 34, y: 58, r: 270 },
+        { k: "k12",    x: 15.5, y: 21, r: 245 },
+        { k: "k12",    x: 15.5, y: 26, r: 270 },
+        { k: "k12",    x: 15.5, y: 48, r: 270 },
+        { k: "k12",    x: 15.5, y: 53, r: 295 }
+      ]
+    },
+    ab: {
+      name: "Salons A and B", w: 74, d: 78, sqft: 5772, ceil: 18, max: 570,
+      caps: [["Banquet rounds", 420], ["Classroom", 350], ["Theater", 570]],
+      split: 37, splitLabel: "A | B air wall, folded back",
+      edge: "Air wall. Salon C beyond.",
+      note: "Two salons with the center wall folded back. The 37 ft line is where it closes if they split it."
+    },
+    c: {
+      name: "Salon C", w: 33, d: 78, sqft: 2574, ceil: 18, max: 220,
+      caps: [["Banquet rounds", 180], ["Board room", 50], ["Classroom", 130]],
+      edge: "Air wall. Salons A and B beyond.",
+      note: "The narrow one. 33 ft across is tight for a camera platform at the back and a 16 ft screen up front at the same time."
+    },
+    full: {
+      name: "All three salons", w: 107, d: 78, sqft: 8346, ceil: 18, max: 850,
+      caps: [["Banquet rounds", 650], ["Classroom", 500], ["Theater", 850]],
+      split: 74, splitLabel: "B | C air wall",
+      split2: 37, split2Label: "A | B air wall",
+      edge: "",
+      note: "Drawn 107 × 78 from the salon dimensions. The venue lists the combined room as 95 × 107 and 10,165 sq ft, which does not match the salons adding up, so trust the salon numbers for anything inside one salon."
+    },
+    custom: {
+      name: "Custom room", w: 40, d: 60, ceil: 18, caps: [], edge: "",
+      note: "Type the dimensions you measured. Nothing here is from the venue."
+    }
+  };
+
+  // ---- parts bin ---------------------------------------------------------
+  // w and d are feet, on the floor, unrotated.
+  const PARTS = [
+    { k: "stage",   t: "Stage",        w: 16, d: 12, sh: "rect" },
+    { k: "riser",   t: "Riser 8×8",    w: 8,  d: 8,  sh: "rect" },
+    { k: "podium",  t: "Podium",       w: 2,  d: 2,  sh: "rect" },
+    { k: "screen",  t: "Screen 16 ft", w: 16, d: 1,  sh: "rect" },
+    { k: "proj",    t: "Projector",    w: 3,  d: 2,  sh: "rect" },
+    { k: "cam",     t: "Camera",       w: 3,  d: 3,  sh: "circle" },
+    { k: "jib",     t: "Jib",          w: 12, d: 8,  sh: "rect" },
+    { k: "vv",      t: "Video village", w: 8, d: 4,  sh: "rect" },
+    { k: "foh",     t: "Audio FOH",    w: 8,  d: 6,  sh: "rect" },
+    { k: "rack",    t: "Rack",         w: 2,  d: 3,  sh: "rect" },
+    { k: "power",   t: "Power tie-in", w: 2,  d: 2,  sh: "rect" },
+    { k: "cable",   t: "Cable run 25", w: 25, d: 1,  sh: "rect" },
+    { k: "round",   t: "72\" round",   w: 10, d: 10, sh: "round" },
+    { k: "table6",  t: "6 ft table",   w: 6,  d: 2,  sh: "rect" },
+    { k: "head",    t: "Head table",   w: 16, d: 2.5, sh: "rect" },
+    { k: "chairs",  t: "Chair block",  w: 20, d: 20, sh: "hatch" },
+    { k: "k12",     t: "K12 on a pole", short: "K12", w: 3, d: 3, sh: "spk" }
+  ];
+  const PART = {}; PARTS.forEach(function (p) { PART[p.k] = p; });
+
+  // ---- state -------------------------------------------------------------
+  let roomKey = "a";
+  let mirrored = false;
+  let items = [];         // { id, k, x, y, r }
+  let selected = null;
+  let nextId = 1;
+  let showCov = true;
+
+  const $ = function (id) { return document.getElementById(id); };
+  const svg = $("plot");
+
+  function room() {
+    const r = Object.assign({}, ROOMS[roomKey]);
+    if (roomKey === "custom") {
+      r.w = clamp(parseFloat($("cw").value) || 40, 5, 400);
+      r.d = clamp(parseFloat($("cd").value) || 60, 5, 400);
+      r.sqft = Math.round(r.w * r.d);
+    }
+    return r;
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function key() { return "advplot:" + roomKey; }
+
+  function save() {
+    try { localStorage.setItem(key(), JSON.stringify(items)); } catch (e) {}
+  }
+  function load() {
+    items = []; nextId = 1; selected = null;
+    try {
+      const raw = localStorage.getItem(key());
+      if (raw) {
+        const got = JSON.parse(raw);
+        if (Array.isArray(got)) {
+          items = got.filter(function (i) { return i && PART[i.k]; });
+          items.forEach(function (i) { i.id = nextId++; });
+        }
+      }
+    } catch (e) { items = []; }
+  }
+
+  // ---- geometry ----------------------------------------------------------
+  function footprint(it) {
+    const p = PART[it.k];
+    const turned = it.r === 90 || it.r === 270;
+    return { w: turned ? p.d : p.w, d: turned ? p.w : p.d };
+  }
+
+  // ---- drawing -----------------------------------------------------------
+  const PAD = 11;   // feet of margin for the dimension lines
+
+  function draw() {
+    const R = room();
+    const vb = [-PAD, -PAD, R.w + PAD * 2, R.d + PAD * 2];
+    svg.setAttribute("viewBox", vb.join(" "));
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    const px = svg.clientWidth || svg.getBoundingClientRect().width || 640;
+    scalePx = px / (R.w + PAD * 2);
+    svg.style.maxHeight = "min(72vh, " + Math.round((R.d + PAD * 2) * 9) + "px)";
+
+    let s = "";
+    // grid
+    s += '<g stroke="var(--grid)" stroke-width="0.09" fill="none">';
+    for (let x = 1; x < R.w; x++) if (x % 5) s += line(x, 0, x, R.d);
+    for (let y = 1; y < R.d; y++) if (y % 5) s += line(0, y, R.w, y);
+    s += "</g>";
+    s += '<g stroke="var(--grid-major)" stroke-width="0.16" fill="none">';
+    for (let x = 5; x < R.w; x += 5) s += line(x, 0, x, R.d);
+    for (let y = 5; y < R.d; y += 5) s += line(0, y, R.w, y);
+    s += "</g>";
+
+    // floor and walls
+    s = '<rect x="0" y="0" width="' + R.w + '" height="' + R.d +
+        '" fill="var(--floor)" stroke="none"/>' + s;
+    s += '<rect x="0" y="0" width="' + R.w + '" height="' + R.d +
+         '" fill="none" stroke="var(--wall)" stroke-width="0.55"/>';
+
+    // air wall lines inside the room
+    if (R.split) s += divider(R.split, R.d, R.splitLabel);
+    if (R.split2) s += divider(R.split2, R.d, R.split2Label);
+
+    // the shared edge, drawn on the mirrored side when flipped
+    if (R.edge) {
+      const ex = mirrored ? 0 : R.w;
+      s += '<line x1="' + ex + '" y1="0" x2="' + ex + '" y2="' + R.d +
+           '" stroke="var(--accent)" stroke-width="0.6" stroke-dasharray="2 1.4"/>';
+      s += text(mirrored ? -3.4 : R.w + 3.4, R.d / 2, R.edge, 2.1, "var(--accent)",
+                "middle", "rotate(" + (mirrored ? -90 : 90) + " " + (mirrored ? -3.4 : R.w + 3.4) + " " + R.d / 2 + ")");
+    }
+
+    // dimensions
+    s += dimH(0, R.w, -5.5, R.w + " ft");
+    s += dimV(0, R.d, -5.5, R.d + " ft");
+
+    // scale note
+    s += text(R.w / 2, R.d + 7.5, "5 ft grid", 2.3, "var(--muted)", "middle");
+
+    // coverage, under the gear and clipped to the floor
+    if (showCov && items.some(function (i) { return i.k === "k12"; })) {
+      s += '<defs><clipPath id="floorclip"><rect x="0" y="0" width="' + R.w +
+           '" height="' + R.d + '"/></clipPath></defs>';
+      s += '<g clip-path="url(#floorclip)">';
+      const T = 70, h = 37.5 * Math.PI / 180;
+      const ax = (-T * Math.sin(h)).toFixed(1), ay = (T * Math.cos(h)).toFixed(1);
+      items.forEach(function (it) {
+        if (it.k !== "k12") return;
+        s += '<g transform="translate(' + it.x + " " + it.y + ") rotate(" + it.r + ')">' +
+          '<path d="M0 0 L' + ax + " " + ay + " A" + T + " " + T + " 0 0 1 " +
+          (-ax) + " " + ay + 'Z" fill="var(--accent)" fill-opacity="0.09"' +
+          ' stroke="var(--accent)" stroke-width="0.16" stroke-dasharray="1.6 1.6"/></g>';
+      });
+      s += "</g>";
+    }
+
+    // items
+    items.forEach(function (it) { s += part(it); });
+
+    svg.innerHTML = s;
+    wireItems();
+    sync();
+  }
+
+  function line(x1, y1, x2, y2) {
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>';
+  }
+  function esc(t) {
+    return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function text(x, y, t, size, fill, anchor, transform) {
+    return '<text x="' + x + '" y="' + y + '" font-size="' + size + '" fill="' + fill +
+      '" text-anchor="' + (anchor || "start") + '" font-family="ui-monospace, Menlo, monospace"' +
+      (transform ? ' transform="' + transform + '"' : "") +
+      ' dominant-baseline="middle">' + esc(t) + "</text>";
+  }
+  function divider(x, d, label) {
+    const xx = mirrored ? (room().w - x) : x;
+    return '<line x1="' + xx + '" y1="0" x2="' + xx + '" y2="' + d +
+      '" stroke="var(--muted)" stroke-width="0.3" stroke-dasharray="1.2 1.2"/>' +
+      text(xx, d + 3, label, 2, "var(--muted)", "middle");
+  }
+  function dimH(a, b, y, label) {
+    return '<g stroke="var(--muted)" stroke-width="0.14">' +
+      line(a, y, b, y) + line(a, y - 1, a, y + 1) + line(b, y - 1, b, y + 1) + "</g>" +
+      '<rect x="' + ((a + b) / 2 - 5) + '" y="' + (y - 1.8) + '" width="10" height="3.6" fill="var(--panel)"/>' +
+      text((a + b) / 2, y, label, 2.6, "var(--text)", "middle");
+  }
+  function dimV(a, b, x, label) {
+    return '<g stroke="var(--muted)" stroke-width="0.14">' +
+      line(x, a, x, b) + line(x - 1, a, x + 1, a) + line(x - 1, b, x + 1, b) + "</g>" +
+      '<rect x="' + (x - 1.8) + '" y="' + ((a + b) / 2 - 5) + '" width="3.6" height="10" fill="var(--panel)"/>' +
+      text(x, (a + b) / 2, label, 2.6, "var(--text)", "middle",
+           "rotate(-90 " + x + " " + (a + b) / 2 + ")");
+  }
+
+  function part(it) {
+    const p = PART[it.k];
+    const f = footprint(it);
+    let body = "";
+    if (p.sh === "circle" || p.sh === "round") {
+      const rr = Math.min(p.w, p.d) / 2;
+      if (p.sh === "round") {
+        body = '<circle cx="0" cy="0" r="' + rr + '" fill="none" stroke="var(--wall)"' +
+               ' stroke-width="0.18" stroke-dasharray="1 1"/>' +
+               '<circle class="body" cx="0" cy="0" r="3" fill="var(--panel)"' +
+               ' stroke="var(--wall)" stroke-width="0.3"/>';
+      } else {
+        body = '<circle class="body" cx="0" cy="0" r="' + rr + '" fill="var(--panel)"' +
+               ' stroke="var(--wall)" stroke-width="0.3"/>' +
+               '<line x1="0" y1="' + (-rr) + '" x2="0" y2="' + (rr * 1.9) +
+               '" stroke="var(--wall)" stroke-width="0.22"/>';
+      }
+    } else if (p.sh === "spk") {
+      body += '<rect class="body" x="-0.7" y="-0.7" width="1.4" height="1.4"' +
+              ' fill="var(--panel)" stroke="var(--wall)" stroke-width="0.3"/>' +
+              '<line x1="0" y1="0.7" x2="0" y2="2.6" stroke="var(--wall)" stroke-width="0.25"/>';
+    } else {
+      body = '<rect class="body" x="' + (-p.w / 2) + '" y="' + (-p.d / 2) + '" width="' + p.w +
+             '" height="' + p.d + '" fill="var(--panel)" stroke="var(--wall)"' +
+             ' stroke-width="0.3" rx="0.3"/>';
+      if (p.sh === "hatch") {
+        body += '<g stroke="var(--wall)" stroke-width="0.14" opacity="0.6">';
+        for (let i = -p.w / 2 + 2; i < p.w / 2; i += 2.5) body += line(i, -p.d / 2, i, p.d / 2);
+        body += "</g>";
+      }
+    }
+    // A finger covers about 44 screen pixels. Anything smaller than that gets
+    // an invisible pad around it, so a camera is as easy to grab as a stage.
+    const minFt = 46 / scalePx;
+    const hw = Math.max(f.w, minFt), hd = Math.max(f.d, minFt);
+    const hit = '<rect class="hit" x="' + (-hw / 2) + '" y="' + (-hd / 2) +
+                '" width="' + hw + '" height="' + hd + '"/>';
+    // The label stays level whatever the item is turned to. Big items can
+    // carry it inside; small ones get it underneath, where it stays readable.
+    const inside = p.w >= 12 && p.d >= 6;
+    const ly = inside ? 0 : f.d / 2 + 2.2;
+    const lab = text(0, ly, p.short || p.t, inside ? 2.4 : 2, "var(--muted)", "middle");
+    return '<g class="it" data-id="' + it.id + '" data-on="' +
+      (selected === it.id ? "1" : "0") + '" style="cursor:grab" ' +
+      'transform="translate(' + it.x + ' ' + it.y + ')">' +
+      '<g transform="rotate(' + it.r + ')">' + body + "</g>" + lab + hit + "</g>";
+  }
+
+  // ---- pointer -----------------------------------------------------------
+  // The gesture lives on the document, not on the shape. A shape can be
+  // redrawn or replaced in the middle of a drag; the document cannot, so a
+  // finger that has started moving keeps working.
+  let drag = null;
+  let scalePx = 6;            // screen pixels per foot, set on every draw
+
+  function toFeet(ev) {
+    const m = svg.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    const q = pt.matrixTransform(m.inverse());
+    return { x: q.x, y: q.y };
+  }
+  function snap(v) { return Math.round(v * 2) / 2; }
+  function gfor(id) { return svg.querySelector('g.it[data-id="' + id + '"]'); }
+
+  // Selection is an attribute, so highlighting never rebuilds the drawing.
+  function paintSelection() {
+    Array.prototype.forEach.call(svg.querySelectorAll("g.it"), function (g) {
+      g.setAttribute("data-on",
+        parseInt(g.getAttribute("data-id"), 10) === selected ? "1" : "0");
+    });
+  }
+
+  function wireItems() {
+    Array.prototype.forEach.call(svg.querySelectorAll("g.it"), function (g) {
+      g.addEventListener("pointerdown", function (ev) {
+        const id = parseInt(g.getAttribute("data-id"), 10);
+        const it = items.find(function (i) { return i.id === id; });
+        if (!it) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        selected = id;
+        const at = toFeet(ev);
+        drag = { id: id, dx: at.x - it.x, dy: at.y - it.y };
+        paintSelection();
+        sync();
+      });
+    });
+  }
+
+  svg.addEventListener("pointerdown", function () {
+    selected = null; drag = null; paintSelection(); sync();
+  });
+
+  document.addEventListener("pointermove", function (ev) {
+    if (!drag) return;
+    const it = items.find(function (i) { return i.id === drag.id; });
+    const g = gfor(drag.id);
+    if (!it || !g) return;
+    ev.preventDefault();
+    const at = toFeet(ev);
+    const R = room(), f = footprint(it);
+    it.x = clamp(snap(at.x - drag.dx), f.w / 2, Math.max(f.w / 2, R.w - f.w / 2));
+    it.y = clamp(snap(at.y - drag.dy), f.d / 2, Math.max(f.d / 2, R.d - f.d / 2));
+    g.setAttribute("transform", "translate(" + it.x + " " + it.y + ")");
+    sync();
+  }, { passive: false });
+
+  function endDrag() { if (drag) { drag = null; save(); draw(); } }
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
+
+  // The hit pads are sized in screen pixels, so a turned tablet redraws them.
+  let resizeHold = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeHold);
+    resizeHold = setTimeout(function () { if (!drag) draw(); }, 180);
+  });
+
+  // ---- bin, controls -----------------------------------------------------
+  function buildBin() {
+    $("bin").innerHTML = PARTS.map(function (p) {
+      return '<button data-k="' + p.k + '">' + esc(p.t) +
+        " <span>" + p.w + "×" + p.d + "</span></button>";
+    }).join("");
+    Array.prototype.forEach.call($("bin").querySelectorAll("button"), function (b) {
+      b.addEventListener("click", function () { add(b.getAttribute("data-k")); });
+    });
+  }
+
+  function add(k) {
+    const R = room();
+    const p = PART[k];
+    const it = {
+      id: nextId++, k: k, r: 0,
+      x: clamp(R.w / 2, p.w / 2, R.w - p.w / 2),
+      y: clamp(R.d / 2, p.d / 2, R.d - p.d / 2)
+    };
+    // nudge off anything already sitting dead center
+    let tries = 0;
+    while (items.some(function (o) {
+      return Math.abs(o.x - it.x) < 1 && Math.abs(o.y - it.y) < 1;
+    }) && tries < 40) { it.x = clamp(it.x + 2, 0, R.w); it.y = clamp(it.y + 2, 0, R.d); tries++; }
+    items.push(it);
+    selected = it.id;
+    save(); draw();
+  }
+
+  function cur() { return items.find(function (i) { return i.id === selected; }); }
+
+  function sync() {
+    const it = cur();
+    const has = !!it;
+    ["rot", "dup", "del"].forEach(function (id) { $(id).disabled = !has; });
+    if (!has) { $("selInfo").textContent = "Nothing selected"; return; }
+    const p = PART[it.k];
+    const f = footprint(it);
+    $("selInfo").textContent = p.t + "  " + f.w + "×" + f.d + " ft  at " +
+      it.x + ", " + it.y + " ft  " + it.r + "°";
+  }
+
+  function fillFacts() {
+    const R = room();
+    const rows = [
+      ["Floor", R.w + " × " + R.d + " ft"],
+      ["Area", (R.sqft || Math.round(R.w * R.d)).toLocaleString() + " sq ft"],
+      ["Ceiling", R.ceil + " ft"]
+    ];
+    if (R.max) rows.push(["Max capacity", String(R.max)]);
+    R.caps.forEach(function (c) { rows.push([c[0], String(c[1])]); });
+    $("roomName").textContent = R.name;
+    $("facts").innerHTML = rows.map(function (r) {
+      return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
+    }).join("");
+    $("roomNote").textContent = R.note || "";
+  }
+
+  function buildRooms() {
+    $("room").innerHTML = Object.keys(ROOMS).map(function (k) {
+      return '<option value="' + k + '">' + esc(ROOMS[k].name) + "</option>";
+    }).join("");
+    $("room").value = roomKey;
+  }
+
+  $("room").addEventListener("change", function () {
+    roomKey = $("room").value;
+    $("customBox").hidden = roomKey !== "custom";
+    load(); seed(); fillFacts(); draw();
+  });
+  ["cw", "cd"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      if (roomKey !== "custom") return;
+      const R = room();
+      items.forEach(function (it) {
+        const f = footprint(it);
+        it.x = clamp(it.x, f.w / 2, Math.max(f.w / 2, R.w - f.w / 2));
+        it.y = clamp(it.y, f.d / 2, Math.max(f.d / 2, R.d - f.d / 2));
+      });
+      fillFacts(); draw();
+    });
+  });
+  $("mirror").addEventListener("click", function () {
+    mirrored = !mirrored;
+    $("mirror").classList.toggle("on", mirrored);
+    draw();
+  });
+  $("cov").addEventListener("click", function () {
+    showCov = !showCov;
+    $("cov").classList.toggle("on", showCov);
+    draw();
+  });
+
+  // Four boxes on the stage-front line, in the two strips of floor that are
+  // neither stage nor screen. A starting point to drag, not a survey.
+  $("spkplan").addEventListener("click", function () {
+    const R = room();
+    [[15.5, 21, 245], [15.5, 26, 270], [15.5, 48, 270], [15.5, 53, 295]]
+      .forEach(function (c) {
+        items.push({
+          id: nextId++, k: "k12", r: c[2],
+          x: clamp(c[0], 2, R.w - 2), y: clamp(c[1], 2, R.d - 2)
+        });
+      });
+    selected = null; save(); draw();
+  });
+
+  $("clear").addEventListener("click", function () {
+    items = []; selected = null; save(); draw();
+  });
+  $("rot").addEventListener("click", function () {
+    const it = cur(); if (!it) return;
+    it.r = (it.r + (it.k === "k12" ? 15 : 90)) % 360;
+    const R = room(), f = footprint(it);
+    it.x = clamp(it.x, f.w / 2, Math.max(f.w / 2, R.w - f.w / 2));
+    it.y = clamp(it.y, f.d / 2, Math.max(f.d / 2, R.d - f.d / 2));
+    save(); draw();
+  });
+  $("dup").addEventListener("click", function () {
+    const it = cur(); if (!it) return;
+    const R = room(), f = footprint(it);
+    const copy = {
+      id: nextId++, k: it.k, r: it.r,
+      x: clamp(it.x + 3, f.w / 2, Math.max(f.w / 2, R.w - f.w / 2)),
+      y: clamp(it.y + 3, f.d / 2, Math.max(f.d / 2, R.d - f.d / 2))
+    };
+    items.push(copy); selected = copy.id; save(); draw();
+  });
+  $("del").addEventListener("click", function () {
+    items = items.filter(function (i) { return i.id !== selected; });
+    selected = null; save(); draw();
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    const it = cur(); if (!it) return;
+    const tag = (ev.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select") return;
+    const step = ev.shiftKey ? 5 : 1;
+    let dx = 0, dy = 0;
+    if (ev.key === "ArrowLeft") dx = -step;
+    else if (ev.key === "ArrowRight") dx = step;
+    else if (ev.key === "ArrowUp") dy = -step;
+    else if (ev.key === "ArrowDown") dy = step;
+    else if (ev.key === "r" || ev.key === "R") { $("rot").click(); return; }
+    else if (ev.key === "Backspace" || ev.key === "Delete") { ev.preventDefault(); $("del").click(); return; }
+    else return;
+    ev.preventDefault();
+    const R = room(), f = footprint(it);
+    it.x = clamp(it.x + dx, f.w / 2, Math.max(f.w / 2, R.w - f.w / 2));
+    it.y = clamp(it.y + dy, f.d / 2, Math.max(f.d / 2, R.d - f.d / 2));
+    save(); draw();
+  });
+
+  // ---- a plot to open on --------------------------------------------------
+  function seed() {
+    let any = false;
+    try { any = !!localStorage.getItem(key()); } catch (e) {}
+    if (any) return;
+    const R = room();
+    const mid = R.w / 2;
+    (R.plan || [
+      { k: "screen", x: mid, y: 4, r: 0 },
+      { k: "stage",  x: mid, y: 15, r: 0 },
+      { k: "podium", x: mid + 12, y: 15, r: 0 },
+      { k: "cam",    x: mid, y: 58, r: 0 },
+      { k: "cam",    x: 10, y: 30, r: 90 },
+      { k: "vv",     x: mid + 10, y: 70, r: 0 },
+      { k: "foh",    x: mid - 12, y: 70, r: 0 },
+      { k: "proj",   x: mid, y: 44, r: 0 }
+    ]).forEach(function (o) {
+      const p = PART[o.k];
+      const turned = o.r === 90 || o.r === 270;
+      const w = turned ? p.d : p.w, d = turned ? p.w : p.d;
+      if (o.x - w / 2 < 0 || o.x + w / 2 > R.w || o.y + d / 2 > R.d) return;
+      items.push({ id: nextId++, k: o.k, x: o.x, y: o.y, r: o.r });
+    });
+    save();
+  }
+
+  $("foot").textContent =
+    "Room sizes and capacities as published by the venue. Measure before you trust a wall.";
+
+  buildRooms();
+  buildBin();
+  load();
+  seed();
+  fillFacts();
+  draw();
+})();
+</script>

@@ -1,0 +1,351 @@
+<title>CMO37 Day One</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: a time rail. Every block's height is its real length, so the
+     five minute turnarounds look like what they are. One accent, used for
+     now and for the things that need watching. */
+  :root {
+    --bg: #F4F3F0;
+    --panel: #FFFFFF;
+    --panel-2: #FAF9F7;
+    --line: #DEDBD4;
+    --line-soft: #EAE7E1;
+    --text: #1F2227;
+    --muted: #6B7079;
+    --faint: #9AA0A8;
+    --accent: #A8701F;
+    --accent-soft: rgba(168, 112, 31, 0.12);
+    --keynote: #3D5A73;
+    --keynote-soft: rgba(61, 90, 115, 0.10);
+    --social: #4A6B52;
+    --social-soft: rgba(74, 107, 82, 0.10);
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171B; --panel: #1B1F25; --panel-2: #202530; --line: #2E343D;
+      --line-soft: #252B33; --text: #E8EBEF; --muted: #99A1AB; --faint: #6E767F;
+      --accent: #D79A46; --accent-soft: rgba(215, 154, 70, 0.16);
+      --keynote: #87AECB; --keynote-soft: rgba(135, 174, 203, 0.13);
+      --social: #8FBF9C; --social-soft: rgba(143, 191, 156, 0.13);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171B; --panel: #1B1F25; --panel-2: #202530; --line: #2E343D;
+    --line-soft: #252B33; --text: #E8EBEF; --muted: #99A1AB; --faint: #6E767F;
+    --accent: #D79A46; --accent-soft: rgba(215, 154, 70, 0.16);
+    --keynote: #87AECB; --keynote-soft: rgba(135, 174, 203, 0.13);
+    --social: #8FBF9C; --social-soft: rgba(143, 191, 156, 0.13);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 16px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 880px; margin: 0 auto; padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h1 { font-size: 27px; line-height: 1.15; margin: 3px 0 0; letter-spacing: -0.02em; }
+
+  /* the standing bar: what is on now, what is next */
+  .nowbar {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 13px 15px; display: flex; flex-wrap: wrap;
+    gap: 4px 18px; align-items: baseline; position: sticky;
+    top: env(safe-area-inset-top, 0px); z-index: 5;
+  }
+  .nowbar .lab {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent); display: block;
+  }
+  .nowbar .val { font-size: 15px; font-weight: 600; }
+  .nowbar .sub { font-size: 13px; color: var(--muted); }
+  .nowbar > div { min-width: 0; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px;
+  }
+  .stat b {
+    display: block; font-size: 20px; font-variant-numeric: tabular-nums;
+    font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em;
+  }
+  .stat span { font-size: 12px; color: var(--muted); display: block; margin-top: 1px; }
+
+  /* the rail */
+  .rail { display: flex; flex-direction: column; }
+  .row { display: flex; gap: 10px; align-items: stretch; }
+  .clock {
+    width: 88px; flex: none; font-family: var(--mono); font-size: 12.5px;
+    font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 9px;
+    text-align: right;
+  }
+  .clock b { display: block; color: var(--text); font-weight: 600; font-size: 13.5px; }
+  .body { flex: 1; min-width: 0; }
+
+  .block {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 13px; height: 100%; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .block h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .block p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .block .meta {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 3px;
+  }
+  .block.keynote { border-left: 3px solid var(--keynote); background: var(--keynote-soft); }
+  .block.keynote .meta { color: var(--keynote); }
+  .block.social { border-left: 3px solid var(--social); background: var(--social-soft); }
+  .block.social .meta { color: var(--social); }
+  .block.plain { border-left: 3px solid var(--line); }
+  .block.now { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .block.done { opacity: 0.55; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; }
+  @media (max-width: 560px) { .pair { grid-template-columns: 1fr; } }
+  .pair .block { border-left: 3px solid var(--accent); background: var(--accent-soft); }
+  .pair .block .meta { color: var(--accent); }
+
+  /* the turnarounds between blocks */
+  .gap { display: flex; gap: 10px; align-items: center; }
+  .gap .line { flex: 1; border-top: 1px dashed var(--line); }
+  .gap .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px;
+    background: var(--panel-2); white-space: nowrap;
+  }
+  .gap.tight .tag { color: var(--accent); border-color: var(--accent); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 15px 17px;
+  }
+  .card h2 {
+    font-size: 12px; margin: 0 0 10px; font-family: var(--mono);
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+  }
+  .card ul { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 11px; }
+  .card li { font-size: 14.5px; display: grid; grid-template-columns: 74px 1fr; gap: 12px; }
+  @media (max-width: 560px) { .card li { grid-template-columns: 1fr; gap: 2px; } }
+  .card li b {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--accent); padding-top: 3px;
+  }
+  .card li span { color: var(--text); }
+  .card li span em { color: var(--muted); font-style: normal; }
+
+  footer { color: var(--faint); font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="corporate.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--line); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--muted);">&#8249; Corporate</a>
+    <a href="cmo37-run-of-show.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--accent); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--accent);">Run of Show</a>
+  </div>
+
+  <header>
+    <div class="eyebrow">CMO37 &middot; Assembly at a Glance</div>
+    <h1>Day One, October 15</h1>
+  </header>
+
+  <div class="nowbar" id="nowbar">
+    <div><span class="lab">Right now</span><span class="val" id="nowVal">&mdash;</span></div>
+    <div><span class="lab">Next</span><span class="val" id="nextVal">&mdash;</span>
+      <span class="sub" id="nextSub"></span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>11h 15m</b><span>9:30 AM to 8:45 PM</span></div>
+    <div class="stat"><b>12</b><span>presentation slots</span></div>
+    <div class="stat"><b>9 &times; 5 min</b><span>turnarounds</span></div>
+    <div class="stat"><b>2</b><span>rooms at 11:00</span></div>
+  </div>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="card">
+    <h2>What the sheet is telling you</h2>
+    <ul>
+      <li><b>11:00</b><span>Two rooms at once. Power Hour 1 and Power Hour 2 both run 11:00 to 11:55.
+        It is the only double-track hour on the day. <em>Everything after it is single track.</em></span></li>
+      <li><b>No lunch</b><span>There is no meal block between the 9:30 snacks and the 6:30 cocktail hour.
+        <em>Crew eats in a five or ten minute gap, or somebody covers a position.</em></span></li>
+      <li><b>10 min</b><span>Only two breaks are longer than five minutes: 11:55 and 3:10.
+        <em>Those are the only windows to reset anything.</em></span></li>
+      <li><b>5 min</b><span>Nine times, a presenter leaves and the next one is up in five minutes.
+        <em>Deck, mic and lav change inside that window every time.</em></span></li>
+      <li><b>6:25</b><span>Five minutes from the last workshop to cocktail hour.
+        <em>If cocktails are in the same room that is a flip with no time in it. Worth confirming.</em></span></li>
+      <li><b>Day 2</b><span>October 16 was below the fold in the screenshot.
+        <em>Send it and I will add it.</em></span></li>
+    </ul>
+  </div>
+
+  <footer>
+    Built from the Assembly at a Glance sheet. Times exactly as listed. Durations and gaps calculated.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Every row off the sheet. Times as printed, nothing adjusted.
+  const DAY = [
+    { s: "9:30 AM",  e: "11:00 AM", t: "Registration and Snacks", k: "social", m: "Doors" },
+    { s: "11:00 AM", e: "11:55 AM", k: "pair", m: "Two rooms", pair: [
+      { t: "AI Power Hour 1", p: "Branding and AI", m: "Power Hour 1" },
+      { t: "AI Power Hour 2", p: "Leading AI Adoption: The Power of Communication, Positioning, and Influence", m: "Power Hour 2" }
+    ]},
+    { s: "12:05 PM", e: "12:50 PM", t: "Opening Vendor Keynote", k: "keynote", m: "Keynote",
+      p: "From Data Silos to Revenue Growth: How AI-First CRM Is Redefining Growth Marketing for B2C Brands" },
+    { s: "12:55 PM", e: "1:25 PM", t: "Workshop 1", m: "Workshop",
+      p: "The Whole Argument: The Race Is Won Before the Answer Appears" },
+    { s: "1:30 PM", e: "2:00 PM", t: "Workshop 2", m: "Workshop",
+      p: "The AI-Powered CMO: Turning Audience Intelligence into Strategic Advantage" },
+    { s: "2:05 PM", e: "2:35 PM", t: "Workshop 3", m: "Workshop",
+      p: "Addressing Waning Public Confidence: Opportunities and Limits for CCOs" },
+    { s: "2:40 PM", e: "3:10 PM", t: "Workshop 4", m: "Workshop",
+      p: "Brand Fidelity Through Growth and AI: Why Every Brand Needs a System for Type" },
+    { s: "3:20 PM", e: "4:05 PM", t: "Afternoon Vendor Keynote", k: "keynote", m: "Keynote",
+      p: "The Full-Funnel Creator Strategy for the AI Search Era" },
+    { s: "4:10 PM", e: "4:40 PM", t: "Workshop 5", m: "Workshop",
+      p: "The Small Moments That Carry the Brand: Why Customers Judge the Whole Brand by a Handful of Everyday Interactions" },
+    { s: "4:45 PM", e: "5:15 PM", t: "Workshop 6", m: "Workshop",
+      p: "Owning the Second Layer of AI Search" },
+    { s: "5:20 PM", e: "5:50 PM", t: "Workshop 7", m: "Workshop",
+      p: "2026's Buzziest Consumer Product Launches, as Revealed by Verified Buyers" },
+    { s: "5:55 PM", e: "6:25 PM", t: "Workshop 8", m: "Workshop",
+      p: "The New CMO: Leading Growth Beyond the Marketing Function" },
+    { s: "6:30 PM", e: "7:30 PM", t: "Cocktail Hour", k: "social", m: "Reception" },
+    { s: "7:30 PM", e: "8:45 PM", t: "Dinner and Game Show", k: "social", m: "Dinner" }
+  ];
+
+  const PX = 1.55;        // pixels per minute, so length on screen is length in time
+  const MIN_H = 54;       // a thirty minute block still has to be readable
+
+  function mins(str) {
+    const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(str.trim());
+    let h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    const ap = m[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  function dur(b) { return mins(b.e) - mins(b.s); }
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function len(n) {
+    const h = Math.floor(n / 60), m = n % 60;
+    return (h ? h + " hr " : "") + (m ? m + " min" : (h ? "" : "0 min"));
+  }
+
+  function blockHtml(b, cls) {
+    return '<div class="block ' + cls + '">' +
+      (b.m ? '<div class="meta">' + esc(b.m) + "</div>" : "") +
+      "<h3>" + esc(b.t) + "</h3>" +
+      (b.p ? "<p>" + esc(b.p) + "</p>" : "") + "</div>";
+  }
+
+  let html = "";
+  DAY.forEach(function (b, i) {
+    if (i > 0) {
+      const g = mins(b.s) - mins(DAY[i - 1].e);
+      if (g > 0) {
+        html += '<div class="gap' + (g <= 5 ? " tight" : "") +
+          '" style="height:' + Math.max(26, g * PX) + 'px">' +
+          '<div style="width:88px;flex:none"></div><div class="line"></div>' +
+          '<div class="tag">' + g + " min</div><div class=\"line\"></div></div>";
+      }
+    }
+    const h = Math.max(MIN_H, dur(b) * PX);
+    html += '<div class="row" data-i="' + i + '" style="min-height:' + h + 'px">' +
+      '<div class="clock"><b>' + esc(b.s.replace(/:00 /, " ")) + "</b>" +
+      esc(len(dur(b))) + "</div><div class=\"body\">";
+    if (b.k === "pair") {
+      html += '<div class="pair">' +
+        b.pair.map(function (p) { return blockHtml(p, ""); }).join("") + "</div>";
+    } else {
+      html += blockHtml(b, b.k || "plain");
+    }
+    html += "</div></div>";
+  });
+  document.getElementById("rail").innerHTML = html;
+
+  // Where the day is right now. Only meaningful on the day itself.
+  function tick() {
+    const d = new Date();
+    const onDay = d.getFullYear() === 2026 && d.getMonth() === 9 && d.getDate() === 15;
+    const now = onDay ? d.getHours() * 60 + d.getMinutes() : -1;
+    let live = -1, next = -1;
+
+    DAY.forEach(function (b, i) {
+      const a = mins(b.s), z = mins(b.e);
+      const row = document.querySelector('.row[data-i="' + i + '"]');
+      if (!row) return;
+      const on = onDay && now >= a && now < z;
+      const past = onDay && now >= z;
+      if (on) live = i;
+      if (next < 0 && onDay && now < a) next = i;
+      Array.prototype.forEach.call(row.querySelectorAll(".block"), function (el) {
+        el.classList.toggle("now", on);
+        el.classList.toggle("done", past);
+      });
+    });
+
+    const nv = document.getElementById("nowVal");
+    const xv = document.getElementById("nextVal");
+    const xs = document.getElementById("nextSub");
+
+    if (!onDay) {
+      nv.textContent = "Not show day";
+      xv.textContent = "Doors 9:30 AM";
+      xs.textContent = "Registration and snacks";
+      return;
+    }
+    if (live >= 0) {
+      const b = DAY[live];
+      nv.textContent = b.k === "pair" ? "Power Hours 1 and 2" : b.t;
+      const left = mins(b.e) - now;
+      xs.textContent = left + " min left, ends " + b.e;
+    } else {
+      nv.textContent = now < mins(DAY[0].s) ? "Before doors" : "Changeover";
+      xs.textContent = "";
+    }
+    if (next >= 0) {
+      const n = DAY[next];
+      xv.textContent = (n.k === "pair" ? "Power Hours 1 and 2" : n.t) + " at " + n.s;
+      const to = mins(n.s) - now;
+      xs.textContent = (xs.textContent ? xs.textContent + " · " : "") + "up in " + to + " min";
+    } else if (now >= mins(DAY[DAY.length - 1].e)) {
+      xv.textContent = "Day complete";
+      xs.textContent = "";
+    }
+  }
+  tick();
+  setInterval(tick, 20000);
+})();
+</script>

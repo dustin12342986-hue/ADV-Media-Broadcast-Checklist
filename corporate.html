@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Corporate — ADV Media Teams</title>
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="theme-color" content="#4A8FC0" />
+
+<!--
+  ============================================================================
+  CORPORATE — contract landing
+  ============================================================================
+  Same shape as the CISD app's front door, for corporate events, conferences
+  and one-off productions. Each show gets a block below. Everything a show
+  needs hangs off its block.
+
+  ADDING A SHOW: copy a block in SHOWS. Set current:true for the one being
+  worked now and it sorts to the top with a live chip. Pages that do not
+  exist yet are left out of links[] rather than linked and broken.
+  ============================================================================
+-->
+
+<!-- Shared appearance. Must load before this page's own styles. -->
+<script src="adv-theme.js"></script>
+<style>
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap { max-width:680px; margin:0 auto; padding:0 18px 70px; }
+
+  .banner {
+    text-align:center; padding:34px 0 26px; border-bottom:1px solid var(--border);
+    margin-bottom:24px;
+  }
+  .banner-name {
+    font-family:Georgia,"Times New Roman",serif; font-size:32px; font-weight:700;
+    letter-spacing:-0.5px; margin:0;
+  }
+  .banner-sub { color:var(--text-muted); font-size:13px; margin:6px 0 0; letter-spacing:0.3px; }
+
+  .nav-links { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px; }
+  .nav-link-btn {
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:8px 13px; font-size:13px; font-weight:700; color:var(--text-muted);
+  }
+  .nav-link-btn:active { border-color:var(--blue); }
+
+  .section-label {
+    font-size:11.5px; font-weight:800; color:var(--text-faint);
+    text-transform:uppercase; letter-spacing:0.6px; margin:0 0 12px;
+  }
+
+  .show {
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:20px; margin-bottom:14px;
+  }
+  .show.live { border-color:var(--blue); }
+  .show-top { display:flex; align-items:center; gap:10px; margin-bottom:5px; flex-wrap:wrap; }
+  .show-name { font-size:19px; font-weight:800; }
+  .chip {
+    font-size:10.5px; font-weight:800; padding:3px 8px; border-radius:6px;
+    text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .chip-live { background:var(--blue); color:#fff; }
+  .chip-soon { background:var(--panel2); color:var(--text-faint); border:1px solid var(--border); }
+  .show-where { font-size:13px; color:var(--text-muted); line-height:1.5; }
+  .show-when { font-size:12.5px; color:var(--text-faint); margin-top:2px; }
+
+  .links { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:16px; }
+  .lk {
+    display:block; text-decoration:none; color:inherit;
+    background:var(--panel2); border:1px solid var(--border); border-radius:12px;
+    padding:14px 13px;
+  }
+  .lk:active { border-color:var(--blue); }
+  .lk-name { font-size:13.5px; font-weight:700; }
+  .lk-sub { font-size:11.5px; color:var(--text-faint); margin-top:3px; line-height:1.4; }
+  .lk.primary { border-color:var(--blue); }
+  .lk.primary .lk-name { color:var(--blue); }
+
+  .footnote { color:var(--text-faint); font-size:12.5px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="banner">
+    <h1 class="banner-name">Corporate</h1>
+    <p class="banner-sub">Corporate events, conferences, and one-off productions</p>
+  </div>
+
+  <div class="nav-links">
+    <a class="nav-link-btn" href="home.html">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/></svg>
+      Home
+    </a>
+    <a class="nav-link-btn" href="time-clock.html">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Time Clock
+    </a>
+    <a class="nav-link-btn" href="checklist.html">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Checklist
+    </a>
+  </div>
+
+  <div id="root"></div>
+
+  <p class="footnote" style="margin-top:30px; text-align:center;">
+    Corporate shows live here. Everything a show needs is on its block.
+  </p>
+</div>
+
+<script>
+// ============================================================================
+// SHOWS — add a block when a new one books.
+// ============================================================================
+const SHOWS = [
+  {
+    name: "CMO37 Assembly",
+    current: true,
+    venue: "JW Marriott Houston by The Galleria",
+    room: "Grand Ballroom, Salon A",
+    when: "October 15 and 16, 2026",
+    links: [
+      { name: "Run of Show", sub: "Full screen caller, cue by cue",
+        url: "cmo37-run-of-show.html", primary: true },
+      { name: "Day One Schedule", sub: "The whole day, with every turnaround",
+        url: "cmo37-day-one.html" },
+      { name: "Room Plots", sub: "Salon A to scale, gear and speakers",
+        url: "galleria-plots.html" },
+    ],
+  },
+];
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+document.getElementById("root").innerHTML = `
+  <div class="section-label">Shows</div>
+  ${SHOWS.map((s) => `
+    <div class="show ${s.current ? "live" : ""}">
+      <div class="show-top">
+        <span class="show-name">${esc(s.name)}</span>
+        <span class="chip ${s.current ? "chip-live" : "chip-soon"}">${s.current ? "On now" : "Upcoming"}</span>
+      </div>
+      <div class="show-where">${esc(s.venue)}${s.room ? " &middot; " + esc(s.room) : ""}</div>
+      <div class="show-when">${esc(s.when)}</div>
+      <div class="links">
+        ${s.links.map((l) => `
+          <a class="lk ${l.primary ? "primary" : ""}" href="${esc(l.url)}">
+            <div class="lk-name">${esc(l.name)}</div>
+            <div class="lk-sub">${esc(l.sub)}</div>
+          </a>
+        `).join("")}
+      </div>
+    </div>
+  `).join("")}
+`;
+</script>
+</body>
+</html>
