@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B0C10" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+<title>CMO37 Session Log</title>
+
+<!-- Reads the same record the run of show writes. runOfShow is public to
+     read, so this page needs no sign-in: anyone with the link sees the day
+     as it actually ran. -->
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",
+    authDomain: "crowley-football.firebaseapp.com",
+    databaseURL: "https://crowley-football-default-rtdb.firebaseio.com",
+    projectId: "crowley-football",
+    storageBucket: "crowley-football.firebasestorage.app",
+    messagingSenderId: "56102489603",
+    appId: "1:56102489603:web:1a81953b6dd0d2fb84c836",
+  };
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  /* Client palette, read off their mark, same as the rest of Corporate. */
+  :root {
+    --b1: #F1B2F9; --b2: #C9BDFF; --b3: #9CDEFF;
+    --bg: #0B0C10; --panel: #14161D; --panel-2: #1B1E27; --line: #2A2E3A;
+    --text: #ECEEF5; --muted: #99A0B0; --faint: #6A7183;
+    --over: #F1B2F9; --under: #9CDEFF; --onplan: #99A0B0;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8;
+      --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+      --text: #15171F; --muted: #5C6273; --faint: #8A90A3;
+      --over: #9B2FA8; --under: #1E86B8; --onplan: #5C6273;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8;
+    --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+    --text: #15171F; --muted: #5C6273; --faint: #8A90A3;
+    --over: #9B2FA8; --under: #1E86B8; --onplan: #5C6273;
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 16px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 960px; margin: 0 auto; padding-block: 16px 44px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h1 {
+    font-size: 26px; margin: 3px 0 0; letter-spacing: -0.02em;
+    background: linear-gradient(100deg, var(--b1), var(--b2) 55%, var(--b3));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    width: fit-content;
+  }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  a.btn, button {
+    font: inherit; font-size: 13.5px; font-weight: 600; text-decoration: none;
+    color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 9px; padding: 8px 13px; cursor: pointer; min-height: 40px;
+    display: inline-flex; align-items: center;
+  }
+  button:hover, a.btn:hover { border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--b2); outline-offset: 2px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 620px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+    padding: 11px 13px; min-width: 0;
+  }
+  .stat b {
+    display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 22px; letter-spacing: -0.02em; line-height: 1.15;
+  }
+  .stat span { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+  .stat.over b { color: var(--over); }
+  .stat.under b { color: var(--under); }
+
+  .rows { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+    padding: 11px 14px; display: grid; gap: 4px 14px; min-width: 0;
+    grid-template-columns: 1fr auto;
+  }
+  .row.notrun { opacity: 0.5; }
+  .row.over { border-left: 3px solid var(--over); }
+  .row.under { border-left: 3px solid var(--under); }
+  .row.onplan { border-left: 3px solid var(--onplan); }
+  .row .ti { font-weight: 650; font-size: 15.5px; min-width: 0; }
+  .row .delta {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 17px; font-weight: 700; text-align: right; white-space: nowrap;
+  }
+  .row.over .delta { color: var(--over); }
+  .row.under .delta { color: var(--under); }
+  .row .when {
+    grid-column: 1 / -1; display: flex; gap: 6px 16px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .row .when i { font-style: normal; color: var(--faint); }
+  .row .note {
+    grid-column: 1 / -1; margin-top: 4px; font-size: 14px; color: var(--text);
+    border-left: 3px solid var(--b2); padding-left: 10px; white-space: pre-wrap;
+  }
+
+  .copybox {
+    width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 12px;
+    line-height: 1.5; min-height: 180px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px; color: var(--text);
+    padding: 11px 12px; white-space: pre; overflow: auto;
+  }
+  .copybox[hidden] { display: none; }
+  footer { color: var(--faint); font-size: 12.5px; }
+  .empty {
+    background: var(--panel); border: 1px dashed var(--line); border-radius: 11px;
+    padding: 22px; text-align: center; color: var(--muted); font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="bar">
+    <a class="btn" href="corporate.html">&#8249; Corporate</a>
+    <a class="btn" href="cmo37-run-of-show.html">Run of Show</a>
+    <button id="copyBtn">Copy as text</button>
+    <span class="tag" id="live">Connecting</span>
+  </div>
+
+  <header>
+    <div class="tag">CMO37 Assembly &middot; Day One</div>
+    <h1>Session log</h1>
+  </header>
+
+  <div class="stats" id="stats"></div>
+  <textarea class="copybox" id="copybox" hidden readonly></textarea>
+  <div class="rows" id="rows"></div>
+
+  <footer>
+    Written by the run of show as each cue closes. A cue that is reset comes
+    back out of the log.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const SHOW_PATH = "runOfShow/corporate-cmo37";
+
+  // The printed sheet, so cues that have not run yet still show their plan.
+  const DAY = [
+    { s: "9:30 AM",  e: "11:00 AM", t: "Registration and Snacks" },
+    { s: "11:00 AM", e: "11:55 AM", t: "AI Power Hours 1 and 2" },
+    { s: "12:05 PM", e: "12:50 PM", t: "Opening Vendor Keynote" },
+    { s: "12:55 PM", e: "1:25 PM",  t: "Workshop 1" },
+    { s: "1:30 PM",  e: "2:00 PM",  t: "Workshop 2" },
+    { s: "2:05 PM",  e: "2:35 PM",  t: "Workshop 3" },
+    { s: "2:40 PM",  e: "3:10 PM",  t: "Workshop 4" },
+    { s: "3:20 PM",  e: "4:05 PM",  t: "Afternoon Vendor Keynote" },
+    { s: "4:10 PM",  e: "4:40 PM",  t: "Workshop 5" },
+    { s: "4:45 PM",  e: "5:15 PM",  t: "Workshop 6" },
+    { s: "5:20 PM",  e: "5:50 PM",  t: "Workshop 7" },
+    { s: "5:55 PM",  e: "6:25 PM",  t: "Workshop 8" },
+    { s: "6:30 PM",  e: "7:30 PM",  t: "Cocktail Hour" },
+    { s: "7:30 PM",  e: "8:45 PM",  t: "Dinner and Game Show" }
+  ];
+
+  let LOG = {}, NOTES = {}, TIMES = null;
+
+  const $ = function (id) { return document.getElementById(id); };
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function mins(str) {
+    const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(String(str).trim());
+    if (!m) return 0;
+    let h = parseInt(m[1], 10);
+    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+    return h * 60 + parseInt(m[2], 10);
+  }
+  function clockOf(ms) {
+    if (!ms) return "—";
+    const d = new Date(ms);
+    let h = d.getHours();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+  }
+  function mlabel(n) {
+    const r = Math.round(n * 10) / 10;
+    return (Number.isInteger(r) ? r : r.toFixed(1)) + " min";
+  }
+  function planned(i) {
+    const row = TIMES && TIMES[i];
+    const b = DAY[i];
+    const s = row && row.s ? row.s : b.s, e = row && row.e ? row.e : b.e;
+    return { s: s, e: e, min: mins(e) - mins(s) };
+  }
+
+  function paint() {
+    const rows = [];
+    let ranCount = 0, plannedTotal = 0, actualTotal = 0;
+    let worstOver = null, worstUnder = null;
+
+    DAY.forEach(function (b, i) {
+      const p = planned(i);
+      const L = LOG[String(i)];
+      const note = (L && L.note) || NOTES[String(i)] || "";
+      if (!L) {
+        rows.push('<div class="row notrun"><div class="ti">' + esc(b.t) +
+          '</div><div class="delta">not run</div>' +
+          '<div class="when"><span><i>planned</i> ' + esc(p.s) + " to " + esc(p.e) +
+          "</span><span>" + mlabel(p.min) + "</span></div>" +
+          (note ? '<div class="note">' + esc(note) + "</div>" : "") + "</div>");
+        return;
+      }
+      ranCount++;
+      const pm = typeof L.plannedMin === "number" ? L.plannedMin : p.min;
+      const am = typeof L.ranMin === "number" ? L.ranMin : 0;
+      const d = Math.round((am - pm) * 10) / 10;
+      plannedTotal += pm; actualTotal += am;
+      if (worstOver === null || d > worstOver.d) worstOver = { d: d, t: b.t };
+      if (worstUnder === null || d < worstUnder.d) worstUnder = { d: d, t: b.t };
+
+      const cls = Math.abs(d) < 0.5 ? "onplan" : (d > 0 ? "over" : "under");
+      const dtxt = Math.abs(d) < 0.5 ? "on plan"
+        : (d > 0 ? "+" : "−") + mlabel(Math.abs(d)).replace(" min", "") + " min";
+      rows.push('<div class="row ' + cls + '"><div class="ti">' + esc(b.t) +
+        '</div><div class="delta">' + dtxt + "</div>" +
+        '<div class="when">' +
+          "<span><i>planned</i> " + esc(L.plannedStart || p.s) + " to " +
+            esc(L.plannedEnd || p.e) + " &middot; " + mlabel(pm) + "</span>" +
+          "<span><i>ran</i> " + clockOf(L.began) + " to " + clockOf(L.ended) +
+            " &middot; " + mlabel(am) + "</span>" +
+        "</div>" +
+        (note ? '<div class="note">' + esc(note) + "</div>" : "") + "</div>");
+    });
+
+    $("rows").innerHTML = rows.join("") ||
+      '<div class="empty">Nothing has run yet.</div>';
+
+    const drift = Math.round((actualTotal - plannedTotal) * 10) / 10;
+    const driftCls = Math.abs(drift) < 0.5 ? "" : (drift > 0 ? " over" : " under");
+    $("stats").innerHTML =
+      '<div class="stat"><b>' + ranCount + " of " + DAY.length + "</b><span>cues run</span></div>" +
+      '<div class="stat"><b>' + mlabel(plannedTotal) + "</b><span>planned, those cues</span></div>" +
+      '<div class="stat"><b>' + mlabel(actualTotal) + "</b><span>actually ran</span></div>" +
+      '<div class="stat' + driftCls + '"><b>' +
+        (Math.abs(drift) < 0.5 ? "even" : (drift > 0 ? "+" : "−") +
+          mlabel(Math.abs(drift))) + "</b><span>" +
+        (drift > 0 ? "over the plan" : drift < 0 ? "under the plan" : "against the plan") +
+      "</span></div>";
+
+    if (ranCount === 0) $("stats").innerHTML = "";
+    buildText(ranCount, plannedTotal, actualTotal, drift, worstOver, worstUnder);
+  }
+
+  let TEXT = "";
+  function buildText(ran, pt, at, drift, over, under) {
+    const lines = ["CMO37 Assembly, Day One — session log", ""];
+    DAY.forEach(function (b, i) {
+      const p = planned(i);
+      const L = LOG[String(i)];
+      const note = (L && L.note) || NOTES[String(i)] || "";
+      if (!L) {
+        lines.push(b.t + " — not run (planned " + p.s + " to " + p.e + ")");
+      } else {
+        const pm = typeof L.plannedMin === "number" ? L.plannedMin : p.min;
+        const am = typeof L.ranMin === "number" ? L.ranMin : 0;
+        const d = Math.round((am - pm) * 10) / 10;
+        lines.push(b.t + " — ran " + clockOf(L.began) + " to " + clockOf(L.ended) +
+          ", " + mlabel(am) + " against " + mlabel(pm) + ", " +
+          (Math.abs(d) < 0.5 ? "on plan" : (d > 0 ? "over by " : "under by ") + mlabel(Math.abs(d))));
+      }
+      if (note) lines.push("    note: " + note);
+    });
+    if (ran) {
+      lines.push("");
+      lines.push("Ran " + ran + " of " + DAY.length + " cues. " +
+        mlabel(at) + " against " + mlabel(pt) + " planned, " +
+        (Math.abs(drift) < 0.5 ? "even." :
+          (drift > 0 ? "over by " : "under by ") + mlabel(Math.abs(drift)) + "."));
+      if (over && over.d > 0) lines.push("Longest over: " + over.t + ", " + mlabel(over.d) + ".");
+      if (under && under.d < 0) lines.push("Longest under: " + under.t + ", " + mlabel(Math.abs(under.d)) + ".");
+    }
+    TEXT = lines.join("\n");
+    $("copybox").value = TEXT;
+  }
+
+  $("copyBtn").addEventListener("click", function () {
+    const box = $("copybox");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(TEXT).then(function () {
+        $("copyBtn").textContent = "Copied";
+        setTimeout(function () { $("copyBtn").textContent = "Copy as text"; }, 1600);
+      }).catch(show);
+    } else { show(); }
+    function show() {
+      box.hidden = false; box.focus(); box.select();
+      $("copyBtn").textContent = "Select and copy";
+    }
+  });
+
+  (function connect() {
+    try {
+      if (!window.firebase || typeof FIREBASE_CONFIG === "undefined") {
+        $("live").textContent = "No connection"; paint(); return;
+      }
+      firebase.initializeApp(FIREBASE_CONFIG);
+      const db = firebase.database();
+      db.ref(".info/connected").on("value", function (sn) {
+        $("live").textContent = sn.val() ? "Live" : "Reconnecting";
+      });
+      db.ref(SHOW_PATH + "/log").on("value", function (sn) { LOG = sn.val() || {}; paint(); });
+      db.ref(SHOW_PATH + "/notes").on("value", function (sn) { NOTES = sn.val() || {}; paint(); });
+      db.ref(SHOW_PATH + "/times").on("value", function (sn) { TIMES = sn.val() || null; paint(); });
+    } catch (e) {
+      $("live").textContent = "No connection";
+    }
+    paint();
+  })();
+})();
+</script>
+</body>
+</html>

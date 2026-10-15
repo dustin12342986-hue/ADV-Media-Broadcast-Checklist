@@ -505,9 +505,12 @@
   const BEAT = 10000;            // how often the controller says it is alive
   const SNAP_BACK = 10000;       // a follower's leash
 
-  let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0 };
+  // startedAt moves when a hold is lifted, so it measures time on the clock.
+  // began is the wall clock moment the cue was called and never moves, which
+  // is what the logbook needs.
+  let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0, began: 0 };
   let control = { by: "", name: "", at: 0 };
-  let fb = null, stateRef = null, controlRef = null, sheetRef = null, notesRef = null;
+  let fb = null, stateRef = null, controlRef = null, sheetRef = null, notesRef = null, logRef = null;
   let NOTES = {};
   let editing = false;
   let signedIn = null, online = false;
@@ -540,7 +543,7 @@
   function push() {
     if (!stateRef || !amController()) return;
     stateRef.set({ i: S.i, status: S.status, startedAt: S.startedAt,
-                   heldAt: S.heldAt, at: Date.now() });
+                   heldAt: S.heldAt, began: S.began, at: Date.now() });
   }
 
   function adopt(o) {
@@ -549,7 +552,8 @@
       i: Math.max(0, Math.min(SHEET.length - 1, o.i)),
       status: o.status === "running" || o.status === "hold" ? o.status : "standby",
       startedAt: Number(o.startedAt) || 0,
-      heldAt: Number(o.heldAt) || 0
+      heldAt: Number(o.heldAt) || 0,
+      began: Number(o.began) || 0
     };
     render();
   }
@@ -566,6 +570,7 @@
       controlRef = fb.ref(SHOW_PATH + "/control");
       sheetRef = fb.ref(SHOW_PATH + "/times");
       notesRef = fb.ref(SHOW_PATH + "/notes");
+      logRef = fb.ref(SHOW_PATH + "/log");
 
       firebase.auth().onAuthStateChanged(function (u) { signedIn = u || null; paintConn(); render(); });
       fb.ref(".info/connected").on("value", function (sn) { online = !!sn.val(); paintConn(); });
@@ -670,12 +675,42 @@
     render(); push();
   }
 
+  // Writes what actually happened to the cue being left behind: when it was
+  // called, when it finished, how long it ran against how long it was meant
+  // to, and whatever note was on it. One line per cue, rewritten if the cue
+  // is run again.
+  function closeOut() {
+    if (!logRef || !amController()) return;
+    if (S.status === "standby" || !S.startedAt) return;
+    const b = SHEET[S.i];
+    const ended = S.status === "hold" ? (S.heldAt || Date.now()) : Date.now();
+    const ranMin = Math.round((ended - S.startedAt) / 60000 * 10) / 10;
+    const plannedMin = durMin(b);
+    const line = {
+      i: S.i,
+      title: b.t,
+      plannedStart: b.s,
+      plannedEnd: b.e,
+      plannedMin: plannedMin,
+      began: S.began || S.startedAt,
+      ended: ended,
+      ranMin: ranMin,
+      deltaMin: Math.round((ranMin - plannedMin) * 10) / 10,
+      note: noteFor(S.i) || "",
+      at: Date.now()
+    };
+    const patch = {}; patch[String(S.i)] = line;
+    logRef.update(patch);
+  }
+
   // ---- actions (controller only) -----------------------------------------
   function goTo(i, run) {
     if (!amController() && fb && online) return;
+    closeOut();
     S.i = Math.max(0, Math.min(SHEET.length - 1, i));
     S.status = run ? "running" : "standby";
     S.startedAt = run ? Date.now() : 0;
+    S.began = run ? Date.now() : 0;
     S.heldAt = 0;
     render(); push();
   }
@@ -683,6 +718,12 @@
     if (!amController() && fb && online) return;
     if (S.status === "standby") { goTo(S.i, true); return; }
     if (S.status === "hold") { toggleHold(); return; }
+    if (S.i + 1 >= SHEET.length) {       // End: close the last cue, stop there
+      closeOut();
+      S.status = "standby"; S.startedAt = 0; S.heldAt = 0; S.began = 0;
+      render(); push();
+      return;
+    }
     goTo(S.i + 1, true);
   }
   function toggleHold() {
@@ -697,12 +738,16 @@
   // Puts this cue's clock back to zero without moving off it.
   function resetCue() {
     if (!amController() && fb && online) return;
-    S.status = "standby"; S.startedAt = 0; S.heldAt = 0;
+    if (logRef && amController()) {
+      const clear = {}; clear[String(S.i)] = null;   // null removes the line
+      logRef.update(clear);
+    }
+    S.status = "standby"; S.startedAt = 0; S.heldAt = 0; S.began = 0;
     render(); push();
   }
   function resetShow() {
     if (!amController() && fb && online) return;
-    S = { i: 0, status: "standby", startedAt: 0, heldAt: 0 };
+    S = { i: 0, status: "standby", startedAt: 0, heldAt: 0, began: 0 };
     localView = null; browseUntil = 0;
     $("list").hidden = true;
     render(); push();
