@@ -1,44 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F3F0" />
 <title>CMO37 Day One</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   /* Layout: a time rail. Every block's height is its real length, so the
      five minute turnarounds look like what they are. One accent, used for
      now and for the things that need watching. */
+  /* Client palette, read off their mark: magenta, violet, periwinkle, cyan.
+     Same ramp the run of show uses, so the whole corporate section matches. */
   :root {
-    --bg: #F4F3F0;
+    --bg: #F7F6FB;
     --panel: #FFFFFF;
-    --panel-2: #FAF9F7;
-    --line: #DEDBD4;
-    --line-soft: #EAE7E1;
-    --text: #1F2227;
-    --muted: #6B7079;
-    --faint: #9AA0A8;
-    --accent: #A8701F;
-    --accent-soft: rgba(168, 112, 31, 0.12);
-    --keynote: #3D5A73;
-    --keynote-soft: rgba(61, 90, 115, 0.10);
-    --social: #4A6B52;
-    --social-soft: rgba(74, 107, 82, 0.10);
+    --panel-2: #F1F0F8;
+    --line: #DDDAEA;
+    --line-soft: #EAE8F3;
+    --text: #15171F;
+    --muted: #5C6273;
+    --faint: #8A90A3;
+    --accent: #6B4FC8;
+    --accent-soft: rgba(107, 79, 200, 0.12);
+    --keynote: #1E86B8;
+    --keynote-soft: rgba(30, 134, 184, 0.10);
+    --social: #B23FC0;
+    --social-soft: rgba(178, 63, 192, 0.10);
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #14171B; --panel: #1B1F25; --panel-2: #202530; --line: #2E343D;
-      --line-soft: #252B33; --text: #E8EBEF; --muted: #99A1AB; --faint: #6E767F;
-      --accent: #D79A46; --accent-soft: rgba(215, 154, 70, 0.16);
-      --keynote: #87AECB; --keynote-soft: rgba(135, 174, 203, 0.13);
-      --social: #8FBF9C; --social-soft: rgba(143, 191, 156, 0.13);
+      --bg: #0B0C10; --panel: #14161D; --panel-2: #1B1E27; --line: #2A2E3A;
+      --line-soft: #232833; --text: #ECEEF5; --muted: #99A0B0; --faint: #6A7183;
+      --accent: #C9BDFF; --accent-soft: rgba(201, 189, 255, 0.16);
+      --keynote: #9CDEFF; --keynote-soft: rgba(156, 222, 255, 0.13);
+      --social: #F1B2F9; --social-soft: rgba(241, 178, 249, 0.13);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #14171B; --panel: #1B1F25; --panel-2: #202530; --line: #2E343D;
-    --line-soft: #252B33; --text: #E8EBEF; --muted: #99A1AB; --faint: #6E767F;
-    --accent: #D79A46; --accent-soft: rgba(215, 154, 70, 0.16);
-    --keynote: #87AECB; --keynote-soft: rgba(135, 174, 203, 0.13);
-    --social: #8FBF9C; --social-soft: rgba(143, 191, 156, 0.13);
+    --bg: #0B0C10; --panel: #14161D; --panel-2: #1B1E27; --line: #2A2E3A;
+    --line-soft: #232833; --text: #ECEEF5; --muted: #99A0B0; --faint: #6A7183;
+    --accent: #C9BDFF; --accent-soft: rgba(201, 189, 255, 0.16);
+    --keynote: #9CDEFF; --keynote-soft: rgba(156, 222, 255, 0.13);
+    --social: #F1B2F9; --social-soft: rgba(241, 178, 249, 0.13);
     color-scheme: dark;
   }
 
@@ -152,7 +159,8 @@
 
   footer { color: var(--faint); font-size: 12.5px; }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
     <a href="corporate.html" style="text-decoration:none; background:var(--panel);
@@ -349,3 +357,5 @@
   setInterval(tick, 20000);
 })();
 </script>
+</body>
+</html>

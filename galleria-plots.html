@@ -1,5 +1,10 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F2F1EE" />
 <title>Galleria Ballroom Plots</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   /* Layout: a drafting sheet. Fixed toolbar, the plot fills the middle,
      the parts bin sits under it. One accent, used only for selection. */
@@ -23,17 +28,17 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #15181C; --panel: #1C2026; --line: #2E343C; --line-soft: #252A31;
-      --text: #E7EAEE; --muted: #939BA5; --floor: #11141800; --grid: #272D35;
-      --grid-major: #39414B; --wall: #AEB6C0; --accent: #D79A46;
-      --accent-soft: rgba(215, 154, 70, 0.18); --danger: #E8857C; color-scheme: dark;
+      --bg: #0B0C10; --panel: #14161D; --line: #2A2E3A; --line-soft: #232833;
+      --text: #ECEEF5; --muted: #99A0B0; --floor: #11141800; --grid: #232934;
+      --grid-major: #343B47; --wall: #AEB6C0; --accent: #C9BDFF;
+      --accent-soft: rgba(201, 189, 255, 0.18); --danger: #F1B2F9; color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #15181C; --panel: #1C2026; --line: #2E343C; --line-soft: #252A31;
-    --text: #E7EAEE; --muted: #939BA5; --floor: #00000000; --grid: #272D35;
-    --grid-major: #39414B; --wall: #AEB6C0; --accent: #D79A46;
-    --accent-soft: rgba(215, 154, 70, 0.18); --danger: #E8857C; color-scheme: dark;
+    --bg: #0B0C10; --panel: #14161D; --line: #2A2E3A; --line-soft: #232833;
+    --text: #ECEEF5; --muted: #99A0B0; --floor: #00000000; --grid: #232934;
+    --grid-major: #343B47; --wall: #AEB6C0; --accent: #C9BDFF;
+    --accent-soft: rgba(201, 189, 255, 0.18); --danger: #F1B2F9; color-scheme: dark;
   }
 
   html, body { height: 100%; }
@@ -112,7 +117,8 @@
   }
   footer { color: var(--muted); font-size: 12px; }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <div>
     <a href="corporate.html" style="text-decoration:none; background:var(--panel);
@@ -712,3 +718,5 @@
   draw();
 })();
 </script>
+</body>
+</html>
