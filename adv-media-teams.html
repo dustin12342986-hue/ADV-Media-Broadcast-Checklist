@@ -468,7 +468,7 @@
   }
   .ct-row:first-of-type { border-top: none; }
   .ct-role { flex: 1; font-size: 13px; color: var(--text-muted); font-weight: 700; }
-  .ct-input { flex: 0 0 132px; padding: 8px 10px; font-size: 16px; }
+  .ct-input { flex: 0 0 auto; }
   .row2 { display: flex; gap: 10px; }
   .row2 > * { flex: 1; min-width: 0; }
   .shift-row {
@@ -883,6 +883,35 @@
   .ap-prev-row b { flex: 1; font-size: 13px; }
   .ap-prev-row i { font-size: 12px; color: var(--text-muted); font-style: normal; font-weight: 800; }
 
+
+  /* The dropdown time control. Each part has a floor it cannot shrink past,
+     because a select squeezed to nothing is worse than the picker that
+     would not open. */
+  .tf { display: flex; align-items: center; gap: 5px; }
+  .tf select {
+    font: inherit; font-size: 16px; padding: 10px 4px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+    min-height: 46px; text-align: center;
+  }
+  .tf select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tf .tf-sep { color: var(--text-faint); font-weight: 700; flex: 0 0 auto; }
+  .tf .tf-h  { flex: 1 1 58px; min-width: 52px; }
+  .tf .tf-m  { flex: 1 1 58px; min-width: 52px; }
+  .tf .tf-ap { flex: 0 0 68px; min-width: 62px; }
+
+  /* Game Time and General Call get a line each. Three dropdowns will not sit
+     in half a phone screen. */
+  .row2.ct-top { display: block; }
+  .row2.ct-top > * + * { margin-top: 12px; }
+
+  .ct-row { flex-wrap: wrap; }
+  .ct-row .ct-role { flex: 1 1 100%; }
+  .ct-row .tf { width: 100%; }
+  .ct-row .tf select { font-size: 15px; min-height: 44px; }
+  @media (min-width: 420px) {
+    .ct-row .ct-role { flex: 1 1 auto; }
+    .ct-row .tf { width: auto; }
+  }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
@@ -5413,6 +5442,57 @@ function fmtCall(v) {
 }
 
 // The reverse, so the editor can preload a value the hardcoded defaults wrote.
+// A time control built from plain dropdowns.
+//
+// <input type="time"> leans on the browser's own picker, and on some phones
+// that picker never appears: the field takes focus, no keyboard, no wheel,
+// nothing to type into. Dropdowns are the one control every phone renders
+// the same way, so call times are set the same way everywhere.
+//
+// Reads and writes "HH:MM" on the 24 hour clock, which is exactly what the
+// old input gave back, so nothing downstream changes.
+function timeFieldHtml(opts) {
+  const v = toTimeInput(opts.value || "");
+  let h = "", m = "";
+  if (v) { h = v.slice(0, 2); m = v.slice(3, 5); }
+  const hh = Number(h);
+  const h12 = v ? String(hh % 12 === 0 ? 12 : hh % 12) : "";
+  const ap = v ? (hh >= 12 ? "PM" : "AM") : "";
+
+  // Minutes every five, plus whatever odd minute is already saved.
+  const mins = [];
+  for (let i = 0; i < 60; i += 5) mins.push(String(i).padStart(2, "0"));
+  if (m && mins.indexOf(m) === -1) { mins.push(m); mins.sort(); }
+
+  const hourOpts = ['<option value="">--</option>'].concat(
+    Array.from({ length: 12 }, (_, i) => String(i + 1)).map((x) =>
+      `<option value="${x}"${x === h12 ? " selected" : ""}>${x}</option>`)).join("");
+  const minOpts = ['<option value="">--</option>'].concat(
+    mins.map((x) => `<option value="${x}"${x === m ? " selected" : ""}>${x}</option>`)).join("");
+  const apOpts = ['<option value="">--</option>'].concat(
+    ["AM", "PM"].map((x) => `<option value="${x}"${x === ap ? " selected" : ""}>${x}</option>`)).join("");
+
+  const data = opts.role ? ` data-role="${escapeAttr(opts.role)}"` : "";
+  return `<div class="tf${opts.cls ? " " + opts.cls : ""}"${opts.id ? ` id="${opts.id}"` : ""}${data}>
+      <select class="tf-h" aria-label="Hour">${hourOpts}</select>
+      <span class="tf-sep">:</span>
+      <select class="tf-m" aria-label="Minute">${minOpts}</select>
+      <select class="tf-ap" aria-label="AM or PM">${apOpts}</select>
+    </div>`;
+}
+
+// "HH:MM" back out, or "" when any part is unset.
+function timeFieldValue(el) {
+  if (!el) return "";
+  const h = el.querySelector(".tf-h").value;
+  const m = el.querySelector(".tf-m").value;
+  const ap = el.querySelector(".tf-ap").value;
+  if (!h || !m || !ap) return "";
+  let hh = Number(h) % 12;
+  if (ap === "PM") hh += 12;
+  return `${String(hh).padStart(2, "0")}:${m}`;
+}
+
 function toTimeInput(v) {
   if (!v) return "";
   if (/^\d{1,2}:\d{2}$/.test(v)) return v;
@@ -5894,14 +5974,14 @@ function openCallTimeEditor(gameId) {
       <div class="modal-title">Call Times</div>
       <div class="modal-subtitle">${escapeHtml(game.day)} ${escapeHtml(game.date)} — ${escapeHtml(game.opp)}</div>
 
-      <div class="row2">
+      <div class="row2 ct-top">
         <div class="field-block">
           <div class="label">Game Time</div>
-          <input id="ctGameTime" type="time" value="${escapeAttr(toTimeInput(c.gameTime))}" />
+          ${timeFieldHtml({ id: "ctGameTime", value: c.gameTime })}
         </div>
         <div class="field-block">
           <div class="label">General Call</div>
-          <input id="ctGeneral" type="time" value="${escapeAttr(toTimeInput(c.call))}" />
+          ${timeFieldHtml({ id: "ctGeneral", value: c.call })}
         </div>
       </div>
 
@@ -5911,8 +5991,8 @@ function openCallTimeEditor(gameId) {
       ${rolesForEvent(game.id).map((role) => `
         <div class="ct-row">
           <div class="ct-role">${escapeHtml(role)}</div>
-          <input class="ct-input" type="time" data-role="${escapeAttr(role)}"
-            value="${escapeAttr(toTimeInput(c.roleCalls[callKey(role)] || ""))}" />
+          ${timeFieldHtml({ cls: "ct-input", role: role,
+            value: c.roleCalls[callKey(role)] || "" })}
         </div>
       `).join("")}
 
@@ -5932,15 +6012,16 @@ function openCallTimeEditor(gameId) {
   overlay.querySelector("#ctSaveBtn").onclick = async () => {
     const btn = overlay.querySelector("#ctSaveBtn");
     const msg = overlay.querySelector("#ctMsg");
-    const call = overlay.querySelector("#ctGeneral").value;
-    const gameTime = overlay.querySelector("#ctGameTime").value;
+    const call = timeFieldValue(overlay.querySelector("#ctGeneral"));
+    const gameTime = timeFieldValue(overlay.querySelector("#ctGameTime"));
 
     // Only blank entries are dropped. An override equal to the general call is
     // kept — that's a deliberate "yes, same as everyone" and it should survive
     // the general call later moving.
     const roleCalls = {};
     overlay.querySelectorAll(".ct-input").forEach((i) => {
-      if (i.value) roleCalls[callKey(i.dataset.role)] = i.value;
+      const v = timeFieldValue(i);
+      if (v) roleCalls[callKey(i.dataset.role)] = v;
     });
 
     btn.disabled = true;
