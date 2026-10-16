@@ -166,6 +166,9 @@
     <a href="corporate.html" style="text-decoration:none; background:var(--panel);
        border:1px solid var(--line); border-radius:9px; padding:7px 12px;
        font-size:13px; font-weight:600; color:var(--muted);">&#8249; Corporate</a>
+    <a href="cmo37-day-one.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--line); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--muted);">Day One</a>
     <a href="cmo37-run-of-show-day2.html" style="text-decoration:none; background:var(--panel);
        border:1px solid var(--accent); border-radius:9px; padding:7px 12px;
        font-size:13px; font-weight:600; color:var(--accent);">Run of Show</a>
@@ -224,7 +227,7 @@
     { s: "7:30 AM",  e: "8:00 AM",  t: "Breakfast", k: "social", m: "Foyer" },
     { s: "8:00 AM",  e: "8:45 AM",  t: "Breakfast Keynote Panel", k: "keynote", m: "Liberty Hall 123",
       p: "Unified Objectives: Bridging the Gap Between Brand Building and Performance Marketing" },
-    { s: "8:50 AM",  e: "9:50 AM",  k: "pair", m: "Two rooms", pair: [
+    { s: "8:50 AM",  e: "9:50 AM",  t: "Roundtables 1 and 2", k: "pair", m: "Two rooms", pair: [
       { t: "Roundtable 1", m: "Dallas",
         p: "Redefining the Brand-Agency Relationship to Thrive in a Changing Marketing Landscape" },
       { t: "Roundtable 2", m: "Galveston",
@@ -236,7 +239,7 @@
       p: "The AI-Native Marketing Org: How CMOs Are Scaling Pipeline Without Scaling the Team" },
     { s: "11:05 AM", e: "11:35 AM", t: "Workshop 11", m: "Liberty Hall Salon 6",
       p: "Marketing Was Built Like a Service. It Has to Run Like a Business" },
-    { s: "11:40 AM", e: "12:40 PM", k: "pair", m: "Two rooms", pair: [
+    { s: "11:40 AM", e: "12:40 PM", t: "Roundtables 3 and 4", k: "pair", m: "Two rooms", pair: [
       { t: "Roundtable 3", m: "Dallas",
         p: "The Last Advantage: Emotion in a Commoditized Marketing World" },
       { t: "Roundtable 4", m: "Galveston",
@@ -305,10 +308,23 @@
   });
   document.getElementById("rail").innerHTML = html;
 
-  // Where the day is right now. Only meaningful on the day itself.
+  // Which day this page is. Before it, on it, or after it: three different
+  // things to say, and the bar is useless if it only knows one.
+  const SHOW = { y: 2026, m: 9, d: 16 };
+  const THIS_DAY = "Day Two";
+  const OTHER = { href: "cmo37-day-one.html", label: "Day One" };
+
+  function dayOffset() {
+    const d = new Date();
+    const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    const b = Date.UTC(SHOW.y, SHOW.m, SHOW.d);
+    return Math.round((a - b) / 86400000);   // 0 today, below 0 before, above after
+  }
+
   function tick() {
     const d = new Date();
-    const onDay = d.getFullYear() === 2026 && d.getMonth() === 9 && d.getDate() === 15;
+    const off = dayOffset();
+    const onDay = off === 0;
     const now = onDay ? d.getHours() * 60 + d.getMinutes() : -1;
     let live = -1, next = -1;
 
@@ -330,15 +346,24 @@
     const xv = document.getElementById("nextVal");
     const xs = document.getElementById("nextSub");
 
-    if (!onDay) {
-      nv.textContent = "Not show day";
-      xv.textContent = "Doors 9:30 AM";
-      xs.textContent = "Registration and snacks";
+    if (off < 0) {                       // still to come
+      nv.textContent = "Before " + THIS_DAY;
+      xv.textContent = "Doors " + DAY[0].s;
+      xs.textContent = DAY[0].t || "";
+      return;
+    }
+    if (off > 0) {                       // already happened
+      nv.textContent = THIS_DAY + " is done";
+      xv.textContent = OTHER ? OTHER.label : "Nothing after this";
+      xs.textContent = OTHER ? "that one is the live sheet" : "";
+      Array.prototype.forEach.call(document.querySelectorAll(".block"), function (el) {
+        el.classList.add("done"); el.classList.remove("now");
+      });
       return;
     }
     if (live >= 0) {
       const b = DAY[live];
-      nv.textContent = b.k === "pair" ? "Power Hours 1 and 2" : b.t;
+      nv.textContent = b.t;
       const left = mins(b.e) - now;
       xs.textContent = left + " min left, ends " + b.e;
     } else {
@@ -347,7 +372,7 @@
     }
     if (next >= 0) {
       const n = DAY[next];
-      xv.textContent = (n.k === "pair" ? "Power Hours 1 and 2" : n.t) + " at " + n.s;
+      xv.textContent = n.t + " at " + n.s;
       const to = mins(n.s) - now;
       xs.textContent = (xs.textContent ? xs.textContent + " · " : "") + "up in " + to + " min";
     } else if (now >= mins(DAY[DAY.length - 1].e)) {

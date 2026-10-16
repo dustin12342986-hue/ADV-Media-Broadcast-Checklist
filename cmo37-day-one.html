@@ -166,6 +166,9 @@
     <a href="corporate.html" style="text-decoration:none; background:var(--panel);
        border:1px solid var(--line); border-radius:9px; padding:7px 12px;
        font-size:13px; font-weight:600; color:var(--muted);">&#8249; Corporate</a>
+    <a href="cmo37-day-two.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--line); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--muted);">Day Two</a>
     <a href="cmo37-run-of-show.html" style="text-decoration:none; background:var(--panel);
        border:1px solid var(--accent); border-radius:9px; padding:7px 12px;
        font-size:13px; font-weight:600; color:var(--accent);">Run of Show</a>
@@ -221,7 +224,7 @@
   // Every row off the sheet. Times as printed, nothing adjusted.
   const DAY = [
     { s: "9:30 AM",  e: "11:00 AM", t: "Registration and Snacks", k: "social", m: "Doors" },
-    { s: "11:00 AM", e: "11:55 AM", k: "pair", m: "Two rooms", pair: [
+    { s: "11:00 AM", e: "11:55 AM", t: "AI Power Hours 1 and 2", k: "pair", m: "Two rooms", pair: [
       { t: "AI Power Hour 1", p: "Branding and AI", m: "Power Hour 1" },
       { t: "AI Power Hour 2", p: "Leading AI Adoption: The Power of Communication, Positioning, and Influence", m: "Power Hour 2" }
     ]},
@@ -303,10 +306,23 @@
   });
   document.getElementById("rail").innerHTML = html;
 
-  // Where the day is right now. Only meaningful on the day itself.
+  // Which day this page is. Before it, on it, or after it: three different
+  // things to say, and the bar is useless if it only knows one.
+  const SHOW = { y: 2026, m: 9, d: 15 };
+  const THIS_DAY = "Day One";
+  const OTHER = { href: "cmo37-day-two.html", label: "Day Two" };
+
+  function dayOffset() {
+    const d = new Date();
+    const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    const b = Date.UTC(SHOW.y, SHOW.m, SHOW.d);
+    return Math.round((a - b) / 86400000);   // 0 today, below 0 before, above after
+  }
+
   function tick() {
     const d = new Date();
-    const onDay = d.getFullYear() === 2026 && d.getMonth() === 9 && d.getDate() === 15;
+    const off = dayOffset();
+    const onDay = off === 0;
     const now = onDay ? d.getHours() * 60 + d.getMinutes() : -1;
     let live = -1, next = -1;
 
@@ -328,15 +344,24 @@
     const xv = document.getElementById("nextVal");
     const xs = document.getElementById("nextSub");
 
-    if (!onDay) {
-      nv.textContent = "Not show day";
-      xv.textContent = "Doors 9:30 AM";
-      xs.textContent = "Registration and snacks";
+    if (off < 0) {                       // still to come
+      nv.textContent = "Before " + THIS_DAY;
+      xv.textContent = "Doors " + DAY[0].s;
+      xs.textContent = DAY[0].t || "";
+      return;
+    }
+    if (off > 0) {                       // already happened
+      nv.textContent = THIS_DAY + " is done";
+      xv.textContent = OTHER ? OTHER.label : "Nothing after this";
+      xs.textContent = OTHER ? "that one is the live sheet" : "";
+      Array.prototype.forEach.call(document.querySelectorAll(".block"), function (el) {
+        el.classList.add("done"); el.classList.remove("now");
+      });
       return;
     }
     if (live >= 0) {
       const b = DAY[live];
-      nv.textContent = b.k === "pair" ? "Power Hours 1 and 2" : b.t;
+      nv.textContent = b.t;
       const left = mins(b.e) - now;
       xs.textContent = left + " min left, ends " + b.e;
     } else {
@@ -345,7 +370,7 @@
     }
     if (next >= 0) {
       const n = DAY[next];
-      xv.textContent = (n.k === "pair" ? "Power Hours 1 and 2" : n.t) + " at " + n.s;
+      xv.textContent = n.t + " at " + n.s;
       const to = mins(n.s) - now;
       xs.textContent = (xs.textContent ? xs.textContent + " · " : "") + "up in " + to + " min";
     } else if (now >= mins(DAY[DAY.length - 1].e)) {
