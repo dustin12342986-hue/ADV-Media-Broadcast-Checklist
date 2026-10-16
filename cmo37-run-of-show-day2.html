@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="manifest" href="cmo37-ros-day2.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CMO37 D2" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="theme-color" content="#0E1114" />
+<title>CMO37 Day Two Run of Show</title>
+
+<!-- Same project and same origin as the rest of the site, so a crew member
+     already signed in at Home is already signed in here. Following needs no
+     sign-in at all: runOfShow is public to read. -->
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",
+    authDomain: "crowley-football.firebaseapp.com",
+    databaseURL: "https://crowley-football-default-rtdb.firebaseio.com",
+    projectId: "crowley-football",
+    storageBucket: "crowley-football.firebasestorage.app",
+    messagingSenderId: "56102489603",
+    appId: "1:56102489603:web:1a81953b6dd0d2fb84c836",
+  };
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  /* Layout: one screen, no scrolling to find the cue. Current item owns the
+     middle, controls sit under the thumbs, the running order drops down over
+     the top when you want it. Dark first, because it lives at a desk in a
+     dark ballroom. */
+  /* Colors read off the client's mark: the iridescent ramp runs magenta to
+     violet to periwinkle to cyan on near-black. b1 b2 b3 are that ramp and
+     carry the gradient; the states borrow from it rather than inventing a
+     red or a green that is not in the brand. */
+  :root {
+    --b1: #F1B2F9;
+    --b2: #C9BDFF;
+    --b3: #9CDEFF;
+    --go-text: #0B0C10;
+    --bg: #0B0C10;
+    --panel: #14161D;
+    --panel-2: #1B1E27;
+    --line: #2A2E3A;
+    --text: #ECEEF5;
+    --muted: #99A0B0;
+    --faint: #6A7183;
+    --accent: #9CDEFF;
+    --accent-soft: rgba(156, 222, 255, 0.14);
+    --live: #9CDEFF;
+    --hold: #DFC2FF;
+    --over: #F1B2F9;
+    --alarm: #FF6257;
+    --alarm-soft: rgba(255, 98, 87, 0.13);
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8; --go-text: #FFFFFF;
+      --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+      --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
+      --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
+      --over: #9B2FA8; --alarm: #C42114; --alarm-soft: rgba(196, 33, 20, 0.10);
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --b1: #B23FC0; --b2: #6B4FC8; --b3: #1E86B8; --go-text: #FFFFFF;
+    --bg: #F7F6FB; --panel: #FFFFFF; --panel-2: #F1F0F8; --line: #DDDAEA;
+    --text: #15171F; --muted: #5C6273; --faint: #8A90A3; --accent: #1E86B8;
+    --accent-soft: rgba(30, 134, 184, 0.12); --live: #0E6E9A; --hold: #6B4FC8;
+    --over: #9B2FA8; --alarm: #C42114; --alarm-soft: rgba(196, 33, 20, 0.10);
+    color-scheme: light;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 16px; line-height: 1.35;
+    -webkit-text-size-adjust: 100%; overflow: hidden;
+  }
+  .screen {
+    height: 100%; display: flex; flex-direction: column; gap: 10px;
+    padding-block: 10px 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box; max-width: 1400px; margin: 0 auto; width: 100%;
+  }
+
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  /* top */
+  .top { display: flex; align-items: center; gap: 12px; flex: none; }
+  .top .name { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+  .top .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .clock { font-family: var(--mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--faint);
+    display: inline-block; flex: none;
+  }
+  .dot.on { background: var(--live); }
+  .dot.local { background: var(--hold); }
+
+  button {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 9px 13px;
+    cursor: pointer; font-size: 14px; min-height: 42px;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.small { min-height: 34px; padding: 5px 10px; font-size: 12.5px; }
+
+  /* the cue */
+  .cue {
+    position: relative;
+    flex: 1 1 auto; min-height: 0; background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 20px 16px 24px; display: flex;
+    flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  /* the mark's ramp, standing on its end */
+  .cue::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: linear-gradient(180deg, var(--b1), var(--b2) 50%, var(--b3));
+  }
+  .cue .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .cue h1 {
+    flex: none;
+    margin: 0; font-size: clamp(24px, 5vw, 48px); line-height: 1.05;
+    letter-spacing: -0.025em; text-wrap: balance;
+  }
+  /* Everything between the title and the readouts shares one scrolling
+     region. Without it, flex squeezes the subtitle down to a few pixels and
+     the coming-up list spills over whatever sits under it. */
+  .cuemid {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .cue .sub {
+    flex: none;
+    margin: 0; color: var(--muted); font-size: clamp(14px, 1.8vw, 19px);
+    line-height: 1.3;
+  }
+  .after {
+    flex: none; margin-top: 4px; display: grid; gap: 6px; align-content: start;
+    min-height: 0; overflow: hidden;
+  }
+  .after div {
+    display: grid; grid-template-columns: 78px 1fr; gap: 12px; align-items: baseline;
+    color: var(--faint); font-size: 13.5px; min-width: 0;
+  }
+  .after .wt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .after .wn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .readouts {
+    flex: none; margin-top: 12px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;
+  }
+  .read {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
+    padding: 9px 14px; flex: 1 1 150px; min-width: 0;
+  }
+  .read b {
+    display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: clamp(22px, 4.2vw, 40px); line-height: 1.1; letter-spacing: -0.02em;
+  }
+  /* On a short or narrow screen the three readouts were stacking three high
+     and leaving the cue and its note a few pixels. One row instead. */
+  @media (max-height: 820px), (max-width: 470px) {
+    .readouts { flex-wrap: nowrap; gap: 7px; margin-top: 8px; }
+    .read { flex: 1 1 0; min-width: 0; padding: 6px 9px; }
+    .read b { font-size: clamp(17px, 5vw, 26px); }
+    .read .tag {
+      font-size: 9.5px; letter-spacing: 0.06em; display: block;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cue { padding: 12px 14px 12px 18px; }
+    .screen { gap: 8px; }
+    .nudge { gap: 5px; margin-top: 4px; }
+    .nudge button { padding: 4px 9px; min-height: 32px; }
+    .nudge .tag { font-size: 9.5px; }
+    .next { padding: 8px 12px; }
+    .controls button { min-height: 50px; }
+  }
+  .read.over b { color: var(--over); }
+  .read.hold b { color: var(--hold); }
+  /* Past the end of the block. This one is allowed to shout: red, a red
+     edge, and a slow pulse you catch out of the corner of your eye from
+     across the room. */
+  .read.alarm {
+    border-color: var(--alarm); background: var(--alarm-soft);
+    animation: overrun 2s ease-in-out infinite;
+  }
+  .read.alarm b, .read.alarm .tag { color: var(--alarm); }
+  @keyframes overrun {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 98, 87, 0); }
+    50% { box-shadow: 0 0 0 3px var(--alarm-soft); }
+  }
+  @media (prefers-reduced-motion: reduce) { .read.alarm { animation: none; } }
+
+  /* next */
+  .next {
+    flex: none; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 11px; padding: 10px 14px; display: flex; gap: 14px;
+    align-items: baseline; min-width: 0;
+  }
+  .next .t { font-weight: 600; font-size: 15px; }
+  .next .p { color: var(--muted); font-size: 13.5px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+
+  /* controls */
+  .controls { flex: none; display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 9px; }
+  .controls button { min-height: 58px; font-size: 16px; font-weight: 600; }
+  .controls .go {
+    background: linear-gradient(100deg, var(--b1), var(--b2) 55%, var(--b3));
+    border-color: transparent; color: var(--go-text); font-size: 19px;
+  }
+  .controls .holding {
+    background: var(--hold); border-color: var(--hold); color: var(--go-text);
+    background-image: none;
+  }
+
+  /* running order */
+  .list {
+    position: fixed; inset: 0; background: var(--bg); z-index: 20;
+    padding-block: 12px 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    overflow-y: auto; display: flex; flex-direction: column; gap: 7px;
+  }
+  /* a class selector beats the browser's own [hidden] rule, so say it here */
+  .list[hidden] { display: none; }
+  .list .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .item {
+    display: grid; grid-template-columns: 82px 1fr auto; gap: 12px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; min-width: 0;
+  }
+  .item.cur { border-color: var(--accent); background: var(--accent-soft); }
+  .item.past { opacity: 0.5; }
+  .item .w { min-width: 0; }
+  .item .ti { font-weight: 600; font-size: 14.5px; }
+  .item .pi { color: var(--muted); font-size: 12.5px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .item .cl { font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums; }
+  .pairmark { color: var(--accent); }
+
+  .hint { color: var(--faint); font-size: 12px; }
+
+  /* the strip that says who is driving, and how long before this device
+     goes back to following them */
+  .banner {
+    flex: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--b2);
+    border-radius: 10px; padding: 8px 13px; font-size: 13px; color: var(--muted);
+  }
+  .banner b { color: var(--text); font-weight: 650; }
+  .banner .count {
+    margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--b2); font-weight: 700;
+  }
+  .banner[hidden] { display: none; }
+
+  .codebar { flex: none; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .codebar[hidden] { display: none; }
+  .codebar input {
+    font: inherit; font-family: var(--mono); font-size: 20px; letter-spacing: 0.3em;
+    width: 7ch; text-align: center; padding: 9px 10px; border-radius: 9px;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  }
+  .codebar .msg { font-size: 13px; color: var(--over); flex: 1; min-width: 120px; }
+
+  .controls.follow { grid-template-columns: 1fr; }
+  .controls[hidden], .controls.follow[hidden] { display: none; }
+  .item.viewing { border-color: var(--b2); }
+
+  .note { flex: none; margin-top: 2px; }
+  .note[hidden] { display: none; }
+  .note .tag { display: block; margin-bottom: 3px; }
+  .note textarea {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 15px;
+    line-height: 1.35; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
+    resize: vertical; min-height: 54px; max-height: 120px;
+  }
+  .note textarea:focus { outline: 2px solid var(--b2); outline-offset: 1px; }
+  .note p {
+    margin: 0; font-size: 15px; line-height: 1.35; color: var(--text);
+    border-left: 3px solid var(--b2); padding-left: 10px; white-space: pre-wrap;
+    max-height: 120px; overflow: auto;
+  }
+  .item .noteline {
+    font: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box;
+    padding: 7px 9px; border-radius: 8px; background: var(--panel-2);
+    border: 1px solid var(--line); color: var(--text); min-height: 38px;
+  }
+  .item .hasnote { color: var(--b2); font-size: 12px; margin-top: 2px; white-space: pre-wrap; }
+
+  .nudge { flex: none; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .nudge[hidden] { display: none; }
+  .nudge .tag { margin-right: 2px; }
+  .nudge button { min-height: 34px; padding: 4px 11px; font-family: var(--mono); }
+
+  .editbar, .pushbar {
+    display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .editbar[hidden], .pushbar[hidden] { display: none; }
+  .item.editing { grid-template-columns: 1fr; gap: 8px; }
+  .item .times { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .item .times input {
+    font: inherit; font-family: var(--mono); font-size: 14px; padding: 7px 9px;
+    border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); min-height: 38px;
+  }
+  .item .times span { color: var(--faint); font-size: 12px; }
+  .item .len { font-family: var(--mono); font-size: 12px; color: var(--b2); }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="top">
+    <span class="dot" id="dot"></span>
+    <a class="name" href="corporate.html" style="color:inherit; text-decoration:none;"
+       title="Back to Corporate">&#8249; CMO37 &middot; Day Two</a>
+    <span class="tag" id="mode"></span>
+    <div class="right">
+      <span class="clock" id="clock">--:--</span>
+      <button class="small" id="reset" hidden>Reset cue</button>
+      <button class="small" id="openList">Running order</button>
+      <button class="small" id="fs">Full screen</button>
+    </div>
+  </div>
+
+  <div class="cue">
+    <div class="head">
+      <span class="tag" id="cueNo">Cue</span>
+      <span class="tag mono" id="cueSched"></span>
+      <span class="tag" id="cueState"></span>
+    </div>
+    <h1 id="cueTitle">&mdash;</h1>
+    <div class="cuemid">
+      <p class="sub" id="cueSub"></p>
+      <div class="note" id="noteWrap" hidden>
+        <span class="tag">Note</span>
+        <textarea id="noteBox" rows="2" placeholder="Note for this cue" hidden></textarea>
+        <p id="noteRead" hidden></p>
+      </div>
+      <div class="after" id="after"></div>
+    </div>
+
+    <div class="nudge" id="nudge" hidden>
+      <span class="tag">Add or take time</span>
+      <button class="small" data-n="-300">&minus;5</button>
+      <button class="small" data-n="-60">&minus;1</button>
+      <button class="small" data-n="60">+1</button>
+      <button class="small" data-n="300">+5</button>
+    </div>
+    <div class="readouts">
+      <div class="read" id="rElapsed"><span class="tag">Elapsed</span><b>0:00</b></div>
+      <div class="read" id="rLeft"><span class="tag">Left in block</span><b>&mdash;</b></div>
+      <div class="read" id="rPlan"><span class="tag">Against plan</span><b>&mdash;</b></div>
+    </div>
+  </div>
+
+  <div class="next">
+    <span class="tag">Next</span>
+    <span class="t mono" id="nextTime">&mdash;</span>
+    <span class="p" id="nextTitle"></span>
+  </div>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="codebar" id="codebar" hidden>
+    <input id="codeIn" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+           autocomplete="off" aria-label="Control code" placeholder="····" />
+    <button id="codeGo">Enter</button>
+    <button id="codeCancel">Cancel</button>
+    <span class="msg" id="codeMsg"></span>
+  </div>
+
+  <div class="controls" id="controls">
+    <button id="back">Back</button>
+    <button id="hold">Hold</button>
+    <button class="go" id="go">Start</button>
+  </div>
+
+  <div class="controls follow" id="followBar" hidden>
+    <button class="go" id="takeBtn">Take control</button>
+  </div>
+</div>
+
+<div class="list" id="list" hidden>
+  <div class="bar">
+    <span class="tag">Running order &middot; Day Two, October 16</span>
+    <button class="small" id="closeList" style="margin-left:auto">Close</button>
+  </div>
+  <div class="editbar" id="editbar" hidden>
+    <button class="small" id="editToggle">Change times</button>
+    <span class="tag" id="editNote"></span>
+  </div>
+  <div class="pushbar" id="pushbar" hidden>
+    <span class="tag">Push this cue and everything after it</span>
+    <button class="small" data-push="-15">&minus;15</button>
+    <button class="small" data-push="-5">&minus;5</button>
+    <button class="small" data-push="5">+5</button>
+    <button class="small" data-push="15">+15</button>
+    <button class="small" id="restoreTimes">Back to the printed times</button>
+  </div>
+  <div id="items"></div>
+  <p class="hint" id="listHint"></p>
+  <button class="small" id="resetShow" hidden style="align-self:flex-start">Reset the show to the top</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // The day, exactly as the Assembly at a Glance sheet lists it.
+  const DAY = [
+    { s: "7:30 AM", e: "8:00 AM", t: "Breakfast", r: "Foyer", p: "Doors open, breakfast out" },
+    { s: "8:00 AM", e: "8:45 AM", t: "Breakfast Keynote Panel", r: "Liberty Hall 123",
+      p: "Unified Objectives: Bridging the Gap Between Brand Building and Performance Marketing" },
+    { s: "8:50 AM", e: "9:50 AM", t: "Roundtables 1 and 2", pair: true, r: "Dallas and Galveston",
+      p: "Dallas: Redefining the Brand-Agency Relationship to Thrive in a Changing Marketing Landscape · Galveston: The Growth Mandate: How Enterprise Decision AI Is Making the CMO the Most Accountable Leader in the Room" },
+    { s: "9:55 AM", e: "10:25 AM", t: "Workshop 9", r: "Liberty Hall Salon 6",
+      p: "Unlock the Power of Intent Data for Customer Acquisition and Retention" },
+    { s: "10:30 AM", e: "11:00 AM", t: "Workshop 10", r: "Liberty Hall Salon 6",
+      p: "The AI-Native Marketing Org: How CMOs Are Scaling Pipeline Without Scaling the Team" },
+    { s: "11:05 AM", e: "11:35 AM", t: "Workshop 11", r: "Liberty Hall Salon 6",
+      p: "Marketing Was Built Like a Service. It Has to Run Like a Business" },
+    { s: "11:40 AM", e: "12:40 PM", t: "Roundtables 3 and 4", pair: true, r: "Dallas and Galveston",
+      p: "Dallas: The Last Advantage: Emotion in a Commoditized Marketing World · Galveston: Proving Brand Advertising Impact with Incrementality: A CMO-CFO Playbook" },
+    { s: "12:40 PM", e: "1:15 PM", t: "Lunch and Award Ceremony", r: "Liberty Hall 123" },
+    { s: "1:20 PM", e: "1:50 PM", t: "Workshop 12", r: "Liberty Hall Salon 6",
+      p: "When Everyone Can Create: Why Brand Matters More in an AI World" },
+    { s: "1:55 PM", e: "2:25 PM", t: "Workshop 13", r: "Liberty Hall Salon 6",
+      p: "The Borderless CMO: Navigating the Expanding Scope of Modern Marketing Leaders" },
+    { s: "2:30 PM", e: "3:00 PM", t: "Workshop 14", r: "Liberty Hall Salon 6",
+      p: "Connecting Marketing, Data and Technology: Driving Business Impact Through Digital Innovation" }
+  ];
+
+  // DAY is the printed sheet and never changes. SHEET is what is in force:
+  // the same items with whatever times the producer has set, shared with
+  // everyone through the database.
+  let SHEET = DAY.map(function (b) { return Object.assign({}, b); });
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  function mins(str) {
+    const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(str.trim());
+    let h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  function durMin(b) { return mins(b.e) - mins(b.s); }
+  // "13:25" from an <input type=time> to "1:25 PM", and back again.
+  function label(m) {
+    m = ((Math.round(m) % 1440) + 1440) % 1440;
+    let h = Math.floor(m / 60); const mi = m % 60;
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + String(mi).padStart(2, "0") + " " + ap;
+  }
+  function field(m) {
+    m = ((Math.round(m) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function fromField(v) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || "").trim());
+    if (!m) return null;
+    const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+    if (h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+  }
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function mmss(ms) {
+    const neg = ms < 0;
+    let s = Math.floor(Math.abs(ms) / 1000);
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    const core = (h ? h + ":" + String(m).padStart(2, "0") : String(m)) +
+      ":" + String(s).padStart(2, "0");
+    return (neg ? "-" : "") + core;
+  }
+
+  // ---- one driver, everyone else follows ---------------------------------
+  // The show's position lives in the database, not on a device. One person
+  // holds control by entering the code; every other device reads the same
+  // record and shows the same cue and the same clock.
+  //
+  // Following takes no sign-in, because runOfShow is public to read. Taking
+  // control needs a Firebase account as well as the code, because writing
+  // there needs one. That is deliberate: the code on its own is not access.
+  //
+  // A follower can look wherever they like. Ten seconds after they stop
+  // touching the screen it goes back to whatever the producer is calling.
+  const CONTROL_CODE = "5150";
+  const SHOW_PATH = "runOfShow/corporate-cmo37-day2";
+  const CONTROL_STALE = 45000;   // a controller who stops breathing
+  const BEAT = 10000;            // how often the controller says it is alive
+  const SNAP_BACK = 10000;       // a follower's leash
+
+  // startedAt moves when a hold is lifted, so it measures time on the clock.
+  // began is the wall clock moment the cue was called and never moves, which
+  // is what the logbook needs.
+  let S = { i: 0, status: "standby", startedAt: 0, heldAt: 0, began: 0 };
+  let control = { by: "", name: "", at: 0 };
+  let fb = null, stateRef = null, controlRef = null, sheetRef = null, notesRef = null, logRef = null;
+  let NOTES = {};
+  let editing = false;
+  let signedIn = null, online = false;
+  let localView = null, browseUntil = 0;
+
+  const ME = (function () {
+    try {
+      let v = localStorage.getItem("advRosDevice");
+      if (!v) { v = String(Date.now()) + Math.random().toString(36).slice(2, 8); 
+                localStorage.setItem("advRosDevice", v); }
+      return v;
+    } catch (e) { return String(Date.now()) + Math.random().toString(36).slice(2, 8); }
+  })();
+
+  function controlLive() { return !!control.by && Date.now() - (control.at || 0) < CONTROL_STALE; }
+  function amController() { return controlLive() && control.by === ME; }
+  function viewIndex() {
+    return (!amController() && localView !== null) ? localView : S.i;
+  }
+
+  function paintConn() {
+    const d = $("dot"), m = $("mode");
+    if (!fb || !online) { d.className = "dot local"; m.textContent = "This device only"; return; }
+    d.className = "dot on";
+    if (amController()) m.textContent = "You are driving";
+    else if (controlLive()) m.textContent = "Following " + (control.name || "the producer");
+    else m.textContent = "Nobody driving";
+  }
+
+  function push() {
+    if (!stateRef || !amController()) return;
+    stateRef.set({ i: S.i, status: S.status, startedAt: S.startedAt,
+                   heldAt: S.heldAt, began: S.began, at: Date.now() });
+  }
+
+  function adopt(o) {
+    if (!o || typeof o.i !== "number") return;
+    S = {
+      i: Math.max(0, Math.min(SHEET.length - 1, o.i)),
+      status: o.status === "running" || o.status === "hold" ? o.status : "standby",
+      startedAt: Number(o.startedAt) || 0,
+      heldAt: Number(o.heldAt) || 0,
+      began: Number(o.began) || 0
+    };
+    render();
+  }
+
+  (function connect() {
+    try {
+      // FIREBASE_CONFIG is a top level const in its own script tag, which puts
+      // it in the global lexical scope and NOT on window. Reaching for
+      // window.FIREBASE_CONFIG finds nothing and silently drops to local mode.
+      if (!window.firebase || typeof FIREBASE_CONFIG === "undefined") { paintConn(); return; }
+      firebase.initializeApp(FIREBASE_CONFIG);
+      fb = firebase.database();
+      stateRef = fb.ref(SHOW_PATH + "/state");
+      controlRef = fb.ref(SHOW_PATH + "/control");
+      sheetRef = fb.ref(SHOW_PATH + "/times");
+      notesRef = fb.ref(SHOW_PATH + "/notes");
+      logRef = fb.ref(SHOW_PATH + "/log");
+
+      firebase.auth().onAuthStateChanged(function (u) { signedIn = u || null; paintConn(); render(); });
+      fb.ref(".info/connected").on("value", function (sn) { online = !!sn.val(); paintConn(); });
+      stateRef.on("value", function (sn) { const v = sn.val(); if (v) adopt(v); });
+      sheetRef.on("value", function (sn) { adoptTimes(sn.val()); });
+      notesRef.on("value", function (sn) {
+        NOTES = sn.val() || {};
+        const a = document.activeElement;
+        // Somebody else's note landing should not yank the field this device
+        // is typing in. Everything else redraws.
+        if (a && (a.id === "noteBox" || a.hasAttribute("data-note"))) { paintCueNoteOnly(); return; }
+        render();
+      });
+      controlRef.on("value", function (sn) {
+        const v = sn.val() || { by: "", name: "", at: 0 };
+        // The controller writes its heartbeat every ten seconds. That is not
+        // news and must not redraw the screen: a redraw while somebody is
+        // typing a note throws away what they have typed.
+        const same = v.by === control.by && v.name === control.name;
+        const wasLive = controlLive();
+        control = v;
+        paintConn();
+        if (!same || wasLive !== controlLive()) render();
+      });
+    } catch (e) { fb = null; paintConn(); }
+  })();
+
+  // The controller says it is still here. If it stops, the chair opens up.
+  setInterval(function () {
+    if (controlRef && amController()) controlRef.update({ at: Date.now() });
+  }, BEAT);
+
+  function takeControl(code) {
+    if (code !== CONTROL_CODE) return "That is not the code.";
+    if (!fb || !online) return "No connection, so there is nothing to take.";
+    if (!signedIn) return "Sign in on Home first, then come back to this page.";
+    controlRef.set({
+      by: ME,
+      name: signedIn.displayName || signedIn.email || "Producer",
+      at: Date.now()
+    });
+    localView = null; browseUntil = 0;
+    return null;
+  }
+  function releaseControl() {
+    if (controlRef && amController()) controlRef.set({ by: "", name: "", at: 0 });
+  }
+
+  // Notes hang off the cue they belong to, in their own record. Saved a
+  // moment after typing stops rather than on every keystroke, so a long note
+  // is one write and not fifty.
+  let noteHold = null;
+  function noteFor(i) { return (NOTES && NOTES[String(i)]) || ""; }
+  function saveNote(i, text) {
+    NOTES = Object.assign({}, NOTES);
+    if (text) NOTES[String(i)] = text; else delete NOTES[String(i)];
+    if (notesRef && amController()) notesRef.set(NOTES);
+  }
+  function queueNote(i, text) {
+    clearTimeout(noteHold);
+    noteHold = setTimeout(function () { saveNote(i, text); }, 600);
+  }
+
+  // Times live in their own record so changing them never fights with the
+  // cue pointer. Anything missing falls back to the printed sheet.
+  function adoptTimes(v) {
+    SHEET = DAY.map(function (b, i) {
+      const o = Object.assign({}, b);
+      const row = v && v[i];
+      if (row && row.s && row.e) { o.s = row.s; o.e = row.e; }
+      return o;
+    });
+    render();
+  }
+  function saveTimes() {
+    if (!sheetRef || !amController()) return;
+    sheetRef.set(SHEET.map(function (b) { return { s: b.s, e: b.e }; }));
+  }
+
+  // Moves this cue and every cue after it by the same number of minutes,
+  // which is what happens when a block runs long.
+  function pushFrom(i, deltaMin) {
+    if (!amController() && fb && online) return;
+    for (let k = i; k < SHEET.length; k++) {
+      SHEET[k].s = label(mins(SHEET[k].s) + deltaMin);
+      SHEET[k].e = label(mins(SHEET[k].e) + deltaMin);
+    }
+    saveTimes(); render();
+  }
+  function restoreTimes() {
+    if (!amController() && fb && online) return;
+    SHEET = DAY.map(function (b) { return Object.assign({}, b); });
+    if (sheetRef && amController()) sheetRef.set(null);
+    render();
+  }
+  // Adds or takes time from the cue that is running, by moving when it
+  // started. Plus gives the block more room, minus takes it away.
+  function nudgeClock(seconds) {
+    if (!amController() && fb && online) return;
+    if (S.status === "standby" || !S.startedAt) return;
+    S.startedAt += seconds * 1000;
+    render(); push();
+  }
+
+  // Writes what actually happened to the cue being left behind: when it was
+  // called, when it finished, how long it ran against how long it was meant
+  // to, and whatever note was on it. One line per cue, rewritten if the cue
+  // is run again.
+  function closeOut() {
+    if (!logRef || !amController()) return;
+    if (S.status === "standby" || !S.startedAt) return;
+    const b = SHEET[S.i];
+    const ended = S.status === "hold" ? (S.heldAt || Date.now()) : Date.now();
+    const ranMin = Math.round((ended - S.startedAt) / 60000 * 10) / 10;
+    const plannedMin = durMin(b);
+    const line = {
+      i: S.i,
+      title: b.t,
+      plannedStart: b.s,
+      plannedEnd: b.e,
+      plannedMin: plannedMin,
+      began: S.began || S.startedAt,
+      ended: ended,
+      ranMin: ranMin,
+      deltaMin: Math.round((ranMin - plannedMin) * 10) / 10,
+      note: noteFor(S.i) || "",
+      at: Date.now()
+    };
+    const patch = {}; patch[String(S.i)] = line;
+    logRef.update(patch);
+  }
+
+  // ---- actions (controller only) -----------------------------------------
+  function goTo(i, run) {
+    if (!amController() && fb && online) return;
+    closeOut();
+    S.i = Math.max(0, Math.min(SHEET.length - 1, i));
+    S.status = run ? "running" : "standby";
+    S.startedAt = run ? Date.now() : 0;
+    S.began = run ? Date.now() : 0;
+    S.heldAt = 0;
+    render(); push();
+  }
+  function primary() {
+    if (!amController() && fb && online) return;
+    if (S.status === "standby") { goTo(S.i, true); return; }
+    if (S.status === "hold") { toggleHold(); return; }
+    if (S.i + 1 >= SHEET.length) {       // End: close the last cue, stop there
+      closeOut();
+      S.status = "standby"; S.startedAt = 0; S.heldAt = 0; S.began = 0;
+      render(); push();
+      return;
+    }
+    goTo(S.i + 1, true);
+  }
+  function toggleHold() {
+    if (!amController() && fb && online) return;
+    if (S.status === "running") { S.status = "hold"; S.heldAt = Date.now(); }
+    else if (S.status === "hold") {
+      S.startedAt += Date.now() - (S.heldAt || Date.now());
+      S.status = "running"; S.heldAt = 0;
+    } else return;
+    render(); push();
+  }
+  // Puts this cue's clock back to zero without moving off it.
+  function resetCue() {
+    if (!amController() && fb && online) return;
+    if (logRef && amController()) {
+      const clear = {}; clear[String(S.i)] = null;   // null removes the line
+      logRef.update(clear);
+    }
+    S.status = "standby"; S.startedAt = 0; S.heldAt = 0; S.began = 0;
+    render(); push();
+  }
+  function resetShow() {
+    if (!amController() && fb && online) return;
+    S = { i: 0, status: "standby", startedAt: 0, heldAt: 0, began: 0 };
+    localView = null; browseUntil = 0;
+    $("list").hidden = true;
+    render(); push();
+  }
+
+  $("go").addEventListener("click", primary);
+  $("hold").addEventListener("click", toggleHold);
+  $("back").addEventListener("click", function () { goTo(S.i - 1, false); });
+  $("reset").addEventListener("click", resetCue);
+  $("resetShow").addEventListener("click", resetShow);
+  $("noteBox").addEventListener("input", function () {
+    queueNote(parseInt($("noteBox").getAttribute("data-i") || "0", 10), $("noteBox").value.trim());
+  });
+  $("noteBox").addEventListener("blur", function () {
+    clearTimeout(noteHold);
+    saveNote(parseInt($("noteBox").getAttribute("data-i") || "0", 10), $("noteBox").value.trim());
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll("#nudge [data-n]"), function (bt) {
+    bt.addEventListener("click", function () {
+      nudgeClock(parseInt(bt.getAttribute("data-n"), 10));
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#pushbar [data-push]"), function (bt) {
+    bt.addEventListener("click", function () {
+      pushFrom(S.i, parseInt(bt.getAttribute("data-push"), 10));
+    });
+  });
+  $("restoreTimes").addEventListener("click", restoreTimes);
+  $("editToggle").addEventListener("click", function () {
+    editing = !editing;
+    listSig = "";
+    $("editToggle").textContent = editing ? "Done changing times" : "Change times";
+    $("editToggle").classList.toggle("on", editing);
+    paintList();
+  });
+  $("openList").addEventListener("click", function () {
+    $("list").hidden = false; listSig = ""; paintList();
+  });
+  $("closeList").addEventListener("click", function () { $("list").hidden = true; });
+
+  // ---- taking the chair ---------------------------------------------------
+  function showCode(on) {
+    $("codebar").hidden = !on;
+    $("codeMsg").textContent = "";
+    if (on) { $("codeIn").value = ""; $("codeIn").focus(); }
+  }
+  $("takeBtn").addEventListener("click", function () {
+    if (amController()) { releaseControl(); return; }
+    showCode(true);
+  });
+  $("codeCancel").addEventListener("click", function () { showCode(false); });
+  $("codeGo").addEventListener("click", function () {
+    const why = takeControl($("codeIn").value.trim());
+    if (why) { $("codeMsg").textContent = why; return; }
+    showCode(false); render();
+  });
+  $("codeIn").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") $("codeGo").click();
+  });
+
+  // ---- a follower looking around -----------------------------------------
+  function touched() {
+    if (amController()) return;
+    if (!fb || !online || !controlLive()) return;
+    browseUntil = Date.now() + SNAP_BACK;
+  }
+  ["pointerdown", "wheel", "touchstart", "keydown"].forEach(function (ev) {
+    document.addEventListener(ev, touched, { passive: true, capture: true });
+  });
+
+  function snapBack() {
+    browseUntil = 0; localView = null;
+    $("list").hidden = true;
+    render();
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    const tag = (ev.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+    if (ev.key === "Escape") { $("list").hidden = true; return; }
+    if (!amController() && fb && online) return;
+    if (ev.key === " ") { ev.preventDefault(); primary(); }
+    else if (ev.key === "h" || ev.key === "H") toggleHold();
+    else if (ev.key === "ArrowLeft") goTo(S.i - 1, false);
+    else if (ev.key === "ArrowRight") goTo(S.i + 1, false);
+  });
+
+  // Installed to the home screen there is no browser chrome to escape, so the
+  // button has nothing to do and the phone's own full screen notice never
+  // appears. In a tab it still works, with that notice, which belongs to the
+  // browser and cannot be dismissed from here.
+  const standalone = (window.matchMedia &&
+      window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches) ||
+    window.navigator.standalone === true;
+  if (standalone) {
+    $("fs").hidden = true;
+  } else {
+    $("fs").addEventListener("click", function () {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { $("fs").textContent = "Add to Home Screen"; return; }
+      try {
+        Promise.resolve(req.call(el)).catch(function () {
+          $("fs").textContent = "Add to Home Screen";
+        });
+      } catch (e) { $("fs").textContent = "Add to Home Screen"; }
+    });
+  }
+
+  // Keep the screen awake while the page is up. Refused is fine.
+  let lock = null;
+  async function wake() {
+    try {
+      if (navigator.wakeLock && !lock) lock = await navigator.wakeLock.request("screen");
+    } catch (e) { lock = null; }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) { lock = null; wake(); }
+  });
+  wake();
+
+  // ---- render ------------------------------------------------------------
+  function elapsedMs() {
+    if (S.status === "running") return Date.now() - S.startedAt;
+    if (S.status === "hold") return (S.heldAt || Date.now()) - S.startedAt;
+    return 0;
+  }
+
+  function render() {
+    const idx = viewIndex();
+    const onLive = idx === S.i;
+    const b = SHEET[idx];
+    const n = SHEET[idx + 1];
+    const driving = amController() || !fb || !online;
+
+    $("cueNo").textContent = "Cue " + (idx + 1) + " of " + SHEET.length +
+      (b.pair ? " · two rooms" : "");
+    $("cueSched").textContent = b.s + " to " + b.e + " · " + durMin(b) + " min" +
+      (b.r ? " · " + b.r : "");
+    $("cueState").textContent = !onLive ? "Looking ahead"
+      : S.status === "running" ? "Running" : S.status === "hold" ? "Holding" : "Standby";
+    $("cueState").style.color = !onLive ? "var(--b2)"
+      : S.status === "running" ? "var(--live)" : S.status === "hold" ? "var(--hold)" : "";
+    $("cueTitle").textContent = b.t;
+    $("cueSub").textContent = b.p || "";
+
+    // what is coming after next, so the caller is not guessing
+    $("after").innerHTML = SHEET.slice(idx + 2, idx + 5).map(function (x) {
+      return '<div><span class="wt">' + esc(x.s) + '</span><span class="wn">' +
+        esc(x.t) + (x.p ? " · " + esc(x.p) : "") + "</span></div>";
+    }).join("");
+
+    $("nextTime").textContent = n ? n.s : "—";
+    $("nextTitle").textContent = n ? n.t + (n.p ? " · " + n.p : "") : "End of day";
+
+    // Only the person driving gets the controls. Everyone else gets the way
+    // to take them.
+    $("controls").hidden = !driving;
+    $("followBar").hidden = driving;
+    $("reset").hidden = !driving;
+    $("resetShow").hidden = !driving;
+    // The note for whatever cue is on screen. The driver types it, everyone
+    // else reads it. An empty note is simply not there for a follower.
+    const noteText = noteFor(idx);
+    const box = $("noteBox"), ro = $("noteRead");
+    if (driving) {
+      $("noteWrap").hidden = false;
+      box.hidden = false; ro.hidden = true;
+      box.setAttribute("data-i", String(idx));
+      if (document.activeElement !== box && box.value !== noteText) box.value = noteText;
+    } else if (noteText) {
+      $("noteWrap").hidden = false;
+      box.hidden = true; ro.hidden = false;
+      ro.textContent = noteText;
+    } else {
+      $("noteWrap").hidden = true;
+    }
+
+    $("nudge").hidden = !(driving && S.status !== "standby" && onLive);
+    $("editbar").hidden = !driving;
+    $("pushbar").hidden = !driving;
+    $("editNote").textContent = timesChanged()
+      ? "Changed from the printed sheet" : "Matching the printed sheet";
+    $("takeBtn").textContent = controlLive() && !amController()
+      ? "Take control from " + (control.name || "the producer") : "Take control";
+
+    if (driving) {
+      $("go").textContent = S.status === "standby" ? "Start"
+        : S.status === "hold" ? "Resume" : (n && S.i + 1 < SHEET.length ? "Next" : "End");
+      $("go").disabled = S.status === "running" && S.i + 1 >= SHEET.length;
+      $("hold").textContent = S.status === "hold" ? "Holding" : "Hold";
+      $("hold").classList.toggle("holding", S.status === "hold");
+      $("hold").disabled = S.status === "standby";
+      $("back").disabled = S.i === 0;
+    }
+
+    paintBanner();
+    tickReadouts();
+    if (!$("list").hidden) paintList();
+  }
+
+  // Used when a note arrives while this device is typing: update the rest of
+  // the screen without rebuilding the field under the cursor.
+  function paintCueNoteOnly() {
+    const idx = viewIndex();
+    const ro = $("noteRead");
+    if (!ro.hidden) ro.textContent = noteFor(idx);
+    Array.prototype.forEach.call($("items").querySelectorAll("input[data-note]"), function (inp) {
+      if (inp === document.activeElement) return;
+      const v = noteFor(parseInt(inp.getAttribute("data-note"), 10));
+      if (inp.value !== v) inp.value = v;
+    });
+  }
+
+  function timesChanged() {
+    for (let i = 0; i < SHEET.length; i++) {
+      if (SHEET[i].s !== DAY[i].s || SHEET[i].e !== DAY[i].e) return true;
+    }
+    return false;
+  }
+
+  // Says who is driving and, when this device has wandered off, how long
+  // until it goes back to them.
+  function paintBanner() {
+    const el = $("banner");
+    if (amController() || !fb || !online) { el.hidden = true; return; }
+    if (!controlLive()) {
+      el.hidden = false;
+      el.innerHTML = "Nobody is driving. The clock is whatever was left on it.";
+      return;
+    }
+    const who = esc(control.name || "the producer");
+    if (browseUntil) {
+      const left = Math.max(0, Math.ceil((browseUntil - Date.now()) / 1000));
+      el.hidden = false;
+      el.innerHTML = "Looking around. Back to <b>" + who + "</b> in" +
+        '<span class="count">' + left + "s</span>";
+    } else {
+      el.hidden = false;
+      el.innerHTML = "Following <b>" + who + "</b>";
+    }
+  }
+
+  function tickReadouts() {
+    const idx = viewIndex();
+    const onLive = idx === S.i;
+    const b = SHEET[idx];
+    const el = onLive ? elapsedMs() : 0;
+    if (!onLive) {
+      // Looking at a cue that is not the one being called: no clock to show.
+      $("rElapsed").className = "read";
+      $("rElapsed").querySelector("b").textContent = "—";
+      $("rElapsed").querySelector(".tag").textContent = "Not the live cue";
+      $("rLeft").className = "read";
+      $("rLeft").querySelector("b").textContent = mmss(durMin(b) * 60000);
+      $("rLeft").querySelector(".tag").textContent = "Block length";
+      $("rPlan").className = "read";
+      $("rPlan").querySelector("b").textContent = SHEET[S.i].t;
+      $("rPlan").querySelector(".tag").textContent = "Live cue";
+      return;
+    }
+    $("rElapsed").querySelector(".tag").textContent = "Elapsed";
+    const planned = durMin(b) * 60000;
+
+    $("rElapsed").querySelector("b").textContent = S.status === "standby" ? "0:00" : mmss(el);
+    $("rElapsed").className = "read" + (S.status === "hold" ? " hold" : "");
+
+    const left = planned - el;
+    const lw = $("rLeft");
+    if (S.status === "standby") {
+      lw.querySelector("b").textContent = mmss(planned);
+      lw.querySelector(".tag").textContent = "Block length";
+      lw.className = "read";
+    } else if (left >= 0) {
+      lw.querySelector("b").textContent = mmss(left);
+      lw.querySelector(".tag").textContent = "Left in block";
+      lw.className = "read";
+    } else {
+      lw.querySelector("b").textContent = "−" + mmss(-left);
+      lw.querySelector(".tag").textContent = "Over the block";
+      lw.className = "read alarm";
+    }
+
+    // Where the day sits against the printed sheet.
+    const pw = $("rPlan");
+    if (S.status === "standby" || !S.startedAt) {
+      pw.querySelector("b").textContent = "—";
+      pw.querySelector(".tag").textContent = "Against plan";
+      pw.className = "read";
+    } else {
+      const d = new Date(S.startedAt);
+      const startedMin = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+      const off = Math.round(startedMin - mins(b.s));
+      if (Math.abs(off) >= 60) {
+        // An hour out either way means the item was called off the sheet
+        // entirely. The clock time it actually started is the useful fact.
+        let hh = d.getHours();
+        const ap = hh >= 12 ? "PM" : "AM";
+        hh = hh % 12 || 12;
+        pw.querySelector("b").textContent =
+          hh + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+        pw.querySelector(".tag").textContent = "Actually started";
+        pw.className = "read";
+      } else {
+        pw.querySelector("b").textContent =
+          off === 0 ? "On plan" : (off > 0 ? "+" : "−") + Math.abs(off) + " min";
+        pw.querySelector(".tag").textContent =
+          off === 0 ? "Against plan" : off > 0 ? "After plan" : "Ahead of plan";
+        pw.className = "read" + (off > 5 ? " over" : "");
+      }
+    }
+  }
+
+  // The rows are only rebuilt when the rows themselves change: who is
+  // driving, the mode, which cue is live, or the times. A note landing while
+  // the producer types never rebuilds anything, so the keyboard stays up and
+  // the cursor stays put. For a follower, who never types in here, a note
+  // landing does redraw, because they need to see it.
+  let listSig = "";
+  function listSignature(driving) {
+    return [driving, editing, S.i, viewIndex(), SHEET.length,
+            SHEET.map(function (b) { return b.s + "-" + b.e; }).join(","),
+            driving ? "" : JSON.stringify(NOTES)].join("#");
+  }
+  function refreshRowsInPlace() {
+    Array.prototype.forEach.call($("items").children, function (row, i) {
+      const inp = row.querySelector("input[data-note]");
+      if (inp && inp !== document.activeElement) {
+        const v = noteFor(i);
+        if (inp.value !== v) inp.value = v;
+      }
+      const ro = row.querySelector(".hasnote");
+      if (ro) ro.textContent = noteFor(i);
+    });
+  }
+
+  function paintList() {
+    const driving = amController() || !fb || !online;
+    const sig = listSignature(driving);
+    if (sig === listSig && $("items").children.length === SHEET.length) {
+      refreshRowsInPlace();
+      return;
+    }
+    listSig = sig;
+    const viewing = viewIndex();
+    $("listHint").textContent = driving
+      ? "Type a note on any cue here. It saves on its own and does not touch the cue that is running. Go moves the whole crew to that item."
+      : "View shows you that item on this device only. It goes back to the producer ten seconds after you stop touching it.";
+    $("items").innerHTML = SHEET.map(function (b, i) {
+      const cls = (i === S.i ? " cur" : (i < S.i ? " past" : "")) +
+        (!driving && i === viewing && i !== S.i ? " viewing" : "");
+      if (driving && editing) {
+        return '<div class="item editing' + cls + '">' +
+          '<div class="ti">' + esc(b.t) +
+          (i === S.i ? ' <span class="pairmark">live</span>' : "") + "</div>" +
+          '<div class="times">' +
+            '<input type="time" data-s="' + i + '" value="' + field(mins(b.s)) + '" aria-label="Start" />' +
+            "<span>to</span>" +
+            '<input type="time" data-e="' + i + '" value="' + field(mins(b.e)) + '" aria-label="End" />' +
+            '<span class="len">' + durMin(b) + " min</span>" +
+          "</div></div>";
+      }
+      return '<div class="item' + cls + '">' +
+        '<div class="cl">' + esc(b.s) + "<br>" + durMin(b) + " min</div>" +
+        '<div class="w"><div class="ti">' + esc(b.t) +
+        (b.pair ? ' <span class="pairmark">two rooms</span>' : "") +
+        (i === S.i ? ' <span class="pairmark">live</span>' : "") + "</div>" +
+        '<div class="pi">' + (b.r ? esc(b.r) + (b.p ? " · " : "") : "") +
+          esc(b.p || "") + "</div>" +
+        (driving
+          ? '<input class="noteline" data-note="' + i + '" value="' + esc(noteFor(i)) +
+            '" placeholder="Note for this cue" aria-label="Note for ' + esc(b.t) + '" />'
+          : (noteFor(i) ? '<div class="hasnote">' + esc(noteFor(i)) + "</div>" : "")) +
+        "</div>" +
+        '<button class="small" data-go="' + i + '">' + (driving ? "Go" : "View") + "</button></div>";
+    }).join("");
+    // Typing here never touches the cue that is running. It saves a moment
+    // after you stop, and the list is not rebuilt while you are still in the
+    // field, so the keyboard stays up and the cursor stays put.
+    Array.prototype.forEach.call($("items").querySelectorAll("input[data-note]"), function (inp) {
+      const i = parseInt(inp.getAttribute("data-note"), 10);
+      inp.addEventListener("input", function () { queueNote(i, inp.value.trim()); });
+      inp.addEventListener("change", function () {
+        clearTimeout(noteHold);
+        saveNote(i, inp.value.trim());
+      });
+    });
+
+    // A changed time writes the whole set, so every device agrees.
+    Array.prototype.forEach.call($("items").querySelectorAll("input[type=time]"), function (inp) {
+      inp.addEventListener("change", function () {
+        const si = inp.getAttribute("data-s"), ei = inp.getAttribute("data-e");
+        const m = fromField(inp.value);
+        if (m === null) { paintList(); return; }
+        const i = parseInt(si === null ? ei : si, 10);
+        if (si !== null) {
+          SHEET[i].s = label(m);
+          if (mins(SHEET[i].e) <= m) SHEET[i].e = label(m + 5);
+        } else {
+          SHEET[i].e = label(m);
+          if (m <= mins(SHEET[i].s)) SHEET[i].s = label(m - 5);
+        }
+        saveTimes(); render();
+      });
+    });
+    Array.prototype.forEach.call($("items").querySelectorAll("[data-go]"), function (bt) {
+      bt.addEventListener("click", function () {
+        const i = parseInt(bt.getAttribute("data-go"), 10);
+        if (driving) { goTo(i, true); $("list").hidden = true; return; }
+        localView = i;
+        browseUntil = Date.now() + SNAP_BACK;
+        $("list").hidden = true;
+        render();
+      });
+    });
+  }
+
+  function clock() {
+    const d = new Date();
+    let h = d.getHours();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    $("clock").textContent = h + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+  }
+
+  render();
+  clock();
+  setInterval(function () {
+    // The leash: ten seconds after a follower stops touching the screen it
+    // goes back to the cue being called.
+    if (!amController() && browseUntil && Date.now() > browseUntil) { snapBack(); return; }
+    tickReadouts();
+    paintBanner();
+    clock();
+  }, 1000);
+})();
+</script>
+</body>
+</html>

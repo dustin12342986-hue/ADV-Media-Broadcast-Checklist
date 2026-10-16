@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F4F3F0" />
+<title>CMO37 Day Two</title>
+<style>
+  /* Layout: a time rail. Every block's height is its real length, so the
+     five minute turnarounds look like what they are. One accent, used for
+     now and for the things that need watching. */
+  /* Client palette, read off their mark: magenta, violet, periwinkle, cyan.
+     Same ramp the run of show uses, so the whole corporate section matches. */
+  :root {
+    --bg: #F7F6FB;
+    --panel: #FFFFFF;
+    --panel-2: #F1F0F8;
+    --line: #DDDAEA;
+    --line-soft: #EAE8F3;
+    --text: #15171F;
+    --muted: #5C6273;
+    --faint: #8A90A3;
+    --accent: #6B4FC8;
+    --accent-soft: rgba(107, 79, 200, 0.12);
+    --keynote: #1E86B8;
+    --keynote-soft: rgba(30, 134, 184, 0.10);
+    --social: #B23FC0;
+    --social-soft: rgba(178, 63, 192, 0.10);
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0C10; --panel: #14161D; --panel-2: #1B1E27; --line: #2A2E3A;
+      --line-soft: #232833; --text: #ECEEF5; --muted: #99A0B0; --faint: #6A7183;
+      --accent: #C9BDFF; --accent-soft: rgba(201, 189, 255, 0.16);
+      --keynote: #9CDEFF; --keynote-soft: rgba(156, 222, 255, 0.13);
+      --social: #F1B2F9; --social-soft: rgba(241, 178, 249, 0.13);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0C10; --panel: #14161D; --panel-2: #1B1E27; --line: #2A2E3A;
+    --line-soft: #232833; --text: #ECEEF5; --muted: #99A0B0; --faint: #6A7183;
+    --accent: #C9BDFF; --accent-soft: rgba(201, 189, 255, 0.16);
+    --keynote: #9CDEFF; --keynote-soft: rgba(156, 222, 255, 0.13);
+    --social: #F1B2F9; --social-soft: rgba(241, 178, 249, 0.13);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 16px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 880px; margin: 0 auto; padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h1 { font-size: 27px; line-height: 1.15; margin: 3px 0 0; letter-spacing: -0.02em; }
+
+  /* the standing bar: what is on now, what is next */
+  .nowbar {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 13px 15px; display: flex; flex-wrap: wrap;
+    gap: 4px 18px; align-items: baseline; position: sticky;
+    top: env(safe-area-inset-top, 0px); z-index: 5;
+  }
+  .nowbar .lab {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent); display: block;
+  }
+  .nowbar .val { font-size: 15px; font-weight: 600; }
+  .nowbar .sub { font-size: 13px; color: var(--muted); }
+  .nowbar > div { min-width: 0; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px;
+  }
+  .stat b {
+    display: block; font-size: 20px; font-variant-numeric: tabular-nums;
+    font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em;
+  }
+  .stat span { font-size: 12px; color: var(--muted); display: block; margin-top: 1px; }
+
+  /* the rail */
+  .rail { display: flex; flex-direction: column; }
+  .row { display: flex; gap: 10px; align-items: stretch; }
+  .clock {
+    width: 88px; flex: none; font-family: var(--mono); font-size: 12.5px;
+    font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 9px;
+    text-align: right;
+  }
+  .clock b { display: block; color: var(--text); font-weight: 600; font-size: 13.5px; }
+  .body { flex: 1; min-width: 0; }
+
+  .block {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 13px; height: 100%; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .block h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .block p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .block .meta {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 3px;
+  }
+  .block.keynote { border-left: 3px solid var(--keynote); background: var(--keynote-soft); }
+  .block.keynote .meta { color: var(--keynote); }
+  .block.social { border-left: 3px solid var(--social); background: var(--social-soft); }
+  .block.social .meta { color: var(--social); }
+  .block.plain { border-left: 3px solid var(--line); }
+  .block.now { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .block.done { opacity: 0.55; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; }
+  @media (max-width: 560px) { .pair { grid-template-columns: 1fr; } }
+  .pair .block { border-left: 3px solid var(--accent); background: var(--accent-soft); }
+  .pair .block .meta { color: var(--accent); }
+
+  /* the turnarounds between blocks */
+  .gap { display: flex; gap: 10px; align-items: center; }
+  .gap .line { flex: 1; border-top: 1px dashed var(--line); }
+  .gap .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px;
+    background: var(--panel-2); white-space: nowrap;
+  }
+  .gap.tight .tag { color: var(--accent); border-color: var(--accent); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 15px 17px;
+  }
+  .card h2 {
+    font-size: 12px; margin: 0 0 10px; font-family: var(--mono);
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+  }
+  .card ul { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 11px; }
+  .card li { font-size: 14.5px; display: grid; grid-template-columns: 74px 1fr; gap: 12px; }
+  @media (max-width: 560px) { .card li { grid-template-columns: 1fr; gap: 2px; } }
+  .card li b {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--accent); padding-top: 3px;
+  }
+  .card li span { color: var(--text); }
+  .card li span em { color: var(--muted); font-style: normal; }
+
+  footer { color: var(--faint); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="corporate.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--line); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--muted);">&#8249; Corporate</a>
+    <a href="cmo37-run-of-show-day2.html" style="text-decoration:none; background:var(--panel);
+       border:1px solid var(--accent); border-radius:9px; padding:7px 12px;
+       font-size:13px; font-weight:600; color:var(--accent);">Run of Show</a>
+  </div>
+
+  <header>
+    <div class="eyebrow">CMO37 &middot; Assembly at a Glance</div>
+    <h1>Day Two, October 16</h1>
+  </header>
+
+  <div class="nowbar" id="nowbar">
+    <div><span class="lab">Right now</span><span class="val" id="nowVal">&mdash;</span></div>
+    <div><span class="lab">Next</span><span class="val" id="nextVal">&mdash;</span>
+      <span class="sub" id="nextSub"></span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>7h 30m</b><span>7:30 AM to 3:00 PM</span></div>
+    <div class="stat"><b>11</b><span>presentation slots</span></div>
+    <div class="stat"><b>8 &times; 5 min</b><span>turnarounds</span></div>
+    <div class="stat"><b>2</b><span>double-track hours</span></div>
+  </div>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="card">
+    <h2>What the sheet is telling you</h2>
+    <ul>
+      <li><b>Two rooms, twice</b><span>Roundtables run in Dallas and Galveston at the same time,
+        8:50 to 9:50 and again 11:40 to 12:40. <em>Everything else is single track in Liberty Hall.</em></span></li>
+      <li><b>Three rooms</b><span>Liberty Hall 123 for the keynote panel and lunch, Salon 6 for all six
+        workshops, Dallas and Galveston for the roundtables. <em>The Foyer has breakfast.</em></span></li>
+      <li><b>7:30 AM</b><span>Breakfast is the first thing on the sheet and the keynote panel is half an
+        hour later. <em>Doors, audio and the panel's playback all land inside that half hour.</em></span></li>
+      <li><b>12:40</b><span>Lunch and the award ceremony are one block in Liberty Hall 123, straight off
+        the back of the roundtables with no turnaround at all. <em>Nothing between 12:40 and the room
+        being set.</em></span></li>
+      <li><b>11:40 AM</b><span>The sheet prints this pair as 11:40 PM, which cannot be right next to a
+        12:40 PM finish. <em>Read as 11:40 AM here. Worth confirming with the organizer.</em></span></li>
+      <li><b>3:00 PM</b><span>The day ends on Workshop 14 with no reception after it.
+        <em>Strike starts the moment that room clears.</em></span></li>
+    </ul>
+  </div>
+
+  <footer>
+    Built from the Assembly at a Glance sheet. Times exactly as listed. Durations and gaps calculated.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Every row off the sheet. Times as printed, nothing adjusted.
+  const DAY = [
+    { s: "7:30 AM",  e: "8:00 AM",  t: "Breakfast", k: "social", m: "Foyer" },
+    { s: "8:00 AM",  e: "8:45 AM",  t: "Breakfast Keynote Panel", k: "keynote", m: "Liberty Hall 123",
+      p: "Unified Objectives: Bridging the Gap Between Brand Building and Performance Marketing" },
+    { s: "8:50 AM",  e: "9:50 AM",  k: "pair", m: "Two rooms", pair: [
+      { t: "Roundtable 1", m: "Dallas",
+        p: "Redefining the Brand-Agency Relationship to Thrive in a Changing Marketing Landscape" },
+      { t: "Roundtable 2", m: "Galveston",
+        p: "The Growth Mandate: How Enterprise Decision AI Is Making the CMO the Most Accountable Leader in the Room" }
+    ]},
+    { s: "9:55 AM",  e: "10:25 AM", t: "Workshop 9", m: "Liberty Hall Salon 6",
+      p: "Unlock the Power of Intent Data for Customer Acquisition and Retention" },
+    { s: "10:30 AM", e: "11:00 AM", t: "Workshop 10", m: "Liberty Hall Salon 6",
+      p: "The AI-Native Marketing Org: How CMOs Are Scaling Pipeline Without Scaling the Team" },
+    { s: "11:05 AM", e: "11:35 AM", t: "Workshop 11", m: "Liberty Hall Salon 6",
+      p: "Marketing Was Built Like a Service. It Has to Run Like a Business" },
+    { s: "11:40 AM", e: "12:40 PM", k: "pair", m: "Two rooms", pair: [
+      { t: "Roundtable 3", m: "Dallas",
+        p: "The Last Advantage: Emotion in a Commoditized Marketing World" },
+      { t: "Roundtable 4", m: "Galveston",
+        p: "Proving Brand Advertising Impact with Incrementality: A CMO-CFO Playbook" }
+    ]},
+    { s: "12:40 PM", e: "1:15 PM",  t: "Lunch and Award Ceremony", k: "social", m: "Liberty Hall 123" },
+    { s: "1:20 PM",  e: "1:50 PM",  t: "Workshop 12", m: "Liberty Hall Salon 6",
+      p: "When Everyone Can Create: Why Brand Matters More in an AI World" },
+    { s: "1:55 PM",  e: "2:25 PM",  t: "Workshop 13", m: "Liberty Hall Salon 6",
+      p: "The Borderless CMO: Navigating the Expanding Scope of Modern Marketing Leaders" },
+    { s: "2:30 PM",  e: "3:00 PM",  t: "Workshop 14", m: "Liberty Hall Salon 6",
+      p: "Connecting Marketing, Data and Technology: Driving Business Impact Through Digital Innovation" }
+  ];
+
+  const PX = 1.55;        // pixels per minute, so length on screen is length in time
+  const MIN_H = 54;       // a thirty minute block still has to be readable
+
+  function mins(str) {
+    const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(str.trim());
+    let h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    const ap = m[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  function dur(b) { return mins(b.e) - mins(b.s); }
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function len(n) {
+    const h = Math.floor(n / 60), m = n % 60;
+    return (h ? h + " hr " : "") + (m ? m + " min" : (h ? "" : "0 min"));
+  }
+
+  function blockHtml(b, cls) {
+    return '<div class="block ' + cls + '">' +
+      (b.m ? '<div class="meta">' + esc(b.m) + "</div>" : "") +
+      "<h3>" + esc(b.t) + "</h3>" +
+      (b.p ? "<p>" + esc(b.p) + "</p>" : "") + "</div>";
+  }
+
+  let html = "";
+  DAY.forEach(function (b, i) {
+    if (i > 0) {
+      const g = mins(b.s) - mins(DAY[i - 1].e);
+      if (g > 0) {
+        html += '<div class="gap' + (g <= 5 ? " tight" : "") +
+          '" style="height:' + Math.max(26, g * PX) + 'px">' +
+          '<div style="width:88px;flex:none"></div><div class="line"></div>' +
+          '<div class="tag">' + g + " min</div><div class=\"line\"></div></div>";
+      }
+    }
+    const h = Math.max(MIN_H, dur(b) * PX);
+    html += '<div class="row" data-i="' + i + '" style="min-height:' + h + 'px">' +
+      '<div class="clock"><b>' + esc(b.s.replace(/:00 /, " ")) + "</b>" +
+      esc(len(dur(b))) + "</div><div class=\"body\">";
+    if (b.k === "pair") {
+      html += '<div class="pair">' +
+        b.pair.map(function (p) { return blockHtml(p, ""); }).join("") + "</div>";
+    } else {
+      html += blockHtml(b, b.k || "plain");
+    }
+    html += "</div></div>";
+  });
+  document.getElementById("rail").innerHTML = html;
+
+  // Where the day is right now. Only meaningful on the day itself.
+  function tick() {
+    const d = new Date();
+    const onDay = d.getFullYear() === 2026 && d.getMonth() === 9 && d.getDate() === 15;
+    const now = onDay ? d.getHours() * 60 + d.getMinutes() : -1;
+    let live = -1, next = -1;
+
+    DAY.forEach(function (b, i) {
+      const a = mins(b.s), z = mins(b.e);
+      const row = document.querySelector('.row[data-i="' + i + '"]');
+      if (!row) return;
+      const on = onDay && now >= a && now < z;
+      const past = onDay && now >= z;
+      if (on) live = i;
+      if (next < 0 && onDay && now < a) next = i;
+      Array.prototype.forEach.call(row.querySelectorAll(".block"), function (el) {
+        el.classList.toggle("now", on);
+        el.classList.toggle("done", past);
+      });
+    });
+
+    const nv = document.getElementById("nowVal");
+    const xv = document.getElementById("nextVal");
+    const xs = document.getElementById("nextSub");
+
+    if (!onDay) {
+      nv.textContent = "Not show day";
+      xv.textContent = "Doors 9:30 AM";
+      xs.textContent = "Registration and snacks";
+      return;
+    }
+    if (live >= 0) {
+      const b = DAY[live];
+      nv.textContent = b.k === "pair" ? "Power Hours 1 and 2" : b.t;
+      const left = mins(b.e) - now;
+      xs.textContent = left + " min left, ends " + b.e;
+    } else {
+      nv.textContent = now < mins(DAY[0].s) ? "Before doors" : "Changeover";
+      xs.textContent = "";
+    }
+    if (next >= 0) {
+      const n = DAY[next];
+      xv.textContent = (n.k === "pair" ? "Power Hours 1 and 2" : n.t) + " at " + n.s;
+      const to = mins(n.s) - now;
+      xs.textContent = (xs.textContent ? xs.textContent + " · " : "") + "up in " + to + " min";
+    } else if (now >= mins(DAY[DAY.length - 1].e)) {
+      xv.textContent = "Day complete";
+      xs.textContent = "";
+    }
+  }
+  tick();
+  setInterval(tick, 20000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "CMO37 Day Two Run of Show",
+  "short_name": "CMO37 D2",
+  "start_url": "./cmo37-run-of-show-day2.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0B0C10",
+  "theme_color": "#0B0C10",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
