@@ -8281,6 +8281,13 @@ async function renderTodayView() {
   const assignedCount = rows.filter((r) => !r.open).length;
   const openCount = rows.length - assignedCount;
 
+  // Friday high school, Saturday college: both days carry a game more often
+  // than not, and tomorrow's crew text goes out tonight. With a single card
+  // there was no way to reach tomorrow's crew from here, because the lookahead
+  // only ran when today was empty.
+  const nextGame = isTomorrow ? null : eventById(tomorrowId_);
+  const nextCalls = nextGame ? callsFor(nextGame) : null;
+
   inner.innerHTML = `
     <div id="sigGateHost"></div>
     <div class="shift-game-card">
@@ -8316,6 +8323,27 @@ async function renderTodayView() {
         ${r.call ? `<div class="row-call ${r.callEarly ? "row-call-early" : ""}">${escapeHtml(r.call)}</div>` : ""}
       </div>
     `).join("")}
+
+    ${nextGame ? `
+      <div class="shift-game-card" style="margin-top:18px;">
+        <div class="shift-game-header">
+          Tomorrow — ${escapeHtml(nextGame.day)} ${escapeHtml(nextGame.date)} — ${escapeHtml(nextGame.opp)}
+        </div>
+        ${nextCalls.gameTime || nextCalls.call ? `
+          <div class="call-time">
+            ${nextCalls.gameTime ? `Kickoff ${escapeHtml(fmtCall(nextCalls.gameTime))}` : ""}
+            ${nextCalls.gameTime && nextCalls.call ? " · " : ""}
+            ${nextCalls.call ? `Call ${escapeHtml(fmtCall(nextCalls.call))}` : ""}
+          </div>` : ""}
+        ${isAdmin() ? `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button class="shift-btn" data-todaytext="${escapeAttr(nextGame.id)}"
+              style="flex:1; min-width:140px; padding:11px 0;">📱 Text tomorrow's crew</button>
+            <button class="shift-btn shift-btn-ghost" data-todayremind="${escapeAttr(nextGame.id)}"
+              style="flex:1; min-width:140px; padding:11px 0;">Remind who hasn't confirmed</button>
+          </div>` : `
+          <div class="footnote" style="margin-top:8px;">Up next after today.</div>`}
+      </div>` : ""}
   `;
 
   if (ros) {
@@ -8333,8 +8361,11 @@ async function renderTodayView() {
   {
     const oops = (e) => alert("Couldn't build that message: " + (e.message || "unknown error"));
     const wire = (attr, fn) => {
-      const b = document.querySelector(`[${attr}]`);
-      if (b) b.onclick = () => fn(b.getAttribute(attr)).catch(oops);
+      // Two cards means two of each button. querySelector found only today's
+      // and left tomorrow's dead.
+      document.querySelectorAll(`[${attr}]`).forEach((b) => {
+        b.onclick = () => fn(b.getAttribute(attr)).catch(oops);
+      });
     };
     wire("data-todaytext", (id) => textCrewFor("call", id));
     wire("data-todayremind", (id) => textCrewFor("remind", id));
