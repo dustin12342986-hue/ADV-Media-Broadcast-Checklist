@@ -3528,25 +3528,47 @@ async function getForecastForDate(dateId) {
   }
 }
 
+// Every shift this crew member has coming up in the next two days, each with
+// its own confirm button.
+//
+// This used to show one card: today's shift, or tomorrow's only if there was
+// nothing today. That hid tomorrow from anyone working both days, and from
+// anyone working tomorrow on a day the company already had a game — exactly
+// the people a "confirm for tomorrow" text goes out to. Both days render now,
+// independently, so confirming one never hides the other.
 async function renderConfirmCard(profile) {
   const host = document.getElementById("confirmCard");
   if (!host) return;
-  // Today first, then tomorrow. Texts go out day-of sometimes, and a crew
-  // member told to confirm needs a button to press when they open the app.
-  let dateId = localDateId();
-  let sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
-  if (!sched) {
-    dateId = tomorrowId();
-    sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+  host.innerHTML = "";
+
+  const slots = [];
+  for (const dateId of [localDateId(), tomorrowId()]) {
+    const sched = await findScheduledEventOn(dateId, profile.legalName, profile.crewHandle);
+    if (!sched) continue;
+    // Confirmations are stored under the event's own id, the same id the admin
+    // Confirmations page reads. Writing them under the bare date meant a
+    // confirmation for an added event was saved somewhere nobody looked.
+    const confirmId = (sched.game && sched.game.id) ? sched.game.id : dateId;
+    // A multi-day event can answer for both dates. One card, not two.
+    if (slots.some((s) => s.confirmId === confirmId)) continue;
+    slots.push({ dateId, sched, confirmId });
   }
-  if (!sched) { host.innerHTML = ""; return; }
 
-  // Confirmations are stored under the event's own id, the same id the admin
-  // Confirmations page reads. Writing them under the bare date meant a
-  // confirmation for an added event was saved somewhere nobody looked.
-  const confirmId = (sched.game && sched.game.id) ? sched.game.id : dateId;
+  if (slots.length === 0) { host.innerHTML = ""; return; }
 
+  for (const slot of slots) {
+    const card = document.createElement("div");
+    host.appendChild(card);
+    await renderOneConfirm(card, profile, slot);
+  }
+}
+
+async function renderOneConfirm(host, profile, slot) {
+  const { dateId, sched, confirmId } = slot;
   const roleKey = sched.position.replace(/[^A-Za-z0-9]/g, "_");
+  // Ids have to be unique per card now that two can be on screen at once.
+  const uid = (confirmId + "_" + roleKey).replace(/[^A-Za-z0-9_]/g, "_");
+
   let already = false;
   try {
     const snap = await db.ref(`confirmations/${confirmId}/${roleKey}`).once("value");
@@ -3562,6 +3584,7 @@ async function renderConfirmCard(profile) {
 
   const g = sched.game;
   const label = g ? `${g.day} ${g.date} — ${g.opp}` : dateId;
+  const when = whenWord(dateId);
 
   if (already) {
     host.innerHTML = `
@@ -3573,10 +3596,10 @@ async function renderConfirmCard(profile) {
 
   host.innerHTML = `
     <div style="background:var(--panel); border:2px solid var(--amber); border-radius:14px; padding:18px; margin-bottom:18px;">
-      <div style="font-size:11.5px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Confirm ${escapeHtml(whenWord(dateId) ? whenWord(dateId) + "'s shift" : "your shift")}</div>
+      <div style="font-size:11.5px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Confirm ${escapeHtml(when ? when + "'s shift" : "your shift")}</div>
       <div style="font-size:17px; font-weight:800; margin-bottom:3px;">${escapeHtml(label)}</div>
       <div class="log-reason" style="margin-bottom:12px;">You're on as <strong>${escapeHtml(sched.position)}</strong>${g && g.call ? ` · call ${escapeHtml(g.call)}` : ""}</div>
-      <div id="confirmWeather" class="log-reason" style="margin-bottom:12px;">Checking the forecast…</div>
+      <div id="cw_${uid}" class="log-reason" style="margin-bottom:12px;">Checking the forecast…</div>
       <div class="log-reason" style="margin-bottom:6px;">Live traffic to the venue:</div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
         ${TRAFFIC_ORIGINS.map((t) => `
@@ -3585,12 +3608,12 @@ async function renderConfirmCard(profile) {
           </a>
         `).join("")}
       </div>
-      <button class="primary-btn" id="confirmShiftBtn">I'll be there — Confirm</button>
-      <div id="confirmMsg"></div>
+      <button class="primary-btn" id="cb_${uid}">I'll be there — Confirm</button>
+      <div id="cm_${uid}"></div>
     </div>
   `;
 
-  const btn = document.getElementById("confirmShiftBtn");
+  const btn = host.querySelector(`#cb_${uid}`);
   btn.onclick = async () => {
     btn.disabled = true;
     btn.textContent = "Confirming…";
@@ -3621,14 +3644,19 @@ async function renderConfirmCard(profile) {
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "I'll be there — Confirm";
-      document.getElementById("confirmMsg").innerHTML =
-        `<div class="error-msg">Couldn't confirm (${escapeHtml(e.message || "unknown error")}).</div>`;
+      const m = host.querySelector(`#cm_${uid}`);
+      if (m) m.innerHTML = `<div class="error-msg">Couldn't confirm (${escapeHtml(e.message || "unknown error")}).</div>`;
     }
   };
 
-  getVenueWeather().then((w) => {
-    const el = document.getElementById("confirmWeather");
-    if (el) el.textContent = w ? `${w.name}: ${w.temp}°${w.unit} — ${w.forecast}` : "Forecast unavailable right now.";
+  // The forecast for that shift's date, not for right now. A crew member
+  // confirming tomorrow was being shown tonight's weather.
+  getForecastForDate(dateId).then((w) => {
+    const el = host.querySelector(`#cw_${uid}`);
+    if (!el) return;
+    el.textContent = w
+      ? `${w.name}: ${w.temp}°${w.unit}, ${w.short}${w.wind ? ", wind " + w.wind : ""}`
+      : "Forecast unavailable right now.";
   });
 }
 
