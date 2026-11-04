@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#06070B">
 <link rel="icon" href="icon-192.png">
 <title>CISD Facility Grid</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Quicksand:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
 <style>
@@ -224,6 +228,19 @@ th,td{border-color:var(--border)}
 .hint{color:var(--faint)}
 
 /* live views */
+.calbox{display:flex;flex-direction:column;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.calbox>.btn{align-self:flex-start}
+.callist{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;margin-top:10px}
+.calev{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--border);border-radius:14px 4px 14px 4px;background:var(--panel2);color:var(--text);font:inherit;padding:8px 10px;cursor:pointer}
+.calev:hover{border-color:var(--cyan)}
+.calev .t{font-weight:700}
+.calev .m{font:400 12px var(--mono);color:var(--muted)}
+.chip.per{background:rgba(155,107,255,.18);color:var(--info-ink);border-color:transparent}
+.up.personal{border-color:rgba(155,107,255,.55);background:linear-gradient(180deg,rgba(155,107,255,.10),var(--panel))}
+.ev.per{border-color:rgba(155,107,255,.55);background:linear-gradient(180deg,rgba(155,107,255,.12),var(--panel))}
+.pform{padding:16px 18px!important;gap:12px}
+textarea{resize:vertical;line-height:1.45}
+
 .demo-pill.live{background:rgba(95,211,230,.12);color:var(--cyan)}
 .modes{display:flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:999px;background:var(--panel)}
 .modebtn{font:700 12.5px var(--serif);text-transform:uppercase;letter-spacing:.14em;border:0;border-radius:999px;background:transparent;color:var(--muted);padding:7px 16px;cursor:pointer}
@@ -258,6 +275,8 @@ th,td{border-color:var(--border)}
       <div class="modes" role="group" aria-label="Data source"><button class="modebtn" data-setmode="live" aria-pressed="false">Live</button><button class="modebtn" data-setmode="demo" aria-pressed="false">Demo</button></div>
       <span class="demo-pill" id="demoPill">Demo data</span>
       <button class="btn" id="refreshBtn" hidden>Refresh</button>
+      <button class="btn primary" id="addShowBtn" hidden>Add show</button>
+      <button class="btn" id="authBtn" hidden>Sign in</button>
       <button class="btn" id="settingsBtn" aria-expanded="false">Teams link</button>
     </div>
     <div class="settings" id="settings" hidden>
@@ -690,11 +709,18 @@ function stats(list){return list.map(([b,s])=>`<div class="stat"><b>${b}</b><spa
 function renderUpcoming(){
   const box=document.getElementById('upList'),sum=document.getElementById('upSummary');
   if(!LIVE){sum.innerHTML='';box.innerHTML=liveErr?liveNote():'<p class="hint">Loading shows from ADV Media Teams…</p>';return;}
-  const t=localId(new Date()),up=LIVE.events.filter(e=>e.date>=t);
+  const t=localId(new Date()),up=allEvents().filter(e=>e.date>=t);
   const tot=up.reduce((s,e)=>s+e.pos.length,0),f=up.reduce((s,e)=>s+filledOf(e),0);
   sum.innerHTML=stats([[up.length,'shows ahead'],[f+'/'+tot,'positions filled'],[tot-f,'open positions'],[up[0]?awayText(up[0].date):'None','next show']]);
   if(!up.length){box.innerHTML='<p class="hint">Nothing on the schedule from today forward. Events added in Teams show up here.</p>';return;}
   box.innerHTML=up.map(e=>{
+    if(e.personal){const p=e.p,contact=[p.contactName,p.contactPhone,p.contactEmail].filter(Boolean).map(esc).join(' · ');
+      return `<article class="up personal">
+      <div class="dt"><b>${fmtDay(e.date,{weekday:'short'})}</b><span>${fmtDay(e.date,{month:'short',day:'numeric'})}</span><em>${awayText(e.date)}</em></div>
+      <div class="info"><span class="size">${esc(e.venueRaw||'Venue not set')}${e.client?' · '+esc(e.client):''}</span><span class="nm">${esc(e.name)}</span><span class="m">${esc(timeLine(e))}</span><span class="flags">${personalFlags(e)}</span></div>
+      <div class="crewbox"><div class="row"><span>Working</span><b>${WHO[e.who]||WHO.both}</b></div><span class="m">${contact||'No contact saved'}</span>${p.notes?`<span class="m">${esc(p.notes.length>90?p.notes.slice(0,90)+'…':p.notes)}</span>`:''}</div>
+      <div class="acts"><button class="btn primary" data-pev="${esc(e.pid)}">Details</button></div>
+    </article>`;}
     const f=filledOf(e),n=e.pos.length,open=e.pos.filter(p=>!p.name).map(p=>p.role);
     return `<article class="up${e.dbl.length?' att':''}">
       <div class="dt"><b>${fmtDay(e.date,{weekday:'short'})}</b><span>${fmtDay(e.date,{month:'short',day:'numeric'})}</span><em>${awayText(e.date)}</em></div>
@@ -709,13 +735,13 @@ function renderLiveWeek(){
   document.getElementById('lweekTitle').textContent='Week of '+lweek.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   if(!LIVE){g.innerHTML='';sum.innerHTML='';note.innerHTML=liveErr?liveNote():'<p class="hint">Loading…</p>';return;}
   note.innerHTML='';
-  const wk=LIVE.events.filter(e=>days.includes(e.date)),today=localId(new Date());
-  const rows=LVENUES.filter(v=>v.id!=='other'||wk.some(e=>e.venue==='other'));
+  const wk=allEvents().filter(e=>days.includes(e.date)),today=localId(new Date());
+  const rows=LVENUES.filter(v=>(v.id!=='other'&&v.id!=='personal')||wk.some(e=>e.venue===v.id)||(v.id==='personal'&&isAdmin()));
   let h='<div class="gh"><div class="d">Venue</div><div class="load">positions</div></div>';
   days.forEach(k=>{const evs=wk.filter(e=>e.date===k),n=evs.reduce((s,e)=>s+e.pos.length,0),vs=new Set(evs.map(e=>e.venue)).size;
     h+=`<div class="gh"><div class="d">${fmtDay(k)}</div><div class="load">${evs.length?n+' positions':'No shows'}</div>${k===today?'<span class="chip ok">Today</span> ':''}${vs>1?'<span class="chip">Overlap night</span>':''}</div>`;});
   rows.forEach(v=>{h+=`<div class="vl"><b>${v.name}</b><span>${v.note}</span></div>`;
-    days.forEach(k=>{h+='<div class="cell">';wk.filter(e=>e.venue===v.id&&e.date===k).forEach(e=>{const f=filledOf(e),n=e.pos.length;
+    days.forEach(k=>{h+='<div class="cell">';wk.filter(e=>e.venue===v.id&&e.date===k).forEach(e=>{if(e.personal){h+=`<button class="ev per" data-pev="${esc(e.pid)}"><span class="size">${esc(WHO[e.who]||WHO.both)}</span><span class="t">${esc(e.name)}</span><span class="m">${esc(e.call?'Call '+e.call:'Times not set')}${e.venueRaw?' · '+esc(e.venueRaw):''}</span><span class="flags">${personalFlags(e)}</span></button>`;return;}const f=filledOf(e),n=e.pos.length;
       h+=`<button class="ev" data-lev="${esc(e.id)}"><span class="size">${esc(e.client)}</span><span class="t">${esc(e.name)}</span><span class="m">${esc(e.call?'Call '+e.call:e.start?'Start '+e.start:'Times not set')} · ${f}/${n}</span><span class="meter${f<n?' att':''}"><i style="width:${n?Math.round(f/n*100):0}%"></i></span><span class="flags">${liveFlags(e)}</span></button>`;});
       h+='</div>';});});
   g.innerHTML=h;
@@ -746,6 +772,7 @@ function openLiveDrawer(id){
 function pill(){
   const p=document.getElementById('demoPill'),r=document.getElementById('refreshBtn');
   r.hidden=mode!=='live';
+  try{authUI();}catch(e){}
   p.classList.toggle('live',mode==='live'&&!liveErr);
   if(mode==='demo'){p.textContent='Demo data';return;}
   p.textContent=liveBusy&&!LIVE?'Loading Teams':liveErr?'Live data unavailable':liveAt?'Live · '+liveAt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'Live';
@@ -761,6 +788,183 @@ document.addEventListener('click',ev=>{
 document.getElementById('refreshBtn').onclick=()=>loadLive();
 document.querySelectorAll('[data-setmode]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.setmode==='live'?'upcoming':'week';});
 setInterval(()=>{if(mode==='live'&&ON_PAGES&&document.visibilityState==='visible')loadLive();},60000);
+
+/* ---------- personal shows: private to the two admin accounts ---------- */
+// Stored at personalShows/{id}. Only dustin12342986@gmail.com and
+// aracely.valencia10@gmail.com can read or write it (Firebase rule). Crew never
+// sees these, in Teams or here.
+const FIREBASE_CONFIG={apiKey:"AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",authDomain:"crowley-football.firebaseapp.com",databaseURL:"https://crowley-football-default-rtdb.firebaseio.com",projectId:"crowley-football",storageBucket:"crowley-football.firebasestorage.app",messagingSenderId:"56102489603",appId:"1:56102489603:web:1a81953b6dd0d2fb84c836"};
+const GOOGLE_CLIENT_ID="56102489603-cam8dpnm79ktgm32adp5e3djoccd7hdr.apps.googleusercontent.com";
+const ADMIN_EMAILS=["dustin12342986@gmail.com","aracely.valencia10@gmail.com"];
+const WHO={dusty:'Dusty',aracely:'Aracely',both:'Dusty and Aracely'};
+let fb=null,fbUser=null,PERSONAL={},personalErr='',personalOff=null,gsiReady=false;
+LVENUES.push({id:'personal',name:'Personal shows',note:'Dusty and Aracely'});
+const isAdmin=()=>!!(fbUser&&ADMIN_EMAILS.includes(String(fbUser.email||'').toLowerCase()));
+function fmt12(t){if(!t)return '';const m=String(t).match(/^(\d{1,2}):(\d{2})$/);if(!m)return String(t);let h=+m[1];const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m[2]+' '+ap;}
+function personalEvents(){
+  if(!isAdmin())return [];
+  return Object.entries(PERSONAL||{}).filter(([,p])=>p&&p.date).map(([id,p])=>({id:'p:'+id,pid:id,personal:true,date:p.date,name:p.name||'Show',
+    client:p.client||'',venueRaw:p.venue||'',venue:'personal',roles:[],pos:[],dbl:[],onBoard:true,start:'',call:fmt12(p.call),end:fmt12(p.end),who:p.who||'both',p}));
+}
+function allEvents(){
+  const team=LIVE?LIVE.events:[];
+  return [...team,...personalEvents()].sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
+}
+function sameDayTeam(e){return LIVE?LIVE.events.filter(x=>x.date===e.date):[];}
+function personalFlags(e){
+  let s='<span class="chip per">Personal</span>';
+  const clash=sameDayTeam(e);if(clash.length)s+=`<span class="chip att">Same day as ${esc(clash[0].name)}</span>`;
+  if(!e.venueRaw)s+='<span class="chip">No venue set</span>';
+  return s;
+}
+function initAuth(){
+  const show=ON_PAGES&&typeof firebase!=='undefined';
+  if(!show){authUI();return;}
+  try{if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);fb={auth:firebase.auth(),db:firebase.database()};}
+  catch(e){fb=null;authUI();return;}
+  fb.auth.onAuthStateChanged(u=>{
+    fbUser=u;if(personalOff){personalOff();personalOff=null;}PERSONAL={};personalErr='';
+    if(isAdmin()){
+      const ref=fb.db.ref('personalShows');
+      const cb=ref.on('value',s=>{PERSONAL=s.val()||{};personalErr='';renderLive();},
+        e=>{personalErr=(e&&e.message)||'Could not read personal shows';renderLive();toast('Personal shows are blocked. Add the personalShows rule in Firebase.');});
+      personalOff=()=>ref.off('value',cb);
+    }
+    authUI();renderLive();
+  });
+}
+function authUI(){
+  const a=document.getElementById('authBtn'),add=document.getElementById('addShowBtn');
+  const on=!!fb;a.hidden=!on;add.hidden=!(on&&isAdmin()&&mode==='live');
+  a.textContent=fbUser?'Sign out':'Sign in';
+}
+function openSignIn(){
+  openId=null;
+  drawer.innerHTML=`<div class="dh"><div><span class="size">Personal shows</span><h3>Sign in</h3><p>Use the same Google account you use for ADV Media Teams. Only your two admin accounts can see personal shows.</p></div><button class="x" aria-label="Close" data-act="lclose">×</button></div>
+    <div class="db pform"><div id="gsiButton"></div><div id="signInError"></div></div>`;
+  drawer.hidden=false;scrim.hidden=false;
+  if(typeof google==='undefined'||!google.accounts||!google.accounts.id){document.getElementById('signInError').innerHTML='<div class="check att">Google sign-in has not loaded yet. Give it a second and try again.</div>';return;}
+  if(!gsiReady){google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,auto_select:false,callback:r=>{
+    try{fb.auth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(r.credential)).then(()=>{closeDrawer();toast('Signed in.');})
+      .catch(e=>{document.getElementById('signInError').innerHTML=`<div class="check att">${esc(e.message||'Could not sign in.')}</div>`;});}
+    catch(e){document.getElementById('signInError').innerHTML=`<div class="check att">${esc(e.message||'Could not sign in.')}</div>`;}}});gsiReady=true;}
+  google.accounts.id.renderButton(document.getElementById('gsiButton'),{theme:'filled_black',size:'large',text:'signin_with',shape:'pill',width:260});
+}
+function openPersonalForm(pid,presetDate){
+  if(!isAdmin()){openSignIn();return;}
+  openId=null;const p=(pid&&PERSONAL[pid])||{};const v=k=>esc(p[k]||'');
+  const dflt=presetDate||localId(new Date());
+  const whoSel=['both','dusty','aracely'].map(k=>`<option value="${k}" ${((p.who||'both')===k)?'selected':''}>${WHO[k]}</option>`).join('');
+  drawer.innerHTML=`<div class="dh"><div><span class="size">Personal show · only you two can see this</span><h3>${pid?esc(p.name||'Edit show'):'Add a show'}</h3><p>${pid?'Changes save for both of you right away.':'It shows on Upcoming and Week once saved.'}</p></div><button class="x" aria-label="Close" data-act="lclose">×</button></div>
+  <form class="db pform" id="pform" novalidate>
+    <div class="calbox"><button class="btn" type="button" id="calBtn">Fill from Google Calendar</button><div id="calPanel"></div></div>
+    <input type="hidden" id="pCalId" value="${v('calendarEventId')}"><input type="hidden" id="pCalSrc" value="${v('calendarId')}">
+    <div class="fgrid">
+      <div class="field"><label for="pDate">Date</label><input id="pDate" type="date" value="${v('date')||dflt}" required></div>
+      <div class="field"><label for="pWho">Who is working it</label><select id="pWho">${whoSel}</select></div>
+      <div class="field full"><label for="pName">Show name</label><input id="pName" value="${v('name')}" placeholder="e.g. Gala at the Omni" required></div>
+      <div class="field"><label for="pClient">Client</label><input id="pClient" value="${v('client')}"></div>
+      <div class="field"><label for="pVenue">Venue</label><input id="pVenue" value="${v('venue')}"></div>
+      <div class="field"><label for="pCall">Call time</label><input id="pCall" type="time" value="${v('call')}"></div>
+      <div class="field"><label for="pEnd">End time</label><input id="pEnd" type="time" value="${v('end')}"></div>
+      <div class="field full"><label for="pCName">Client contact</label><input id="pCName" value="${v('contactName')}" placeholder="Name"></div>
+      <div class="field"><label for="pCPhone">Phone</label><input id="pCPhone" type="tel" value="${v('contactPhone')}"></div>
+      <div class="field"><label for="pCEmail">Email</label><input id="pCEmail" type="email" value="${v('contactEmail')}"></div>
+      <div class="field full"><label for="pNotes">Notes</label><textarea id="pNotes" rows="5" placeholder="Gear, load-in, parking, anything to remember">${v('notes')}</textarea></div>
+    </div>
+    <div id="pErr"></div>
+  </form>
+  <div class="df"><button class="btn primary" type="submit" form="pform">Save</button><button class="btn" type="button" data-act="lclose">Cancel</button>${pid?'<button class="btn" type="button" id="pDel">Delete</button>':''}</div>`;
+  drawer.hidden=false;scrim.hidden=false;
+  wireCalendar();
+  const err=m=>{document.getElementById('pErr').innerHTML=m?`<div class="check att">${esc(m)}</div>`:'';};
+  document.getElementById('pform').addEventListener('submit',async ev=>{
+    ev.preventDefault();
+    const g=id=>document.getElementById(id).value.trim();
+    const data={date:g('pDate'),who:g('pWho'),name:g('pName'),client:g('pClient'),venue:g('pVenue'),call:g('pCall'),end:g('pEnd'),
+      contactName:g('pCName'),contactPhone:g('pCPhone'),contactEmail:g('pCEmail'),notes:g('pNotes'),calendarEventId:g('pCalId'),calendarId:g('pCalSrc'),updatedAt:Date.now(),updatedBy:fbUser.email||''};
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(data.date)){err('Pick a date for the show.');return;}
+    if(!data.name){err('Give the show a name.');return;}
+    try{
+      if(pid)await fb.db.ref('personalShows/'+pid).update(data);
+      else{data.createdAt=Date.now();data.createdBy=fbUser.email||'';await fb.db.ref('personalShows').push(data);}
+      closeDrawer();toast(pid?'Show updated.':'Show added.');
+      if(!pid){lweek=mondayOf(fromId(data.date));}
+    }catch(e){err(/permission/i.test(e.message||'')?'Firebase blocked the save. Add the personalShows rule in the Firebase console, then try again.':(e.message||'Could not save.'));}
+  });
+  const del=document.getElementById('pDel');
+  if(del)del.onclick=async()=>{
+    if(del.dataset.armed!=='1'){del.dataset.armed='1';del.textContent='Tap again to delete';return;}
+    try{await fb.db.ref('personalShows/'+pid).remove();closeDrawer();toast('Show deleted.');}catch(e){err(e.message||'Could not delete.');}
+  };
+}
+document.addEventListener('click',ev=>{const b=ev.target.closest('[data-pev]');if(b)openPersonalForm(b.dataset.pev);});
+document.getElementById('addShowBtn').onclick=()=>openPersonalForm(null);
+document.getElementById('authBtn').onclick=()=>{if(!fb)return;if(fbUser){fb.auth.signOut();toast('Signed out.');}else openSignIn();};
+
+/* ---------- Google Calendar: fill a personal show from an event ---------- */
+// Read-only. Each person signs in with their own Google account, so the list
+// is their calendars plus anything shared with them. Nothing is written back.
+let gTok=null,gTokAt=0,calCache=null;
+function getCalToken(){return new Promise((res,rej)=>{
+  if(gTok&&Date.now()-gTokAt<50*60e3)return res(gTok);
+  if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2)return rej(new Error('Google sign-in has not loaded yet. Try again in a second.'));
+  const c=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/calendar.readonly',
+    login_hint:(fbUser&&fbUser.email)||undefined,
+    callback:r=>{if(!r||r.error||!r.access_token)return rej(new Error((r&&(r.error_description||r.error))||'Calendar access was not granted.'));gTok=r.access_token;gTokAt=Date.now();res(gTok);},
+    error_callback:e=>rej(new Error((e&&(e.message||e.type))||'Calendar access was not granted.'))});
+  c.requestAccessToken();
+});}
+async function gcal(path){
+  const t=await getCalToken();
+  const r=await fetch('https://www.googleapis.com/calendar/v3/'+path,{headers:{Authorization:'Bearer '+t}});
+  if(r.status===401){gTok=null;}
+  if(!r.ok){let m='Google Calendar returned '+r.status;try{const j=await r.json();m=(j.error&&j.error.message)||m;}catch(e){}throw new Error(m);}
+  return r.json();
+}
+function textOnly(html){try{return (new DOMParser().parseFromString(String(html||'').replace(/<br\s*\/?>/gi,'\n'),'text/html').body.textContent||'').trim();}catch(e){return String(html||'');}}
+function evParts(x){
+  if(x&&x.dateTime){const d=new Date(x.dateTime);return {date:localId(d),time:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};}
+  if(x&&x.date)return {date:x.date,time:''};
+  return {date:'',time:''};
+}
+function wireCalendar(){
+  const btn=document.getElementById('calBtn'),panel=document.getElementById('calPanel');if(!btn)return;
+  const say=(m,att)=>{panel.innerHTML=`<div class="check${att?' att':''}">${m}</div>`;};
+  async function listEvents(calId,q){
+    panel.querySelector('#calList')&&(panel.querySelector('#calList').innerHTML='<p class="hint">Loading events…</p>');
+    const from=new Date();from.setHours(0,0,0,0);const to=new Date(from);to.setDate(to.getDate()+180);
+    const qs=new URLSearchParams({timeMin:from.toISOString(),timeMax:to.toISOString(),singleEvents:'true',orderBy:'startTime',maxResults:'100'});if(q)qs.set('q',q);
+    const data=await gcal('calendars/'+encodeURIComponent(calId)+'/events?'+qs);
+    const used=new Set(Object.values(PERSONAL||{}).map(p=>p&&p.calendarEventId).filter(Boolean));
+    const items=(data.items||[]).filter(e=>e.status!=='cancelled');
+    const list=panel.querySelector('#calList');
+    list.innerHTML=items.length?items.map((e,i)=>{const s=evParts(e.start),en=evParts(e.end);
+      return `<button type="button" class="calev" data-i="${i}"><span class="m">${s.date?fmtDay(s.date):''}${s.time?' · '+fmt12(s.time):' · All day'}${en.time?' to '+fmt12(en.time):''}</span><span class="t">${esc(e.summary||'(no title)')}</span>${e.location?`<span class="m">${esc(e.location)}</span>`:''}${used.has(e.id)?'<span class="chip ok">already added</span>':''}</button>`;}).join('')
+      :'<p class="hint">No events in the next six months on this calendar.</p>';
+    list.onclick=ev=>{const b=ev.target.closest('.calev');if(!b)return;const e=items[+b.dataset.i],s=evParts(e.start),en=evParts(e.end);
+      const set=(id,v)=>{const el=document.getElementById(id);if(el&&v)el.value=v;};
+      set('pDate',s.date);set('pName',e.summary);set('pVenue',e.location);set('pCall',s.time);set('pEnd',en.time);
+      const notes=textOnly(e.description);if(notes){const n=document.getElementById('pNotes');n.value=n.value?n.value+'\n\n'+notes:notes;}
+      document.getElementById('pCalId').value=e.id;document.getElementById('pCalSrc').value=calId;
+      say('Filled from <b>'+esc(e.summary||'the event')+'</b>. Add the client and contact, then press Save.');};
+  }
+  btn.onclick=async()=>{
+    panel.innerHTML='<p class="hint">Connecting to Google Calendar…</p>';
+    try{
+      if(!calCache){const cl=await gcal('users/me/calendarList?minAccessRole=reader');calCache=(cl.items||[]).sort((a,b)=>(b.primary?1:0)-(a.primary?1:0));}
+      panel.innerHTML=`<div class="fgrid"><div class="field"><label for="calPick">Calendar</label><select id="calPick">${calCache.map(c=>`<option value="${esc(c.id)}">${esc(c.summaryOverride||c.summary||c.id)}${c.primary?' (main)':''}</option>`).join('')}</select></div>
+        <div class="field"><label for="calQ">Search</label><input id="calQ" placeholder="Name or place"></div></div><div class="callist" id="calList"></div>`;
+      const pick=document.getElementById('calPick'),q=document.getElementById('calQ');let tm;
+      const run=()=>listEvents(pick.value,q.value.trim()).catch(e=>say(esc(e.message),true));
+      pick.onchange=run;q.oninput=()=>{clearTimeout(tm);tm=setTimeout(run,350);};
+      await listEvents(pick.value,'');
+    }catch(e){
+      const m=e.message||'';
+      say(/not been used|disabled|accessNotConfigured/i.test(m)?'The Google Calendar API is not turned on for this project yet. Turn it on in Google Cloud, then try again.':esc(m||'Could not reach Google Calendar.'),true);
+    }
+  };
+}
 
 /* ---------- shell ---------- */
 function renderAll(drawerToo=true){renderWeek();renderRequests();renderCrew();renderTonight();if(drawerToo&&openId)renderDrawer();}
@@ -785,7 +989,7 @@ function show(v){
 }
 document.querySelectorAll('.tab[data-v]').forEach(t=>t.onclick=()=>{location.hash=t.dataset.v;show(t.dataset.v);});
 window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
-seed();initNight();renderAll();show(location.hash.slice(1));
+seed();initNight();renderAll();show(location.hash.slice(1));initAuth();
 })();
 </script>
 </body>
