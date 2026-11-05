@@ -3,71 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}.scanbar{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;margin-top:24px}
-.scanline{flex:1 1 260px;display:flex;flex-direction:column;gap:6px;min-width:0}
-.scanmeter{height:6px;background:var(--sunk);border-radius:999px;overflow:hidden}
-.scanmeter i{display:block;height:100%;width:100%;background:var(--fg);border-radius:999px}
-#scanTxt{font-size:14px;color:var(--muted);font-weight:500;min-height:1.4em}
-.bottom{margin-top:20px;background:var(--inv-bg);color:var(--inv-fg);border-radius:24px;padding:clamp(24px,4vw,44px);display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
-.bottom .eyebrow{color:var(--inv-fg);opacity:.7}
-.bottom .big{font-family:var(--display);font-size:clamp(40px,7vw,96px);line-height:.92;text-transform:uppercase;margin-top:6px;text-wrap:balance}
-.bottom .big .lossv{color:var(--loss-on-inv)}
-.bottom p{opacity:.8;max-width:52ch;margin-top:10px}
-.bottom .split{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-@media (max-width:640px){.bottom .split{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.bottom .split div{border-top:1px solid rgba(127,127,127,.4);padding-top:10px;display:flex;flex-direction:column;gap:2px}
-.bottom .split b{font-family:var(--display);font-size:clamp(26px,3.4vw,38px);font-weight:400;line-height:1}
-.bottom .split span{font-size:13px;opacity:.7}
-.leaks{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:12px}
-@media (max-width:1000px){.leaks{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:520px){.leaks{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.leaks div{background:var(--surface);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:4px;min-width:0}
-.leaks b{font-family:var(--display);font-size:clamp(24px,2.6vw,32px);font-weight:400;line-height:1}
-.leaks span{font-size:13px;color:var(--muted);font-weight:500}
-.leaks .saved b{color:var(--gain)} .leaks .leak b{color:var(--loss)}
-.aulist-h{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-top:44px}
-.seg.sm button{font-size:14px;padding:7px 12px;flex:0 0 auto}
-.aulist{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.au{background:var(--surface);border-radius:18px;overflow:hidden}
-.au>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,180px) 130px;gap:14px;align-items:center;padding:14px 18px}
-.au>summary::-webkit-details-marker{display:none}
-@media (max-width:720px){.au>summary{grid-template-columns:52px minmax(0,1fr) 110px}.au .abar{display:none}}
-.au .dd{display:flex;flex-direction:column;line-height:1.1}
-.au .dd b{font-family:var(--display);font-size:24px;font-weight:400}
-.au .dd span{font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.06em}
-.au .nm{min-width:0}
-.au .nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.au .nm span{font-size:13px;color:var(--muted)}
-.chip2{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:1px}
-.chip2.cheap{background:var(--loss-soft);color:var(--loss)} .chip2.skilled{background:var(--gain-soft);color:var(--gain)} .chip2.ex{background:var(--sunk);color:var(--muted)}
-.abar{height:10px;background:var(--sunk);border-radius:999px;overflow:hidden;display:flex}
-.abar i{display:block;height:100%;border-radius:999px}
-.amt{text-align:right;line-height:1.1}
-.amt b{font-family:var(--display);font-size:26px;font-weight:400;display:block}
-.amt span{font-size:12px;color:var(--muted);font-weight:500}
-.amt.loss b{color:var(--loss)} .amt.gain b{color:var(--gain)}
-.au .body{padding:4px 18px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
-@media (max-width:820px){.au .body{grid-template-columns:minmax(0,1fr)}}
-.au .cmp{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);font-size:14px;background:var(--bg);border-radius:14px;padding:6px 10px}
-.au .cmp>div{padding:8px 6px;border-top:1px solid var(--line);min-width:0}
-.au .cmp .h{border-top:0;color:var(--muted);font-weight:500;font-size:12.5px}
-.au .cmp .n{text-align:right}
-.au .cmp .t{font-weight:700}
-.au .cmp .pos{color:var(--loss)} .au .cmp .neg{color:var(--gain)}
-.au .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.au .fields label.f{font-size:13px}
-.au .fields input,.au .fields select{padding:8px 14px;font-size:15px}
-.au .incs{display:flex;flex-direction:column;gap:6px;grid-column:1/-1}
-.au .incs .ir{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:8px;align-items:center}
-.au .why{grid-column:1/-1;font-size:14px;color:var(--muted)}
-.pending{margin-top:14px;background:var(--surface);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
-.pending .pr{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding-top:10px;border-top:1px solid var(--line)}
-.whatif{margin-top:48px;border-top:1px solid var(--line);padding-top:8px}
-.whatif>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;padding:12px 0}
-.whatif>summary::-webkit-details-marker{display:none}
-.whatif>summary h2::after{content:"  +";color:var(--muted)}
-.whatif[open]>summary h2::after{content:"  −"}
-</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>ADV Rundown</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,6 +16,7 @@
   --fg:#111111; --muted:#707072; --accent:#5b3df5; --accent-ink:#ffffff;
   --cheap:#9e9ea0; --skilled:#111111; --soft:#f5f5f5;
   --inv-bg:#111111; --inv-fg:#ffffff;
+  --turf:#b7d3b9; --turf-ez:#a3c6a6; --trackc:#d6a58c; --court:#efe3cf; --line-w:#ffffff; --line-c:#8a7a62;
   --loss:#b4531a; --loss-soft:#f7e6da; --gain:#1f7a55; --gain-soft:#dcefe5; --loss-on-inv:#ff9b5c;
   --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66;
   --hero-a:#0d1033; --hero-b:#3a1f8f; --hero-c:#0b5bd3;
@@ -93,6 +30,7 @@
   --fg:#f5f5f5; --muted:#a0a0a4; --accent:#9a86ff; --accent-ink:#0c0c0d;
   --cheap:#6e6e73; --skilled:#f5f5f5; --soft:#1a1a1b;
   --inv-bg:#f5f5f5; --inv-fg:#111111;
+  --turf:#16261b; --turf-ez:#1c3123; --trackc:#3a2620; --court:#2e271d; --line-w:#c9d4cc; --line-c:#9c8b70;
   --loss:#f0995c; --loss-soft:#3a2418; --gain:#5cc29a; --gain-soft:#173126; --loss-on-inv:#b4531a;
   --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -100,6 +38,7 @@
   --fg:#f5f5f5; --muted:#a0a0a4; --accent:#9a86ff; --accent-ink:#0c0c0d;
   --cheap:#6e6e73; --skilled:#f5f5f5; --soft:#1a1a1b;
   --inv-bg:#f5f5f5; --inv-fg:#111111;
+  --turf:#16261b; --turf-ez:#1c3123; --trackc:#3a2620; --court:#2e271d; --line-w:#c9d4cc; --line-c:#9c8b70;
   --loss:#f0995c; --loss-soft:#3a2418; --gain:#5cc29a; --gain-soft:#173126; --loss-on-inv:#b4531a;
   --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}
 
@@ -300,6 +239,82 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
 .guide li b{display:block;font-weight:600;margin-bottom:2px}
 .guide li p{color:var(--muted);font-size:15px}
 
+.scanbar{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;margin-top:24px}
+.scanline{flex:1 1 260px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.scanmeter{height:6px;background:var(--sunk);border-radius:999px;overflow:hidden}
+.scanmeter i{display:block;height:100%;width:100%;background:var(--fg);border-radius:999px}
+#scanTxt{font-size:14px;color:var(--muted);font-weight:500;min-height:1.4em}
+.bottom{margin-top:20px;background:var(--inv-bg);color:var(--inv-fg);border-radius:24px;padding:clamp(24px,4vw,44px);display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.bottom .eyebrow{color:var(--inv-fg);opacity:.7}
+.bottom .big{font-family:var(--display);font-size:clamp(40px,7vw,96px);line-height:.92;text-transform:uppercase;margin-top:6px;text-wrap:balance}
+.bottom .big .lossv{color:var(--loss-on-inv)}
+.bottom p{opacity:.8;max-width:52ch;margin-top:10px}
+.bottom .split{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+@media (max-width:640px){.bottom .split{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.bottom .split div{border-top:1px solid rgba(127,127,127,.4);padding-top:10px;display:flex;flex-direction:column;gap:2px}
+.bottom .split b{font-family:var(--display);font-size:clamp(26px,3.4vw,38px);font-weight:400;line-height:1}
+.bottom .split span{font-size:13px;opacity:.7}
+.leaks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+@media (max-width:520px){.leaks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.aval{margin-top:12px;background:var(--surface);border-radius:24px;padding:clamp(20px,3.5vw,36px);display:flex;flex-direction:column;gap:18px}
+.aval h3{font-family:var(--display);font-weight:400;font-size:clamp(28px,4.2vw,52px);line-height:.98;text-transform:uppercase;letter-spacing:0;margin-top:6px;text-wrap:balance}
+.aval .lv{color:var(--loss)}
+.chain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;counter-reset:c}
+.chain li{counter-increment:c;display:grid;grid-template-columns:28px minmax(0,1.5fr) minmax(0,1fr) 92px 100px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.chain li::before{content:counter(c);font-family:var(--display);font-size:20px;color:var(--muted)}
+.chain .ct{font-size:14.5px;min-width:0}
+.chain .cbar{position:relative;height:12px;background:var(--sunk);border-radius:999px;overflow:hidden}
+.chain .cbar i{position:absolute;top:0;height:100%;background:var(--loss);border-radius:999px}
+.chain .cv{text-align:right;font-weight:600;color:var(--loss)}
+.chain .cr{text-align:right;font-family:var(--display);font-size:20px}
+.chain.big .ct{font-size:16px}.chain.big .cr{font-size:24px}
+@media (max-width:720px){.chain li{grid-template-columns:22px minmax(0,1fr) 84px}.chain .cbar,.chain .cr{display:none}}
+.leaks div{background:var(--surface);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.leaks b{font-family:var(--display);font-size:clamp(24px,2.6vw,32px);font-weight:400;line-height:1}
+.leaks span{font-size:13px;color:var(--muted);font-weight:500}
+.leaks .saved b{color:var(--gain)} .leaks .leak b{color:var(--loss)}
+.aulist-h{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-top:44px}
+.seg.sm button{font-size:14px;padding:7px 12px;flex:0 0 auto}
+.aulist{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.au{background:var(--surface);border-radius:18px;overflow:hidden}
+.au>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,180px) 130px;gap:14px;align-items:center;padding:14px 18px}
+.au>summary::-webkit-details-marker{display:none}
+@media (max-width:720px){.au>summary{grid-template-columns:52px minmax(0,1fr) 110px}.au .abar{display:none}}
+.au .dd{display:flex;flex-direction:column;line-height:1.1}
+.au .dd b{font-family:var(--display);font-size:24px;font-weight:400}
+.au .dd span{font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.06em}
+.au .nm{min-width:0}
+.au .nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au .nm span{font-size:13px;color:var(--muted)}
+.chip2{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:1px}
+.chip2.cheap{background:var(--loss-soft);color:var(--loss)} .chip2.skilled{background:var(--gain-soft);color:var(--gain)} .chip2.ex{background:var(--sunk);color:var(--muted)}
+.abar{height:10px;background:var(--sunk);border-radius:999px;overflow:hidden;display:flex}
+.abar i{display:block;height:100%;border-radius:999px}
+.amt{text-align:right;line-height:1.1}
+.amt b{font-family:var(--display);font-size:26px;font-weight:400;display:block}
+.amt span{font-size:12px;color:var(--muted);font-weight:500}
+.amt.loss b{color:var(--loss)} .amt.gain b{color:var(--gain)}
+.au .body{padding:4px 18px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.au .body{grid-template-columns:minmax(0,1fr)}}
+.au .cmp{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);font-size:14px;background:var(--bg);border-radius:14px;padding:6px 10px}
+.au .cmp>div{padding:8px 6px;border-top:1px solid var(--line);min-width:0}
+.au .cmp .h{border-top:0;color:var(--muted);font-weight:500;font-size:12.5px}
+.au .cmp .n{text-align:right}
+.au .cmp .t{font-weight:700}
+.au .cmp .pos{color:var(--loss)} .au .cmp .neg{color:var(--gain)}
+.au .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.au .fields label.f{font-size:13px}
+.au .fields input,.au .fields select{padding:8px 14px;font-size:15px}
+.au .incs{display:flex;flex-direction:column;gap:6px;grid-column:1/-1}
+.au .incs .ir{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:8px;align-items:center}
+.au .why{grid-column:1/-1;font-size:14px;color:var(--muted)}
+.pending{margin-top:14px;background:var(--surface);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.pending .pr{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding-top:10px;border-top:1px solid var(--line)}
+.whatif{margin-top:48px;border-top:1px solid var(--line);padding-top:8px}
+.whatif>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;padding:12px 0}
+.whatif>summary::-webkit-details-marker{display:none}
+.whatif>summary h2::after{content:"  +";color:var(--muted)}
+.whatif[open]>summary h2::after{content:"  −"}
 </style>
 </head>
 <body>
@@ -382,6 +397,8 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
     </div>
 
     <div class="bottom" id="auBottom"></div>
+    <div id="auAval"></div>
+    <h2 style="margin-top:36px">Where the money leaked</h2>
     <div class="leaks" id="auLeaks"></div>
 
     <div class="aulist-h"><h2>Every show</h2><div class="seg sm" id="auSort" role="radiogroup" aria-label="Sort shows"><button type="button" role="radio" data-s="loss">Biggest loss first</button><button type="button" role="radio" data-s="date">By date</button></div></div>
@@ -411,9 +428,22 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
           <div class="two"><label class="f">Shows with damage (%)<input id="s_dmg" type="number" step="1" min="0"></label><label class="f">Shows with damage (%)<input id="c_dmg" type="number" step="1" min="0"></label></div>
           <div class="row">
             <label class="f">Lead tech rate ($/hr)<input id="m_lead" type="number" step="1"></label>
-            <label class="f">Last-minute replacement ($/person)<input id="m_repl" type="number" step="5"></label>
+            <label class="f">Rush replacement, per no-show ($)<input id="m_repl" type="number" step="5"></label>
           </div>
           <p class="note">A trained crew covers the same load with fewer hands. Extra hours past the schedule are paid at 1.5x.</p>
+        </div>
+        <div class="panel">
+          <h3>No-show avalanche</h3>
+          <p class="note">One missing hand slows the whole call. Each extra no-show makes it worse, because the people left are spread thinner.</p>
+          <div class="row"><label class="f">Schedule slip per no-show (hrs)<input id="a_slip" type="number" step="0.25" min="0"></label><label class="f">Cushion before doors (hrs)<input id="a_buffer" type="number" step="0.25" min="0"></label></div>
+          <div class="row"><label class="f">Venue and vendor labor waiting ($/hr)<input id="a_vendor" type="number" step="50" min="0"></label><label class="f">Client credit per hour doors are held ($)<input id="a_credit" type="number" step="250" min="0"></label></div>
+          <div class="row"><label class="f">Chance the client walks after a visible failure (%)<input id="a_rebook" type="number" step="5" min="0" max="100"></label><label class="f">Client's yearly business ($)<input id="a_client" type="number" step="5000" min="0"></label></div>
+        </div>
+        <div class="panel">
+          <h3>Unvetted crew risk</h3>
+          <div class="row"><label class="f">Injury chance per call, unvetted (%)<input id="a_inj_c" type="number" step="0.5" min="0"></label><label class="f">Injury chance per call, vetted (%)<input id="a_inj_s" type="number" step="0.5" min="0"></label></div>
+          <label class="f">Average workers' comp claim ($)<input id="a_claim" type="number" step="500" min="0"></label>
+          <p class="note">Default claim is the National Safety Council average of $47,316 for 2022 to 2023 claims.</p>
         </div>
         <div class="panel">
           <h3>Example damage incidents</h3>
@@ -455,10 +485,11 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
       </div>
     </div>
     <div class="mapbar">
-      <label class="f" style="flex:1 1 90px">Width (ft)<input id="m_w" type="number" min="30" max="300"></label>
-      <label class="f" style="flex:1 1 90px">Length (ft)<input id="m_l" type="number" min="30" max="400"></label>
-      <label class="f" style="flex:1 1 90px">Ceiling (ft)<input id="m_h" type="number" min="8" max="80"></label>
-      <div class="f" style="flex:3 1 300px">Seating<div class="seg" id="mLayout" role="radiogroup" aria-label="Seating layout"></div></div>
+      <div class="f" style="flex:1 1 100%">Venue<div class="seg" id="mVenue" role="radiogroup" aria-label="Venue type"></div></div>
+      <label class="f" style="flex:1 1 90px">Width (ft)<input id="m_w" type="number" min="30" max="800"></label>
+      <label class="f" style="flex:1 1 90px">Length (ft)<input id="m_l" type="number" min="30" max="600"></label>
+      <label class="f" style="flex:1 1 90px">Ceiling (ft, 0 = open air)<input id="m_h" type="number" min="0" max="120"></label>
+      <div class="f" style="flex:3 1 300px" id="mLayoutWrap">Seating<div class="seg" id="mLayout" role="radiogroup" aria-label="Seating layout"></div></div>
     </div>
 
     <div class="mapwrap">
@@ -662,7 +693,7 @@ function renderBuild2(){
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 
 /* ---------- Labor math ---------- */
-const MDEF={s_crew:7,c_crew:10,m_hours:10,m_shows:40,s_rate:30,c_rate:18,s_mult:1.0,c_mult:1.3,s_sup:0.5,c_sup:3,s_ns:2,c_ns:12,s_dmg:3,c_dmg:15,m_lead:45,m_repl:150};
+const MDEF={s_crew:7,c_crew:10,m_hours:10,m_shows:40,s_rate:30,c_rate:18,s_mult:1.0,c_mult:1.3,s_sup:0.5,c_sup:3,s_ns:2,c_ns:12,s_dmg:3,c_dmg:15,m_lead:45,m_repl:600,a_slip:1.25,a_buffer:2,a_vendor:850,a_credit:5000,a_rebook:30,a_client:80000,a_inj_c:3,a_inj_s:0.5,a_claim:47316};
 const INCDEF=[
  {on:true,name:"Cracked LED wall panel, dropped face down",cost:1450},
  {on:true,name:"Moving head yoke bent, cased without tilt lock",cost:1800},
@@ -670,9 +701,9 @@ const INCDEF=[
  {on:true,name:"Wireless capsule lost at strike",cost:420},
  {on:true,name:"Deck leg sheared, deck top replaced",cost:380},
  {on:false,name:"Truss section dented from stacking",cost:650}];
-let M=Object.assign({},MDEF,store.get("lp_math",{}));
+let M=Object.assign({},MDEF,store.get("lp_math2",{}));
 let INC=store.get("lp_inc",null)||INCDEF.map(x=>({...x}));
-Object.keys(MDEF).forEach(k=>{const el=document.getElementById(k);el.value=M[k];el.addEventListener("input",()=>{M[k]=+el.value||0;store.set("lp_math",M);renderMath()})});
+Object.keys(MDEF).forEach(k=>{const el=document.getElementById(k);el.value=M[k];el.addEventListener("input",()=>{M[k]=+el.value||0;store.set("lp_math2",M);renderMath()})});
 
 function renderInc(){
   const box=$("#incList");box.innerHTML="";
@@ -691,11 +722,11 @@ function calc(side){
   const wages=N*H*r;
   const extra=N*H*(mult-1)*r*1.5;
   const sup=M[side+"_sup"]*M.m_lead;
-  const noshow=N*(M[side+"_ns"]/100)*M.m_repl;
+  const av=avalanche(N*(M[side+"_ns"]/100),N,r);const noshow=av.rush+av.ot+M.a_vendor*av.slip+av.credit+av.rebook;
   const dmg=(M[side+"_dmg"]/100)*avgInc();
   return {wages,extra,sup,noshow,dmg,total:wages+extra+sup+noshow+dmg};
 }
-const LINES=[["wages","Wages on the invoice","hands × hours × rate"],["extra","Extra time to finish","slower crew, paid at 1.5x"],["sup","Lead tech fixing work","hours × lead rate"],["noshow","No-shows replaced","rate × crew × replacement cost"],["dmg","Gear damage","damage chance × avg incident"]];
+const LINES=[["wages","Wages on the invoice","hands × hours × rate"],["extra","Extra time to finish","slower crew, paid at 1.5x"],["sup","Lead tech fixing work","hours × lead rate"],["noshow","No-show avalanche","rush replacement, overtime, people waiting, credits, lost rebooks"],["dmg","Gear damage","damage chance × avg incident"]];
 function renderMath(){
   const s=calc("s"),c=calc("c");
   $("#incAvg").textContent="Average incident: "+fmt(avgInc());
@@ -752,6 +783,80 @@ const TYPES={
  beltpack:{w:"comms",name:"Comms beltpack",code:"BP",sw:1,sd:1,shape:"dot",parent:"commsbase"}
 };
 const LAYOUTS={theater:"Theater",banquet:"Banquet rounds",classroom:"Classroom"};
+/* ---------- Venues ---------- */
+const VENUES={
+ ballroom:{label:"Ballroom / hall",w:80,l:120,h:20,layouts:["theater","banquet","classroom"]},
+ football:{label:"Football stadium",w:460,l:350,h:0,layouts:[]},
+ track:{label:"Track and field",w:640,l:440,h:0,layouts:[]},
+ indoor:{label:"Indoor event center",w:330,l:240,h:40,layouts:["courts","theater","banquet","classroom"]}
+};
+LAYOUTS.courts="Courts";
+const TRK={r:119.75,st:276.87,lane:4,n:8}; // 400 m track in feet: 36.5 m bend radius, 84.39 m straights, 1.22 m lanes
+function vkey(sh){return VENUES[sh.room.venue]?sh.room.venue:"ballroom"}
+function geo(sh){const v=vkey(sh),W=sh.room.w,L=sh.room.l,g={v,stands:[],surf:[],gates:null,cams:null,floorBack:L-8,fohLabel:"FOH / VIDEO VILLAGE",standsLabel:"STANDS"};
+  if(v==="football"){const fx=(W-360)/2,fy=Math.max(60,(L-160)/2-10);g.field={x:fx,y:fy};
+    g.stage={x:W/2-12,y:fy+168,w:24,d:12};g.foh={x:W/2-22,y:L-18,w:44,d:14};
+    g.stands=[{x:fx+20,y:fy+192,w:320,d:Math.max(10,L-18-2-(fy+192)),name:"Home stands"},{x:fx+40,y:12,w:280,d:Math.max(10,fy-30-12),name:"Visitor stands"}];
+    g.fohLabel="PRESS BOX / CONTROL";g.gates=[[W*.12,"Home gate"],[W*.88,"Field gate"]];
+    g.cams=[[W/2-1.3,L-24,"Press box 50"],[fx+105,fy+164,"Home 25"],[fx+255,fy+164,"Home 25 far"],[fx-18,fy+79,"End zone left"],[fx+374,fy+79,"End zone right"],[W/2-1.3,fy-12,"Visitor sideline"]];}
+  else if(v==="track"){const cx=W/2,cy=40+TRK.r+TRK.lane*TRK.n;g.trk={cx,cy};
+    g.stage={x:cx+96,y:cy+92,w:22,d:10};g.foh={x:W/2-22,y:L-18,w:44,d:14};
+    const sy=cy+TRK.r+TRK.lane*TRK.n+12;g.stands=[{x:cx-170,y:sy,w:340,d:Math.max(10,L-18-2-sy),name:"Home stands"}];
+    g.fohLabel="PRESS BOX / FINISH";g.gates=[[W*.12,"Gate"],[W*.88,"Field gate"]];
+    const fin=cx+TRK.st/2;g.finish=fin;
+    g.cams=[[W/2-1.3,L-24,"Press box"],[fin-1.3,cy+TRK.r+TRK.lane*TRK.n+3,"Finish line"],[fin-328,cy+TRK.r+TRK.lane*TRK.n+3,"100 m start"],[cx+TRK.st/2+TRK.r+TRK.lane*TRK.n+4,cy,"Far turn"],[cx-TRK.st/2-TRK.r-TRK.lane*TRK.n-7,cy,"Near turn"],[cx-1.3,cy-TRK.r-TRK.lane*TRK.n-7,"Back straight"]];}
+  else if(v==="indoor"){const ox=(W-300)/2,oy=40;g.courts=[];for(let r=0;r<2;r++)for(let c=0;c<3;c++)g.courts.push({x:ox+12+c*96,y:oy+12+r*62,n:r*3+c+1});
+    g.stage={x:W/2-16,y:2,w:32,d:12};g.foh={x:W/2-11,y:L-18,w:22,d:14};
+    const sy=oy+148;g.stands=[{x:ox,y:sy,w:300,d:Math.max(8,L-18-2-sy),name:"Bleachers"}];g.floorBack=sy-4;g.fohLabel="FOH / SCORER TABLE";g.standsLabel="BLEACHERS";
+    g.gates=[[W*.2,"Load-in door"],[W*.8,"Doors"]];
+    g.cams=[[W/2-1.3,L-24,"Center court high"],[ox+48,sy-4,"Courts 1 and 4"],[ox+240,sy-4,"Courts 3 and 6"],[W/2-1.3,oy-2,"Far side"]];
+    if(sh.room.layout&&sh.room.layout!=="courts")g.courtsDim=true;}
+  return g;}
+function venueSvg(sh,G){const o=[];
+  if(G.field){const {x,y}=G.field;
+    o.push(`<rect x="${x-6}" y="${y-6}" width="372" height="172" fill="var(--turf)" stroke="none"/>`);
+    o.push(`<rect x="${x}" y="${y}" width="30" height="160" fill="var(--turf-ez)"/><rect x="${x+330}" y="${y}" width="30" height="160" fill="var(--turf-ez)"/>`);
+    o.push(`<rect x="${x}" y="${y}" width="360" height="160" fill="none" stroke="var(--line-w)" stroke-width="2" vector-effect="non-scaling-stroke"/>`);
+    for(let yd=5;yd<100;yd+=5){const lx=x+30+yd*3;o.push(`<line x1="${lx}" y1="${y}" x2="${lx}" y2="${y+160}" stroke="var(--line-w)" stroke-width="${yd%10?.6:1.2}" vector-effect="non-scaling-stroke" class="${yd%10?"l2":""}"/>`)}
+    for(let yd=1;yd<100;yd++){if(yd%5===0)continue;const lx=x+30+yd*3;o.push(`<line class="l3" x1="${lx}" y1="${y+53.3}" x2="${lx}" y2="${y+55.3}" stroke="var(--line-w)" stroke-width=".8" vector-effect="non-scaling-stroke"/><line class="l3" x1="${lx}" y1="${y+104.7}" x2="${lx}" y2="${y+106.7}" stroke="var(--line-w)" stroke-width=".8" vector-effect="non-scaling-stroke"/>`)}
+    for(let yd=10;yd<100;yd+=10){const n=yd>50?100-yd:yd,lx=x+30+yd*3;o.push(`<text class="l2" x="${lx}" y="${y+150}" text-anchor="middle" style="fill:var(--line-w);font-weight:700;font-size:calc(var(--fs) * 1.2px)">${n}</text><text class="l2" x="${lx}" y="${y+14}" text-anchor="middle" style="fill:var(--line-w);font-weight:700;font-size:calc(var(--fs) * 1.2px)">${n}</text>`)}
+    o.push(`<text class="zone l1" x="${x+180}" y="${y+84}" text-anchor="middle" style="font-size:calc(var(--fs) * 1.1px)">FIELD 360′ × 160′</text>`);
+    o.push(`<text class="zone l2 halo" x="${x+15}" y="${y+80}" text-anchor="middle" transform="rotate(-90 ${x+15} ${y+80})">END ZONE</text><text class="zone l2 halo" x="${x+345}" y="${y+80}" text-anchor="middle" transform="rotate(90 ${x+345} ${y+80})">END ZONE</text>`);
+    o.push(`<rect class="l3" x="${x+111}" y="${y+163}" width="138" height="12" fill="none" stroke="var(--cheap)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/><text class="meta l3" x="${x+180}" y="${y+172}" text-anchor="middle">Home team area · confirm limits with the venue</text>`);}
+  if(G.trk){const {cx,cy}=G.trk,hs=TRK.st/2;
+    const oval=r=>`M${cx-hs} ${cy-r} H${cx+hs} A${r} ${r} 0 0 1 ${cx+hs} ${cy+r} H${cx-hs} A${r} ${r} 0 0 1 ${cx-hs} ${cy-r} Z`;
+    const ro=TRK.r+TRK.lane*TRK.n;
+    o.push(`<path d="${oval(ro)}" fill="var(--trackc)"/><path d="${oval(TRK.r)}" fill="var(--turf)"/>`);
+    for(let i=0;i<=TRK.n;i++)o.push(`<path class="${i===0||i===TRK.n?"":"l2"}" d="${oval(TRK.r+i*TRK.lane)}" fill="none" stroke="var(--line-w)" stroke-width="${i===0||i===TRK.n?1.4:.7}" vector-effect="non-scaling-stroke"/>`);
+    for(let i=1;i<=TRK.n;i++){o.push(`<text class="l3" x="${G.finish+3}" y="${cy+TRK.r+(i-.5)*TRK.lane}" dominant-baseline="central" style="fill:var(--line-w);font-weight:700;font-size:calc(var(--fs) * .8px)">${i}</text>`)}
+    o.push(`<line x1="${G.finish}" y1="${cy+TRK.r}" x2="${G.finish}" y2="${cy+ro}" stroke="var(--line-w)" stroke-width="3" vector-effect="non-scaling-stroke"/><text class="meta halo l2" x="${G.finish}" y="${cy+TRK.r-2}" text-anchor="middle">Finish</text>`);
+    o.push(`<line class="l2" x1="${G.finish-328}" y1="${cy+TRK.r}" x2="${G.finish-328}" y2="${cy+ro}" stroke="var(--line-w)" stroke-width="1.5" vector-effect="non-scaling-stroke"/><text class="meta halo l2" x="${G.finish-328}" y="${cy+TRK.r-2}" text-anchor="middle">100 m start</text>`);
+    o.push(`<rect x="${cx-180}" y="${cy-80}" width="360" height="160" fill="none" stroke="var(--line-w)" stroke-width=".8" stroke-dasharray="4 4" vector-effect="non-scaling-stroke" class="l2"/>`);
+    o.push(`<text class="zone l1" x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">400 M TRACK · INFIELD</text>`);
+    [["High jump",cx-hs-60,cy],["Pole vault",cx+hs+60,cy],["Shot put / discus",cx-hs-20,cy-70],["Long and triple jump runway",cx,cy-ro-16]].forEach(([t,x,y])=>o.push(`<text class="meta halo l2" x="${x}" y="${y}" text-anchor="middle">${t}</text>`));
+    o.push(`<rect class="l2" x="${cx-150}" y="${cy-ro-12}" width="300" height="4" fill="var(--trackc)"/>`);}
+  if(G.courts){G.courts.forEach(c=>{const {x,y,n}=c,s=`stroke="var(--line-c)" stroke-width="1" vector-effect="non-scaling-stroke" fill="none"`;
+    o.push(`<rect x="${x}" y="${y}" width="84" height="50" fill="var(--court)" opacity="${G.courtsDim?.45:1}"/><rect x="${x}" y="${y}" width="84" height="50" ${s}/>`);
+    o.push(`<g class="l2" opacity="${G.courtsDim?.45:1}"><line x1="${x+42}" y1="${y}" x2="${x+42}" y2="${y+50}" ${s}/><circle cx="${x+42}" cy="${y+25}" r="6" ${s}/><rect x="${x}" y="${y+19}" width="19" height="12" ${s}/><rect x="${x+65}" y="${y+19}" width="19" height="12" ${s}/>
+      <path d="M${x} ${y+5.25} H${x+5.25+0} A19.75 19.75 0 0 1 ${x+5.25} ${y+44.75} H${x}" ${s}/><path d="M${x+84} ${y+5.25} H${x+78.75} A19.75 19.75 0 0 0 ${x+78.75} ${y+44.75} H${x+84}" ${s}/></g>`);
+    o.push(`<text class="zone ${G.courtsDim?"l2":"l1"}" x="${x+42}" y="${y+25}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * ${G.courtsDim?.9:1}px)">COURT ${n}</text>`)});}
+  return o.join("");}
+function standsSeating(G,F){const out=[];let seats=0;
+  const inF=(x,y)=>x+1.5>F.x-2&&x<F.x+F.w+2&&y+2.5>F.y-2&&y<F.y+F.d+2;
+  G.stands.forEach(s=>{out.push(`<rect class="aud" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.d}"/>`);
+    const rows=Math.floor(s.d/2.5),per=Math.floor(s.w/1.5),sec=Math.ceil(per/22);
+    for(let r=0;r<rows;r++){const y=s.y+r*2.5;out.push(`<line class="l3" x1="${s.x}" y1="${y+2.5}" x2="${s.x+s.w}" y2="${y+2.5}" stroke="var(--cheap)" stroke-width=".5" vector-effect="non-scaling-stroke"/>`);
+      const rl=String.fromCharCode(65+(r%26))+(r>=26?Math.floor(r/26):"");out.push(`<text class="rowl l3" x="${s.x-2}" y="${y+1.25}" text-anchor="middle" dominant-baseline="central">${rl}</text>`);
+      for(let k=0;k<per;k++){const x=s.x+k*1.5;if(inF(x,y))continue;seats++;out.push(`<rect class="seat l4" x="${x+.15}" y="${y+.6}" width="1.2" height="1.3" rx=".2"/>`)}}
+    for(let k=1;k<sec;k++){const x=s.x+k*22*1.5;out.push(`<line class="l2" x1="${x}" y1="${s.y}" x2="${x}" y2="${s.y+s.d}" stroke="var(--bg)" stroke-width="2" vector-effect="non-scaling-stroke"/>`)}
+    for(let k=0;k<sec;k++)out.push(`<text class="meta halo l2" x="${s.x+(k+.5)*Math.min(33,s.w/sec)}" y="${s.y-1.5}" text-anchor="middle">Sec ${k+1}</text>`);
+    out.push(`<text class="zone l1" x="${s.x+s.w/2}" y="${s.y+s.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1px)">${s.name.toUpperCase()}</text>`);});
+  return {svg:out.join(""),seats};}
+function setVenue(sh,v){const V=VENUES[v];sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=V.h;
+  if(V.layouts.length)sh.room.layout=V.layouts[0];
+  buildFromTruck(sh);}
+function venueFromName(n){n=(n||"").toLowerCase();return /stadium|football|field house|gridiron/.test(n)&&!/track/.test(n)?"football":/track/.test(n)?"track":/indoor|court|gym|center|arena/.test(n)?"indoor":null}
+
 const rid=()=>Math.random().toString(36).slice(2,9);
 const pad=n=>String(n).padStart(2,"0");
 let SH=store.get("rd_shows",null);
@@ -766,6 +871,7 @@ function buildFromTruck(sh){
   sh.stage={x:Math.round((W-sw)/2),y:0,w:sw,d:sd};
   const front=sd+10,back=L-8;
   sh.foh={x:Math.round(W/2-8),y:Math.round(front+(back-front)*0.62-5),w:16,d:10};
+  const G=geo(sh);if(G.v!=="ballroom"){sh.stage={...G.stage};sh.foh={...G.foh};if(G.v==="indoor"&&sh.room.layout!=="courts"){sh.foh={x:Math.round(W/2-8),y:Math.round(sh.stage.y+sh.stage.d+(G.floorBack-sh.stage.y-sh.stage.d)*0.6),w:16,d:10}}}
   const P=[],n={};
   const add=(type,x,y,extra={})=>{n[type]=(n[type]||0)+1;P.push({id:rid(),type,code:`${TYPES[type].code}-${pad(n[type])}`,x:+x.toFixed(1),y:+y.toFixed(1),...extra})};
   const S=sh.stage,F=sh.foh,cx=S.x+S.w/2;
@@ -788,7 +894,7 @@ function buildFromTruck(sh){
   const rowA=Math.ceil(fx/2);
   for(let i=0;i<fx;i++){const r=i<rowA?0:1,k=r?i-rowA:i,m=r?fx-rowA:rowA;add("fixture",S.x+1.5+(S.w-4.6)*(m===1?.5:k/(m-1)),S.y+(r?S.d-5.5:3.4))}
   for(let i=0;i<tr;i++)add("truss",cx-5,S.y+3.1+(i%2)*(S.d-6.4),{w:Math.min(S.w-2,40)});
-  const camSpots=[[F.x+F.w+2,F.y+F.d/2-1.3],[S.x-6.5,S.y+S.d+3],[S.x+S.w+4,S.y+S.d+3],[F.x-4.6,F.y+F.d/2-1.3]];
+  const camSpots=G.cams&&!(G.v==="indoor"&&sh.room.layout!=="courts")?G.cams.map(c=>[c[0],c[1]]):[[F.x+F.w+2,F.y+F.d/2-1.3],[S.x-6.5,S.y+S.d+3],[S.x+S.w+4,S.y+S.d+3],[F.x-4.6,F.y+F.d/2-1.3]];
   for(let i=0;i<cam;i++){const p=camSpots[i]||[6+i*4,L-6];add("cam",p[0],p[1])}
   const pSpots=[[S.x+2,S.y+S.d+1],[F.x+F.w+1,F.y+F.d+1.5],[S.x+S.w-5,S.y+S.d+1]];
   for(let i=0;i<Math.max(pwr,1);i++){const p=pSpots[i]||[4,4+i*4];add("distro",p[0],p[1])}
@@ -806,7 +912,7 @@ if(!SH||!SH.list||!SH.list[SH.cur]){SH={cur:null,list:{},role:"eic",hide:[]};new
   const ev=q.get("ev");if(!ev)return;
   const name=q.get("name")||"Show",date=q.get("date")||"",venue=q.get("venue")||"",client=q.get("client")||"";
   const key="grid:"+ev;let found=Object.values(SH.list).find(s=>s.src===key);
-  if(!found){found=newShow(name);found.src=key}
+  if(!found){found=newShow(name);found.src=key;const vv=venueFromName(venue+" "+name);if(vv)setVenue(found,vv)}
   found.meta={date,venue,client};SH.cur=found.id;saveSH();
   if(!location.hash)history.replaceState(null,"",location.pathname+location.search+"#rooms");
   window.__fromGrid=found;})();
@@ -852,8 +958,12 @@ const cableFt=pts=>Math.ceil((plen(pts)*1.1+10)/5)*5;
 
 /* seating */
 function seating(sh){
-  const W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,lay=sh.room.layout;
-  const front=S.y+S.d+10,back=L-8,cx=S.x+S.w/2,aisle=6,side=5;
+  const W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,G=geo(sh);let lay=sh.room.layout;
+  if(G.v==="football"||G.v==="track"||(G.v==="indoor"&&lay==="courts")){const st2=standsSeating(G,F);
+    if(G.v==="indoor"&&lay==="courts")return {svg:st2.svg,seats:st2.seats,far:0,front:0,back:0,stands:true};
+    return {svg:st2.svg,seats:st2.seats,far:0,front:0,back:0,stands:true}}
+  let extra=null;if(G.v==="indoor")extra=standsSeating(G,F);
+  const front=S.y+S.d+10,back=G.floorBack,cx=S.x+S.w/2,aisle=6,side=G.v==="indoor"?20:5;
   const out=[],rows=[];let seats=0,far=0;
   const inF=(x,y,w,d)=>x+w>F.x-4&&x<F.x+F.w+4&&y+d>F.y-3&&y<F.y+F.d+3;
   const blocks=[[side,cx-aisle/2],[cx+aisle/2,W-side]].filter(([a,b])=>b-a>2);
@@ -878,7 +988,7 @@ function seating(sh){
         seats+=3;far=Math.max(far,y+3.5)}})}
   }
   rows.forEach(([x,y,t])=>out.push(`<text class="rowl l3" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${t}</text>`));
-  return {svg:out.join(""),seats,far:far-(S.y+S.d),front,back};
+  return {svg:out.join(""),seats:seats+(extra?extra.seats:0),floor:seats,extraSvg:extra?extra.svg:"",far:far-(S.y+S.d),front,back,x0:side,x1:W-side};
 }
 
 /* view state */
@@ -920,10 +1030,14 @@ function renderMap(){
   for(let x=10;x<W;x+=10)g.push(`<line class="gl" x1="${x}" y1="0" x2="${x}" y2="${L}"/>`);
   for(let y=10;y<L;y+=10)g.push(`<line class="gl" x1="0" y1="${y}" x2="${W}" y2="${y}"/><text class="meta l2" x="-1" y="${y}" text-anchor="end" dominant-baseline="central">${y}′</text>`);
   for(let x=10;x<W;x+=10)g.push(`<text class="meta l2" x="${x}" y="-1.2" text-anchor="middle">${x}′</text>`);
-  [W*.25,W*.75].forEach((d,i)=>g.push(`<line class="door" x1="${d-3}" y1="${L}" x2="${d+3}" y2="${L}"/><text class="meta l2" x="${d}" y="${L+2.5}" text-anchor="middle">${i?"Doors":"Load-in door"}</text>`));
+  const G=geo(sh);
+  (G.gates||[[W*.25,"Load-in door"],[W*.75,"Doors"]]).forEach(([d,t])=>g.push(`<line class="door" x1="${d-(G.v==="ballroom"?3:8)}" y1="${L}" x2="${d+(G.v==="ballroom"?3:8)}" y2="${L}"/><text class="meta l2" x="${d}" y="${L+2.5}" text-anchor="middle">${t}</text>`));
+  g.push(venueSvg(sh,G));
   // audience
-  g.push(`<rect class="aud l1" x="5" y="${seat.front}" width="${W-10}" height="${Math.max(0,seat.back-seat.front)}"/>`);
-  g.push(`<g class="l2">${seat.svg}</g>`);
+  if(seat.stands){g.push(seat.svg)}
+  else{g.push(`<rect class="aud l1" x="${seat.x0}" y="${seat.front}" width="${seat.x1-seat.x0}" height="${Math.max(0,seat.back-seat.front)}"/>`);
+    g.push(`<g class="l2">${seat.svg}</g>`)}
+  if(seat.extraSvg)g.push(seat.extraSvg);
   // FOH + stage
   g.push(`<rect class="foh" data-drag="foh" x="${F.x}" y="${F.y}" width="${F.w}" height="${F.d}" rx=".8"/>`);
   g.push(`<g data-drag="stage" data-dx="0" id="stageG"><rect class="stage" x="${S.x}" y="${S.y}" width="${S.w}" height="${S.d}"/></g>`);
@@ -943,11 +1057,11 @@ function renderMap(){
       `<text class="meta halo l4" x="${w/2}" y="${d+(ks?1.9:.5)}" dy="${par?"1.45em":"0"}" text-anchor="middle" dominant-baseline="hanging" style="font-size:calc(var(--fs) * .8px)">${esc(T.name)}${p.panels?` · ${p.panels} panels`:""}</text>`;
     g.push(`<g class="pc${p.id===selId?" selId":""}${hid(T.w)}" data-id="${p.id}" transform="translate(${p.x} ${p.y})">${inner}${lab}</g>`)});
   // labels on top
-  g.push(`<text class="stage-t" x="${S.x+S.w/2}" y="${S.y+S.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">STAGE ${S.w}′ × ${S.d}′</text>`);
-  g.push(`<text class="zone l1" x="${F.x+F.w/2}" y="${F.y+F.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">FOH</text>`);
-  g.push(`<text class="zone l2 halo" x="${F.x+F.w/2}" y="${F.y-1}" text-anchor="middle">FOH / VIDEO VILLAGE</text>`);
-  g.push(`<text class="zone l1" x="${W/2}" y="${(seat.front+seat.back)/2-F.d}" text-anchor="middle" style="font-size:calc(var(--fs) * 1.1px)">AUDIENCE · ${seat.seats.toLocaleString()} SEATS</text>`);
-  g.push(`<text class="meta" x="${W/2}" y="-4" text-anchor="middle" style="font-weight:600;fill:var(--fg)">${W}′ × ${L}′ · upstage wall</text>`);
+  g.push(`<text class="stage-t${geo(sh).v!=="ballroom"?" l2":""}" x="${S.x+S.w/2}" y="${S.y+S.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">STAGE ${S.w}′ × ${S.d}′</text>`);
+  g.push(`<text class="zone l1" x="${F.x+F.w/2}" y="${F.y+F.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">${G.v==="ballroom"?"FOH":G.fohLabel.split(" / ")[0]}</text>`);
+  g.push(`<text class="zone l2 halo" x="${F.x+F.w/2}" y="${F.y-1}" text-anchor="middle">${G.fohLabel}</text>`);
+  if(!seat.stands)g.push(`<text class="zone l1" x="${W/2}" y="${(seat.front+seat.back)/2-F.d}" text-anchor="middle" style="font-size:calc(var(--fs) * 1.1px)">${G.v==="indoor"?"FLOOR":"AUDIENCE"} · ${(seat.floor??seat.seats).toLocaleString()} SEATS</text>`);
+  g.push(`<text class="meta" x="${W/2}" y="${G.v==="ballroom"?-4:-6}" text-anchor="middle" style="font-weight:600;fill:var(--fg)">${G.v==="ballroom"?`${W}′ × ${L}′ · upstage wall`:`${VENUES[G.v].label} · ${W}′ × ${L}′ · ${seat.seats.toLocaleString()} seats`}</text>`);
   svgEl.innerHTML=g.join("");
   svgEl.classList.toggle("moving",moveOn);
   renderSide(D);renderStats(seat);applyView();
@@ -986,7 +1100,11 @@ function highlight(){if(!selId)return;const sh=cur(),D=derive(sh);let a=sh.piece
   (derive(sh).kids[selId]||[]).forEach(k=>{const e=svgEl.querySelector(`.pc[data-id="${k.id}"]`);if(e)e.classList.remove("dim")});
 }
 function renderStats(seat){
-  const sh=cur(),R2=sh.room,far=Math.max(seat.far,10);
+  const sh=cur(),R2=sh.room,G=geo(sh);
+  if(seat.stands){$("#roomSum").innerHTML=`<div><span>Venue</span><b style="font-size:clamp(22px,2.6vw,30px)">${VENUES[G.v].label}</b></div><div><span>Seats in the stands</span><b>${seat.seats.toLocaleString()}</b></div><div><span>Footprint</span><b>${R2.w}′×${R2.l}′</b></div><div><span>Pieces mapped</span><b>${sh.pieces.length}</b></div>`;
+    $("#screenNote").innerHTML=G.v==="indoor"?`<strong>Courts:</strong> six 84′ × 50′ high school basketball courts with 12′ between them. Switch Seating to Theater, Banquet, or Classroom to put an event floor over the courts.`:`<strong>Open air:</strong> plan on the venue video board for the crowd. Weatherproof every connection on the field, keep cable off the playing surface, and confirm turf rules for any stage or vehicle.`;
+    renderGuide(seat,true,0,0);return}
+  const far=Math.max(seat.far,10);
   const scrH=Math.max(4,Math.round(far/R2.view*2)/2),scrW=Math.round(scrH*16/9*2)/2,top=4+scrH+1.5,fits=top<=R2.h;
   $("#roomSum").innerHTML=`<div><span>Seats</span><b>${seat.seats.toLocaleString()}</b></div><div><span>Sq ft per seat</span><b>${(R2.w*R2.l/Math.max(seat.seats,1)).toFixed(1)}</b></div><div><span>Farthest seat from stage</span><b>${Math.round(far)}′</b></div><div><span>Pieces mapped</span><b>${sh.pieces.length}</b></div>`;
   $("#screenNote").innerHTML=`<strong>Screens:</strong> a ${scrW}′ × ${scrH}′ image (16:9) covers a ${Math.round(far)}′ farthest seat for slides. Bottom of image at 4′, top near ${top.toFixed(1)}′. `+(fits?`Fits under the ${R2.h}′ ceiling.`:`Does not fit under the ${R2.h}′ ceiling, so go smaller and add delay screens halfway back.`);
@@ -994,7 +1112,7 @@ function renderStats(seat){
 }
 function renderGuide(seat,fits,scrW,scrH){
   const sh=cur(),codes=t=>sh.pieces.filter(p=>p.type===t).map(p=>p.code),lay=sh.room.layout,list=a=>a.length?a.join(", "):"none on this map";
-  const steps=[
+  let steps=[
    ["Walk the room with the venue",`Confirm the load-in door, power for ${list(codes("distro"))}, the dock route, and floor and wall rules. Match the map to the venue's own diagram.`],
    ["Spike from the map",`Zoom to Pieces + patch and tape every position you see: stage corners, FOH, cameras ${list(codes("cam"))}, speakers, and distros. Measure from the upstage and house-left walls, the same way the map does.`],
    ["Build the stage",`${sh.stage.w}′ × ${sh.stage.d}′. Legs locked and level, skirting, stairs on both sides. Everything else measures off the stage.`],
@@ -1006,7 +1124,17 @@ function renderGuide(seat,fits,scrW,scrH){
    [lay==="banquet"?"Venue sets rounds":lay==="classroom"?"Venue sets tables":"Venue sets chairs",lay==="banquet"?"Rounds go in after cable is down and ramped. Keep service lanes open; confirm widths with the banquet captain.":lay==="classroom"?"Tables go in after cable is down. Power to tables runs under the table line, never across an aisle without a ramp.":"Chairs go in after cable is down. Keep the center and side aisles clear."],
    ["Check from the farthest seat",`Zoom to Ports + seats, find the back row, and sit there. Read the slides, listen for dead spots, and confirm the cameras clear the audience.`],
    ["Hand off by position","Each crew member opens Pathfinder at their own position and checks every piece in their world against the map, then marks the checklist done."]];
-  $("#guideSub").textContent=`${sh.name} · ${LAYOUTS[lay]} · ${sh.room.w}′ × ${sh.room.l}′ · ${seat.seats.toLocaleString()} seats.`;
+  const G=geo(sh);
+  if(G.v==="football"||G.v==="track"){steps[0]=["Walk the venue with the facility",`Confirm gates and the route for the truck, power for ${list(codes("distro"))}, turf and track rules, and where the press box feeds come in. Ask what can roll on the ${G.v==="track"?"track surface":"field"} and what has to be carried.`];
+    steps[3]=["Protect the surface","Turf mats or track covers under every case, cart, and stage leg. Nothing with wheels crosses the "+(G.v==="track"?"lanes":"field")+" without the venue's ok."];
+    steps[6]=["Set camera positions",`Cameras ${list(codes("cam"))} at the marked spots: press box, sidelines${G.v==="track"?", finish line, and turns":", 25s, and end zones"}. Run fiber or SDI along the wall line, never across a playing surface during warmups.`];
+    steps[7]=["Set the press box","Consoles, switcher, and comms in the press box. Confirm the house audio tie-in and the venue video board feed."];
+    steps[8]=["Clear the field before the gates open","Every cable on the field is ramped, taped, or pulled. Officials walk the field; fix what they flag."];
+    steps[9]=["Check from the top row","Walk to the top row of the home stands and the far corners. Listen for coverage and confirm the board is readable."];}
+  if(G.v==="indoor"){steps[0]=["Walk the center with the facility",`Confirm the load-in door, floor covering rules for the courts, power for ${list(codes("distro"))}, and bleacher pull-out times.`];
+    if(lay==="courts")steps[8]=["Keep the courts playable","No cable crosses a court boundary during play. Run along the walls and between courts under mats, and confirm with each court's officials."];
+    else steps.splice(2,0,["Lay floor covering","Floor covering goes down over the courts before the stage or any chair. No tape on the finish without the facility's ok."]);}
+  $("#guideSub").textContent=`${sh.name} · ${VENUES[G.v].label}${VENUES[G.v].layouts.length?" · "+LAYOUTS[lay]:""} · ${sh.room.w}′ × ${sh.room.l}′ · ${seat.seats.toLocaleString()} seats.`;
   $("#guide").innerHTML=steps.map(([t,d])=>`<li><div><b>${esc(t)}</b><p>${esc(d)}</p></div></li>`).join("");
 }
 
@@ -1014,11 +1142,19 @@ function renderGuide(seat,fits,scrW,scrH){
 function syncControls(){const sh=cur();
   $("#mShow").innerHTML=Object.values(SH.list).map(s=>`<option value="${s.id}"${s.id===SH.cur?" selected":""}>${esc(s.name)}</option>`).join("");
   $("#mName").value=sh.name;$("#m_w").value=sh.room.w;$("#m_l").value=sh.room.l;$("#m_h").value=sh.room.h;
-  $("#mLayout").querySelectorAll("button").forEach(b=>b.setAttribute("aria-checked",b.dataset.k===sh.room.layout));
+  const V=VENUES[vkey(sh)];
+  $("#mVenue").querySelectorAll("button").forEach(b=>b.setAttribute("aria-checked",b.dataset.v===vkey(sh)));
+  $("#mLayoutWrap").hidden=!V.layouts.length;
+  $("#mLayout").querySelectorAll("button").forEach(b=>{b.hidden=!V.layouts.includes(b.dataset.k);b.setAttribute("aria-checked",b.dataset.k===sh.room.layout)});
   $("#mRole").value=SH.role}
 $("#mRole").innerHTML=Object.entries(ROLES).map(([k,[n]])=>`<option value="${k}">${n}</option>`).join("");
 $("#mLayout").innerHTML=Object.entries(LAYOUTS).map(([k,v])=>`<button type="button" role="radio" data-k="${k}">${v}</button>`).join("");
-$("#mLayout").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{cur().room.layout=b.dataset.k;saveSH();syncControls();renderMap()}));
+$("#mLayout").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{const sh=cur(),was=sh.room.layout;sh.room.layout=b.dataset.k;if(vkey(sh)==="indoor"&&(was==="courts")!==(b.dataset.k==="courts"))buildFromTruck(sh);saveSH();syncControls();renderMap()}));
+$("#mVenue").innerHTML=Object.entries(VENUES).map(([k,v])=>`<button type="button" role="radio" data-v="${k}">${v.label}</button>`).join("");
+let venueArm={};
+$("#mVenue").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{const sh=cur(),v=b.dataset.v;if(vkey(sh)===v)return;
+  if(sh.pieces.length&&venueArm.v!==v){venueArm={v,t:Date.now()};b.textContent="Tap again: re-place gear";setTimeout(()=>{b.textContent=VENUES[v].label;venueArm={}},4000);return}
+  venueArm={};b.textContent=VENUES[v].label;setVenue(sh,v);selId=null;saveSH();syncControls();renderMap();fit()}));
 $("#mRole").addEventListener("change",e=>{SH.role=e.target.value;SH.hide=[];saveSH();selId=null;renderMap()});
 $("#mShow").addEventListener("change",e=>{SH.cur=e.target.value;selId=null;saveSH();syncControls();renderMap();fit()});
 $("#mName").addEventListener("input",e=>{cur().name=e.target.value;saveSH();const o=$("#mShow").selectedOptions[0];if(o)o.textContent=e.target.value});
@@ -1026,7 +1162,7 @@ $("#mNew").addEventListener("click",()=>{newShow("Show "+(Object.keys(SH.list).l
 let rebuildArm=0;
 $("#mRebuild").addEventListener("click",e=>{const b=e.currentTarget;if(Date.now()-rebuildArm<4000){buildFromTruck(cur());saveSH();selId=null;b.textContent="Rebuild from truck";rebuildArm=0;renderMap();return}
   rebuildArm=Date.now();b.textContent="Tap again to replace this map";setTimeout(()=>{if(Date.now()-rebuildArm>=3900){b.textContent="Rebuild from truck"}},4000)});
-[["m_w","w",30,300],["m_l","l",30,400],["m_h","h",8,80]].forEach(([id,k,mn,mx])=>$("#"+id).addEventListener("change",e=>{const v=+e.target.value;if(v>=mn&&v<=mx){cur().room[k]=v;saveSH();renderMap();fit()}}));
+[["m_w","w",30,800],["m_l","l",30,600],["m_h","h",0,120]].forEach(([id,k,mn,mx])=>$("#"+id).addEventListener("change",e=>{const v=+e.target.value;if(v>=mn&&v<=mx){cur().room[k]=v;saveSH();renderMap();fit()}}));
 $("#mFind").addEventListener("input",renderList);
 $("#mFind").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("#mList button");if(b)selectPiece(b.dataset.id,true)}});
 $("#mMove").addEventListener("click",e=>{moveOn=!moveOn;e.currentTarget.setAttribute("aria-pressed",moveOn);e.currentTarget.textContent=moveOn?"Move: on":"Move: off";svgEl.classList.toggle("moving",moveOn)});
@@ -1067,40 +1203,72 @@ function initMap(){syncControls();renderMap();fit();
   const g=window.__fromGrid;if(g){const m=g.meta||{},d=m.date?new Date(m.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"";
     const el=$("#gridStrip");el.hidden=false;el.innerHTML=`<strong>From the facility grid:</strong> ${esc(g.name)}${d?" · "+esc(d):""}${m.venue?" · "+esc(m.venue):""}${m.client?" · "+esc(m.client):""}. This map is saved to this show, so it reopens here next time.`}}
 
-/* ---------- Labor audit (scan every show) ---------- */
+/* ---------- Labor audit (Partender for crews) ---------- */
+// No-show avalanche: each missing hand slows the whole call, and every extra no-show makes it worse.
+function slipFor(n){return n<=0?0:M.a_slip*n*(1+0.35*Math.max(0,n-1))}
+function avalanche(n,crew,rate){const slip=slipFor(n),held=Math.max(0,slip-M.a_buffer);
+  return {slip,held,rush:n*M.m_repl,ot:crew*rate*1.5*slip,wait:M.a_vendor*slip,credit:held*M.a_credit,rebook:held>0?(M.a_rebook/100)*M.a_client:0}}
 const AUEX=[
- {name:"Corporate general session",date:"2026-10-03",venue:"Convention hall B",type:"cheap",crew:12,rate:18,sched:10,actual:13.5,noShows:2,leadFix:4,credit:0,incidents:[{name:"LED wall panel cracked, carried by the face",cost:1450}]},
- {name:"Gala dinner",date:"2026-10-09",venue:"Hotel ballroom",type:"skilled",crew:8,rate:32,sched:9,actual:9,noShows:0,leadFix:.5,credit:0,incidents:[]},
- {name:"Product launch",date:"2026-10-17",venue:"Warehouse venue",type:"cheap",crew:10,rate:17,sched:8,actual:11,noShows:1,leadFix:3,credit:1500,creditWhy:"Doors held 40 minutes, client credit",incidents:[{name:"Moving head yoke bent, cased without tilt lock",cost:1800},{name:"Lav capsule lost at strike",cost:420}]},
- {name:"Awards show",date:"2026-10-24",venue:"Performing arts center",type:"skilled",crew:9,rate:30,sched:10,actual:10.5,noShows:0,leadFix:1,credit:0,incidents:[]},
- {name:"Festival side stage",date:"2026-10-30",venue:"Outdoor amphitheater",type:"cheap",crew:14,rate:18,sched:12,actual:14,noShows:3,leadFix:5,credit:0,incidents:[{name:"Fiber run crushed by a road case",cost:900}]},
- {name:"Sales kickoff",date:"2026-11-01",venue:"Hotel ballroom",type:"cheap",crew:8,rate:19,sched:8,actual:9,noShows:0,leadFix:2,credit:0,incidents:[]},
- {name:"Conference main stage",date:"2026-11-02",venue:"Arena",type:"skilled",crew:11,rate:30,sched:11,actual:11,noShows:0,leadFix:.5,credit:0,incidents:[]},
- {name:"Charity fundraiser",date:"2026-11-03",venue:"Country club",type:"cheap",crew:6,rate:18,sched:6,actual:7.5,noShows:1,leadFix:2,credit:0,incidents:[{name:"Projector lens scratched, set face down on the deck",cost:650}]}
+ {name:"Corporate general session",date:"2026-10-03",venue:"Convention hall B",type:"cheap",crew:12,rate:18,sched:10,actual:13.5,noShows:2,leadFix:4,doorsHeld:35,credit:0,injuries:0,lostClient:false,incidents:[{name:"LED wall panel cracked, carried by the face",cost:1450},{name:"Rented IEM pack lost at strike",cost:1150}]},
+ {name:"Gala dinner",date:"2026-10-09",venue:"Hotel ballroom",type:"skilled",crew:8,rate:32,sched:9,actual:9,noShows:0,leadFix:.5,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]},
+ {name:"Product launch",date:"2026-10-17",venue:"Warehouse venue",type:"cheap",crew:10,rate:17,sched:8,actual:12,noShows:3,leadFix:5,doorsHeld:55,credit:0,injuries:1,lostClient:true,incidents:[{name:"Moving head yoke bent, cased without tilt lock",cost:1800},{name:"Lav capsule lost at strike",cost:420},{name:"Rental console damaged by a spilled drink at FOH",cost:3200}]},
+ {name:"Awards show",date:"2026-10-24",venue:"Performing arts center",type:"skilled",crew:9,rate:30,sched:10,actual:10.5,noShows:0,leadFix:1,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]},
+ {name:"Festival side stage",date:"2026-10-30",venue:"Outdoor amphitheater",type:"cheap",crew:14,rate:18,sched:12,actual:14.5,noShows:3,leadFix:5,doorsHeld:20,credit:0,injuries:0,lostClient:false,incidents:[{name:"Fiber run crushed by a road case",cost:900},{name:"Speaker grille dented, box dropped off the ramp",cost:1100}]},
+ {name:"Sales kickoff",date:"2026-11-01",venue:"Hotel ballroom",type:"cheap",crew:8,rate:19,sched:8,actual:9.5,noShows:1,leadFix:2,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]},
+ {name:"Conference main stage",date:"2026-11-02",venue:"Arena",type:"skilled",crew:11,rate:30,sched:11,actual:11,noShows:0,leadFix:.5,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]},
+ {name:"Charity fundraiser",date:"2026-11-03",venue:"Country club",type:"cheap",crew:6,rate:18,sched:6,actual:8,noShows:1,leadFix:2,doorsHeld:15,credit:0,injuries:0,lostClient:false,incidents:[{name:"Projector lens scratched, set face down on the deck",cost:650}]}
 ].map(x=>({...x,id:rid(),example:true}));
-let AU=store.get("rd_audit",null)||AUEX.map(x=>({...x,incidents:x.incidents.map(i=>({...i}))}));
-const saveAU=()=>store.set("rd_audit",AU);
+let AU=store.get("rd_audit2",null)||AUEX.map(x=>({...x,incidents:x.incidents.map(i=>({...i}))}));
+const saveAU=()=>store.set("rd_audit2",AU);
 let auSort="loss",auOpen=null;
-const CATS=[["wages","Wages on the invoice"],["extra","Overtime to finish"],["sup","Lead fixing work"],["noshow","No-show replacements"],["dmg","Gear damage"],["credit","Delays and client credits"]];
-function auActual(r){const reg=Math.min(r.actual,r.sched),ot=Math.max(0,r.actual-r.sched);
-  const o={wages:r.crew*r.rate*reg,extra:r.crew*r.rate*1.5*ot,sup:r.leadFix*M.m_lead,noshow:r.noShows*M.m_repl,dmg:r.incidents.reduce((a,b)=>a+(+b.cost||0),0),credit:+r.credit||0};o.total=CATS.reduce((a,[k])=>a+o[k],0);return o}
-function auModel(side,crew,sched){const r=M[side+"_rate"],mult=Math.max(1,M[side+"_mult"]);
-  const o={wages:crew*r*sched,extra:crew*r*sched*(mult-1)*1.5,sup:M[side+"_sup"]*M.m_lead,noshow:crew*(M[side+"_ns"]/100)*M.m_repl,dmg:(M[side+"_dmg"]/100)*avgInc(),credit:0};o.total=CATS.reduce((a,[k])=>a+o[k],0);return o}
+const CATS=[["wages","Wages on the invoice"],["extra","Crew overtime"],["rush","Rush replacements"],["wait","Venue and vendor labor waiting"],["credit","Doors held, client credits"],["rebook","Future business at risk"],["dmg","Gear damage"],["injury","Injury cost and risk"],["sup","Lead pulled off to fix"]];
+function auActual(r){const reg=Math.min(r.actual,r.sched),ot=Math.max(0,r.actual-r.sched),dmg=r.incidents.reduce((a,b)=>a+(+b.cost||0),0);
+  const visible=(r.doorsHeld>0)||(+r.credit>0);
+  const o={wages:r.crew*r.rate*reg,extra:r.crew*r.rate*1.5*ot,rush:r.noShows*M.m_repl,wait:M.a_vendor*ot,
+    credit:(+r.credit>0?+r.credit:(r.doorsHeld/60)*M.a_credit),
+    rebook:r.lostClient?M.a_client:visible?(M.a_rebook/100)*M.a_client:0,
+    dmg,injury:(r.injuries||0)*M.a_claim+((r.type==="cheap"?M.a_inj_c:M.a_inj_s)/100)*M.a_claim*(r.injuries?0:1),
+    sup:r.leadFix*M.m_lead};
+  o.total=CATS.reduce((a,[k])=>a+o[k],0);return o}
+function auModel(side,crew,sched){const rate=M[side+"_rate"],mult=Math.max(1,M[side+"_mult"]),E=crew*(M[side+"_ns"]/100),av=avalanche(E,crew,rate);
+  const o={wages:crew*rate*sched,extra:crew*rate*sched*(mult-1)*1.5+av.ot,rush:av.rush,wait:M.a_vendor*(sched*(mult-1)+av.slip),credit:av.credit,rebook:av.rebook,
+    dmg:(M[side+"_dmg"]/100)*avgInc(),injury:(M[side==="s"?"a_inj_s":"a_inj_c"]/100)*M.a_claim,sup:M[side+"_sup"]*M.m_lead};
+  o.total=CATS.reduce((a,[k])=>a+o[k],0);return o}
 function auEval(r){const a=auActual(r);
-  if(r.type==="cheap"){const n=Math.max(2,Math.round(r.crew*M.s_crew/Math.max(1,M.c_crew)));const b=auModel("s",n,r.sched);return {a,b,bn:n,blabel:`Smart call: ${n} skilled at $${M.s_rate}`,diff:a.total-b.total}}
-  const n=Math.max(2,Math.round(r.crew*M.c_crew/Math.max(1,M.s_crew)));const b=auModel("c",n,r.sched);return {a,b,bn:n,blabel:`Cheap call: ${n} hands at $${M.c_rate}`,diff:b.total-a.total}}
+  if(r.type==="cheap"){const n=Math.max(2,Math.round(r.crew*M.s_crew/Math.max(1,M.c_crew)));const b=auModel("s",n,r.sched);return {a,b,bn:n,blabel:`Smart call: ${n} vetted, skilled hands at $${M.s_rate}`,diff:a.total-b.total}}
+  const n=Math.max(2,Math.round(r.crew*M.c_crew/Math.max(1,M.s_crew)));const b=auModel("c",n,r.sched);return {a,b,bn:n,blabel:`Cheap call: ${n} unvetted hands at $${M.c_rate}`,diff:b.total-a.total}}
+// the chain a no-show set off, built from what actually happened at the show
+function chain(r,a){const ot=Math.max(0,r.actual-r.sched),st=[];
+  if(r.noShows>0)st.push([`${r.noShows} no-show${r.noShows>1?"s":""}, ${r.noShows} rush replacement${r.noShows>1?"s":""} at ${money(M.m_repl)} each`,a.rush]);
+  if(ot>0)st.push([`Load-in slips. The whole crew of ${r.crew} runs ${ot} hrs over at time and a half`,a.extra]);
+  if(ot>0)st.push([`Venue house crew, security, and vendors stay on the clock ${ot} hrs waiting on you`,a.wait]);
+  if(r.leadFix>0)st.push([`Lead pulled off running the show to fix and fill in, ${r.leadFix} hrs`,a.sup]);
+  if(a.dmg>0)st.push([`Rushed hands break gear: ${r.incidents.map(i=>i.name).filter(Boolean).join("; ")}`,a.dmg]);
+  if(a.credit>0)st.push([r.credit>0?`Client credit issued`:`Doors held ${r.doorsHeld} min, client credit at ${money(M.a_credit)} per hour`,a.credit]);
+  if(r.injuries>0)st.push([`${r.injuries} crew injur${r.injuries>1?"ies":"y"} at an average claim of ${money(M.a_claim)}`,r.injuries*M.a_claim]);
+  if(a.rebook>0)st.push([r.lostClient?`Client did not rebook. A year of their business, gone`:`The client saw it. ${M.a_rebook}% chance they do not rebook a ${money(M.a_client)} a year account`,a.rebook]);
+  return st}
 const money=n=>(n<0?"−":"")+"$"+Math.round(Math.abs(n)).toLocaleString("en-US");
 const dfmt=(d,o)=>{try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",o)}catch(e){return d}};
+function chainSvg(st,big){let run=0;const tot=st.reduce((a,b)=>a+b[1],0)||1;
+  return `<ol class="chain${big?" big":""}">${st.map(([t,v],i)=>{const s0=run;run+=v;return `<li><span class="ct">${esc(t)}</span><span class="cbar"><i style="left:${s0/tot*100}%;width:${Math.max(.6,v/tot*100)}%"></i></span><span class="cv">+${money(v)}</span><span class="cr">${money(run)}</span></li>`}).join("")}</ol>`}
 function renderAudit(){
   const rows=AU.map(r=>({r,e:auEval(r)}));
   const cheap=rows.filter(x=>x.r.type==="cheap"),sk=rows.filter(x=>x.r.type!=="cheap");
   const lost=cheap.reduce((a,x)=>a+Math.max(0,x.e.diff),0),kept=sk.reduce((a,x)=>a+Math.max(0,x.e.diff),0);
   const cat={};CATS.forEach(([k])=>cat[k]=cheap.reduce((a,x)=>a+x.e.a[k]-x.e.b[k],0));
   const wageSave=-cat.wages,leak=CATS.slice(1).reduce((a,[k])=>a+cat[k],0);
-  $("#auBottom").innerHTML=`<div><span class="eyebrow">${rows.length} shows scanned · ${cheap.length} booked cheap · ${sk.length} booked skilled</span>
+  const ns=cheap.reduce((a,x)=>a+x.r.noShows,0),nsShows=cheap.filter(x=>x.r.noShows>0);
+  const nsCost=nsShows.reduce((a,x)=>{const c=chain(x.r,x.e.a);return a+c.reduce((s,v)=>s+v[1],0)},0);
+  $("#auBottom").innerHTML=`<div><span class="eyebrow">${rows.length} shows scanned · ${cheap.length} booked cheap · ${sk.length} booked vetted and skilled</span>
      <div class="big">Going cheap cost <span class="lossv" id="auBig">${money(lost)}</span></div>
-     <p>${cheap.length?`Cheap calls saved ${money(Math.max(0,wageSave))} on the wage line, then leaked ${money(leak)} in overtime, fixes, no-shows, damage, and credits.`:"No cheap calls on the books."} ${sk.length?`Skilled calls kept ${money(kept)} that a cheap crew would have lost on the same shows.`:""}</p></div>
-     <div class="split"><div><b>${money(lost)}</b><span>Lost on cheap calls</span></div><div><b>${money(kept)}</b><span>Kept by hiring smart</span></div><div><b>${money(lost+kept)}</b><span>Gap between cheap and smart</span></div><div><b>${cheap.reduce((a,x)=>a+x.r.incidents.length,0)}</b><span>Damage incidents on cheap calls</span></div></div>`;
+     <p>${cheap.length?`Cheap calls saved ${money(Math.max(0,wageSave))} on the wage line. Then they leaked ${money(leak)}: overtime, rush replacements, people waiting, credits, broken gear, injuries, and clients who stop calling.`:"No cheap calls on the books."} ${sk.length?`Vetted, skilled calls kept ${money(kept)} that a cheap crew would have lost on the same shows.`:""}</p></div>
+     <div class="split"><div><b>${money(lost)}</b><span>Lost on cheap calls</span></div><div><b>${money(kept)}</b><span>Kept by hiring smart</span></div><div><b>${ns?money(nsCost/ns):"$0"}</b><span>What one no-show really cost</span></div><div><b>${ns?Math.round((nsCost/ns)/Math.max(1,M.c_rate*M.m_hours)):0}×</b><span>A cheap hand's whole day of pay</span></div></div>`;
+  // the biggest avalanche
+  const worst=nsShows.map(x=>({x,st:chain(x.r,x.e.a)})).sort((p,q)=>q.st.reduce((a,b)=>a+b[1],0)-p.st.reduce((a,b)=>a+b[1],0))[0];
+  $("#auAval").innerHTML=worst?`<div class="aval"><div class="aval-h"><span class="eyebrow">The avalanche · ${esc(worst.x.r.name)} · ${dfmt(worst.x.r.date,{month:"short",day:"numeric"})}</span>
+      <h3>${worst.x.r.noShows} ${worst.x.r.noShows>1?"people":"person"} didn't show. It ended at <span class="lv">${money(worst.st.reduce((a,b)=>a+b[1],0))}</span>.</h3>
+      <p class="note">Each line is something that happened at this show, in the order it rolled downhill. The running total is on the right.</p></div>${chainSvg(worst.st,true)}</div>`:"";
   $("#auLeaks").innerHTML=CATS.map(([k,l])=>{const v=cat[k];return`<div class="${v<0?"saved":v>0?"leak":""}"><b>${v>0?"+":""}${money(v)}</b><span>${l}</span></div>`}).join("");
   document.querySelectorAll("#auSort button").forEach(b=>b.setAttribute("aria-checked",b.dataset.s===auSort));
   const list=[...rows].sort(auSort==="date"?(x,y)=>y.r.date.localeCompare(x.r.date):(x,y)=>(y.r.type==="cheap"?y.e.diff:-y.e.diff)-(x.r.type==="cheap"?x.e.diff:-x.e.diff));
@@ -1109,53 +1277,54 @@ function renderAudit(){
     const lab=r.type==="cheap"?(e.diff>0?"lost vs smart call":"ahead of smart call"):(e.diff>0?"kept vs cheap call":"cost more than cheap");
     return`<details class="au" data-id="${r.id}"${auOpen===r.id?" open":""}><summary>
       <span class="dd"><b>${dfmt(r.date,{day:"numeric"})}</b><span>${dfmt(r.date,{month:"short"})}</span></span>
-      <span class="nm"><b>${esc(r.name)}</b><span><span class="chip2 ${r.type==="cheap"?"cheap":"skilled"}">${r.type==="cheap"?"Cheap":"Skilled"}</span>${r.example?'<span class="chip2 ex">Example</span>':""}${esc(r.venue||"")} · ${r.crew} hands at $${r.rate}</span></span>
+      <span class="nm"><b>${esc(r.name)}</b><span><span class="chip2 ${r.type==="cheap"?"cheap":"skilled"}">${r.type==="cheap"?"Cheap":"Skilled"}</span>${r.example?'<span class="chip2 ex">Example</span>':""}${esc(r.venue||"")} · ${r.crew} hands at $${r.rate}${r.noShows?` · ${r.noShows} no-show${r.noShows>1?"s":""}`:""}</span></span>
       <span class="abar"><i style="width:${Math.abs(e.diff)/mx*100}%;background:${loss?"var(--loss)":gain?"var(--gain)":"var(--cheap)"}"></i></span>
       <span class="amt ${loss?"loss":gain?"gain":""}"><b>${loss?"−":gain?"+":""}${money(Math.abs(e.diff)).replace("−","")}</b><span>${lab}</span></span>
     </summary><div class="body">${auBody(r,e)}</div></details>`}).join("")||`<p class="note">No shows yet. Add one, or reset to the example shows.</p>`;
   $("#auList").querySelectorAll("details.au").forEach(d=>{d.addEventListener("toggle",()=>{if(d.open)auOpen=d.dataset.id;else if(auOpen===d.dataset.id)auOpen=null});wireAu(d)});
-  // shows in Rundown that have no audit numbers yet
   const have=new Set(AU.map(r=>r.src).filter(Boolean));
   const pend=(typeof SH!=="undefined"&&SH?Object.values(SH.list):[]).filter(s=>!have.has(s.id));
   $("#auPending").innerHTML=pend.length?`<div class="pending"><div><h3>Shows not audited yet</h3><p class="note">These are in Rundown with a room map but no labor numbers. Status: not started.</p></div>${pend.map(s=>`<div class="pr"><span><b>${esc(s.name)}</b>${s.meta&&s.meta.date?` <span class="note">· ${dfmt(s.meta.date,{month:"short",day:"numeric"})}${s.meta.venue?" · "+esc(s.meta.venue):""}</span>`:""}</span><button class="btn" type="button" data-auadd="${s.id}">Add numbers</button></div>`).join("")}</div>`:"";
   $("#auPending").querySelectorAll("[data-auadd]").forEach(b=>b.addEventListener("click",()=>{const s=SH.list[b.dataset.auadd],m=s.meta||{};
-    const crew=Math.max(4,Math.round(s.pieces.length/3));
-    const r={id:rid(),src:s.id,name:s.name,date:m.date||new Date().toISOString().slice(0,10),venue:m.venue||"",type:"cheap",crew,rate:M.c_rate,sched:M.m_hours,actual:M.m_hours,noShows:0,leadFix:0,credit:0,incidents:[]};
+    const r={id:rid(),src:s.id,name:s.name,date:m.date||new Date().toISOString().slice(0,10),venue:m.venue||"",type:"cheap",crew:Math.max(4,Math.round(s.pieces.length/3)),rate:M.c_rate,sched:M.m_hours,actual:M.m_hours,noShows:0,leadFix:0,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]};
     AU.unshift(r);auOpen=r.id;saveAU();renderAudit()}));
 }
 function auBody(r,e){
-  const cmp=`<div class="cmp"><div class="h">${r.type==="cheap"?"This show":"This show"}</div><div class="h n">What it cost</div><div class="h n">${r.type==="cheap"?"Smart call":"Cheap call"}</div><div class="h n">Difference</div>
+  const st=chain(r,e.a);
+  const cmp=`<div class="cmp"><div class="h">This show</div><div class="h n">What it cost</div><div class="h n">${r.type==="cheap"?"Smart call":"Cheap call"}</div><div class="h n">Difference</div>
     ${CATS.map(([k,l])=>{const d=e.a[k]-e.b[k];return`<div>${l}</div><div class="n">${money(e.a[k])}</div><div class="n">${money(e.b[k])}</div><div class="n ${d>0.5?"pos":d<-0.5?"neg":""}">${d>0.5?"+":""}${money(d)}</div>`}).join("")}
     <div class="t">Total</div><div class="n t">${money(e.a.total)}</div><div class="n t">${money(e.b.total)}</div><div class="n t ${e.a.total>e.b.total?"pos":"neg"}">${e.a.total>e.b.total?"+":""}${money(e.a.total-e.b.total)}</div></div>
-    <p class="note" style="margin-top:8px">${esc(e.blabel)}, same ${r.sched} scheduled hours, using the odds in the what-if calculator.</p>`;
-  const f=(k,l,step=1)=>`<label class="f">${l}<input type="number" step="${step}" min="0" data-k="${k}" value="${r[k]}"></label>`;
+    <p class="note" style="margin-top:8px">${esc(e.blabel)}, same ${r.sched} scheduled hours, using the odds in the what-if calculator. Injury and future business lines are expected costs where nothing happened.</p>
+    ${st.length?`<h3 style="margin-top:18px">How it rolled downhill</h3>${chainSvg(st)}`:""}`;
+  const f=(k,l,step=1)=>`<label class="f">${l}<input type="number" step="${step}" min="0" data-k="${k}" value="${r[k]??0}"></label>`;
   const fields=`<div class="fields">
     <label class="f" style="grid-column:1/-1">Show<input type="text" data-k="name" value="${esc(r.name)}"></label>
     <label class="f">Date<input type="date" data-k="date" value="${r.date}"></label>
     <label class="f">Venue<input type="text" data-k="venue" value="${esc(r.venue||"")}"></label>
-    <label class="f">Crew booked<select data-k="type"><option value="cheap"${r.type==="cheap"?" selected":""}>Cheap / unskilled</option><option value="skilled"${r.type!=="cheap"?" selected":""}>Skilled</option></select></label>
-    ${f("crew","Hands on the call")}${f("rate","Hourly rate ($)",.5)}${f("sched","Scheduled hours",.5)}${f("actual","Actual hours",.5)}${f("noShows","No-shows")}${f("leadFix","Lead hours fixing",.5)}${f("credit","Delays / client credit ($)",50)}
+    <label class="f">Crew booked<select data-k="type"><option value="cheap"${r.type==="cheap"?" selected":""}>Cheap / unvetted</option><option value="skilled"${r.type!=="cheap"?" selected":""}>Vetted and skilled</option></select></label>
+    ${f("crew","Hands on the call")}${f("rate","Hourly rate ($)",.5)}${f("sched","Scheduled hours",.5)}${f("actual","Actual hours",.5)}${f("noShows","No-shows")}${f("leadFix","Lead hours fixing",.5)}${f("doorsHeld","Doors held (minutes)",5)}${f("credit","Client credit issued ($, if known)",50)}${f("injuries","Crew injuries")}
+    <label class="f" style="flex-direction:row;align-items:center;gap:8px;grid-column:1/-1"><input type="checkbox" data-k="lostClient" ${r.lostClient?"checked":""} style="width:20px;height:20px;accent-color:var(--fg)"> Client did not rebook after this show</label>
     <div class="incs"><span class="note" style="font-weight:600;color:var(--fg)">Damage and loss</span>${r.incidents.map((i,ix)=>`<div class="ir"><input type="text" data-inc="${ix}" data-ik="name" value="${esc(i.name)}" aria-label="What happened"><input type="number" data-inc="${ix}" data-ik="cost" value="${i.cost}" aria-label="Cost"><button class="ghost" type="button" data-incdel="${ix}">Remove</button></div>`).join("")}<button class="ghost" type="button" data-incadd style="align-self:flex-start">Add damage or loss</button></div>
     <div class="row" style="grid-column:1/-1"><button class="ghost" type="button" data-audel style="flex:0 0 auto">Delete this show</button></div></div>`;
   return `<div>${cmp}</div>${fields}`;
 }
 function wireAu(d){const r=AU.find(x=>x.id===d.dataset.id);if(!r)return;
   const commit=()=>{saveAU();clearTimeout(wireAu.t);wireAu.t=setTimeout(()=>{const y=scrollY;renderAudit();scrollTo(0,y)},450)};
-  d.querySelectorAll("[data-k]").forEach(el=>el.addEventListener(el.tagName==="SELECT"?"change":"input",()=>{const k=el.dataset.k;r[k]=el.type==="number"?(+el.value||0):el.value;if(r.example&&k!=="name")r.example=false;commit()}));
+  d.querySelectorAll("[data-k]").forEach(el=>el.addEventListener(el.tagName==="SELECT"||el.type==="checkbox"?"change":"input",()=>{const k=el.dataset.k;r[k]=el.type==="checkbox"?el.checked:el.type==="number"?(+el.value||0):el.value;if(r.example&&k!=="name")r.example=false;commit()}));
   d.querySelectorAll("[data-inc]").forEach(el=>el.addEventListener("input",()=>{const i=r.incidents[+el.dataset.inc];i[el.dataset.ik]=el.dataset.ik==="cost"?(+el.value||0):el.value;commit()}));
   d.querySelectorAll("[data-incdel]").forEach(b=>b.addEventListener("click",()=>{r.incidents.splice(+b.dataset.incdel,1);saveAU();renderAudit()}));
   const ia=d.querySelector("[data-incadd]");if(ia)ia.addEventListener("click",()=>{r.incidents.push({name:"",cost:0});saveAU();renderAudit()});
   let delArm=0;const del=d.querySelector("[data-audel]");if(del)del.addEventListener("click",()=>{if(Date.now()-delArm<4000){AU=AU.filter(x=>x!==r);saveAU();renderAudit();return}delArm=Date.now();del.textContent="Tap again to delete"});
 }
 $("#auSort").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{auSort=b.dataset.s;renderAudit()}));
-$("#auAdd").addEventListener("click",()=>{const r={id:rid(),name:"New show",date:new Date().toISOString().slice(0,10),venue:"",type:"cheap",crew:8,rate:M.c_rate,sched:M.m_hours,actual:M.m_hours,noShows:0,leadFix:0,credit:0,incidents:[]};AU.unshift(r);auOpen=r.id;auSort="date";saveAU();renderAudit()});
+$("#auAdd").addEventListener("click",()=>{const r={id:rid(),name:"New show",date:new Date().toISOString().slice(0,10),venue:"",type:"cheap",crew:8,rate:M.c_rate,sched:M.m_hours,actual:M.m_hours,noShows:0,leadFix:0,doorsHeld:0,credit:0,injuries:0,lostClient:false,incidents:[]};AU.unshift(r);auOpen=r.id;auSort="date";saveAU();renderAudit()});
 let resetArm=0;$("#auReset").addEventListener("click",e=>{if(Date.now()-resetArm<4000){AU=AUEX.map(x=>({...x,id:rid(),incidents:x.incidents.map(i=>({...i}))}));saveAU();renderAudit();e.currentTarget.textContent="Reset to example shows";return}resetArm=Date.now();e.currentTarget.textContent="Tap again to replace your shows"});
 $("#scanBtn").addEventListener("click",()=>{
   const names=[...AU.map(r=>r.name),...(SH?Object.values(SH.list).map(s=>s.name+" (room map)"):[])];
   const red=matchMedia("(prefers-reduced-motion: reduce)").matches,fill=$("#scanFill"),txt=$("#scanTxt"),btn=$("#scanBtn");
   btn.disabled=true;let i=0;const step=()=>{if(i<names.length){fill.style.width=((i+1)/names.length*100)+"%";txt.textContent=`Scanning ${i+1} of ${names.length}: ${names[i]}`;i++;setTimeout(step,red?0:140)}
     else{renderAudit();const big=$("#auBig"),target=AU.filter(r=>r.type==="cheap").reduce((a,r)=>a+Math.max(0,auEval(r).diff),0),t0=performance.now();
-      const tick=t=>{const u=red?1:Math.min(1,(t-t0)/900);big.textContent=money(target*(1-Math.pow(1-u,3)));if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);
+      const tick=t=>{const u=red?1:Math.min(1,(t-t0)/1100);big.textContent=money(target*(1-Math.pow(1-u,3)));if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);
       txt.textContent=`Scan complete: ${names.length} shows checked against a smart call.`;btn.disabled=false;btn.textContent="Scan again"}};
   fill.style.width="0%";step()});
 $("#scanTxt").textContent=`${AU.length} shows on file. Last numbers shown below.`;
