@@ -493,7 +493,7 @@ function renderDrawer(){
   }).join('');
   const foot=e.status==='request'
     ?`<button class="btn primary" data-act="approve">Approve and draft crew</button><button class="btn" data-act="decline">Not this one</button>`
-    :`<button class="btn primary" data-act="draft">Draft open spots</button>${teamsLink('Open in ADV Media Teams')}`;
+    :`<button class="btn primary" data-act="draft">Draft open spots</button>${teamsLink('Open in ADV Media Teams')}${rundownLink({id:'demo-'+e.id,title:e.title,date:e.date,venue:vname(e.venue)})}`;
   drawer.innerHTML=`<div class="dh"><div><span class="size">${vname(e.venue)} · ${T[e.type].size} show</span><h3>${e.title}</h3><p>${dayLabel(e.date)} · Doors ${e.doors} · Air ${e.air}${e.from?' · from '+e.from:''}</p></div><button class="x" aria-label="Close" data-act="close">×</button></div><div class="db">${body}</div><div class="df">${foot}</div>`;
 }
 drawer.addEventListener('change',ev=>{const s=ev.target.closest('select[data-i]');if(!s)return;const e=EVENTS.find(x=>x.id===openId);e.crew[+s.dataset.i]=s.value===''?null:+s.value;renderDrawer();renderAll(false);});
@@ -635,6 +635,8 @@ function mondayOf(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
 function fmtDay(id,opt){return fromId(id).toLocaleDateString('en-US',opt||{weekday:'short',month:'short',day:'numeric'});}
 let lweek=mondayOf(new Date());
 function teamsHref(){return teamsUrl||((ON_PAGES?'':TEAMS_BASE)+'adv-media-teams.html#shifts');}
+function rundownHref(e){const q=new URLSearchParams({ev:e.id||'',name:e.name||e.title||'',date:e.date||'',venue:(typeof LVENUES!=='undefined'&&(LVENUES.find(v=>v.id===e.venue)||{}).name)||e.venue||'',client:e.client||''});return (ON_PAGES?'':TEAMS_BASE)+'rundown.html?'+q.toString()+'#rooms';}
+function rundownLink(e){return `<a class="btn" href="${esc(rundownHref(e))}" target="_blank" rel="noopener">Open in Rundown</a>`;}
 if(!teamsUrl)teamsUrl=teamsHref();
 
 // GAMES and TRADEABLE_ROLES live inside adv-media-teams.html, so the board reads
@@ -726,7 +728,7 @@ function renderUpcoming(){
       <div class="dt"><b>${fmtDay(e.date,{weekday:'short'})}</b><span>${fmtDay(e.date,{month:'short',day:'numeric'})}</span><em>${awayText(e.date)}</em></div>
       <div class="info"><span class="size">${esc(LVENUES.find(v=>v.id===e.venue).name)} · ${esc(e.client)}</span><span class="nm">${esc(e.name)}</span><span class="m">${esc(timeLine(e))}</span><span class="flags">${liveFlags(e,true)}</span></div>
       <div class="crewbox"><div class="row"><span>Crew</span><b>${f}/${n}</b></div><div class="meter${f<n?' att':''}"><i style="width:${n?Math.round(f/n*100):0}%"></i></div><span class="m">${open.length?'Open: '+esc(open.join(', ')):e.onBoard?'Fully staffed':''}</span></div>
-      <div class="acts"><button class="btn" data-lev="${esc(e.id)}">Positions</button><a class="btn primary" href="${esc(teamsHref())}" target="_blank" rel="noopener">Open in Teams</a></div>
+      <div class="acts"><button class="btn" data-lev="${esc(e.id)}">Positions</button>${rundownLink(e)}<a class="btn primary" href="${esc(teamsHref())}" target="_blank" rel="noopener">Open in Teams</a></div>
     </article>`;}).join('');
 }
 function renderLiveWeek(){
@@ -766,7 +768,7 @@ function openLiveDrawer(id){
   const ev=LIVE&&LIVE.events.find(e=>e.id===id);if(!ev)return;openId=null;
   drawer.innerHTML=`<div class="dh"><div><span class="size">${esc(LVENUES.find(v=>v.id===ev.venue).name)} · ${esc(ev.client)}</span><h3>${esc(ev.name)}</h3><p>${fmtDay(ev.date,{weekday:'long',month:'long',day:'numeric'})} · ${esc(timeLine(ev))}</p></div><button class="x" aria-label="Close" data-act="lclose">×</button></div>
     <div class="db">${ev.onBoard?'':'<div class="check att">This event is not on the shift board yet. Open it in Teams to set it up.</div>'}${ev.pos.map(p=>`<div class="pos"><label>${esc(p.role)}</label><span class="pv${p.name?'':' open'}">${p.name?esc(p.name):'Open'}${p.name&&ev.dbl.includes(p.name)?' <span class="chip att">Double-booked</span>':''}</span></div>`).join('')}</div>
-    <div class="df"><a class="btn primary" href="${esc(teamsHref())}" target="_blank" rel="noopener">Open in Teams</a><span class="hint">Pick up, drop and assign shifts in Teams. This board reads from it.</span></div>`;
+    <div class="df"><a class="btn primary" href="${esc(teamsHref())}" target="_blank" rel="noopener">Open in Teams</a>${rundownLink(ev)}<span class="hint">Pick up, drop and assign shifts in Teams. Map the room and gear in Rundown.</span></div>`;
   drawer.hidden=false;scrim.hidden=false;
 }
 function pill(){

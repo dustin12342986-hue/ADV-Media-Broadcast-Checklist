@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>ADV Rundown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alata&family=Anton&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: retail-site rhythm. Thin utility bar, clean nav with logo left, full-bleed hero with a giant condensed headline,
+   then open white space with soft gray tiles, no outlines, pill-shaped buttons and inputs. ADV black and off-white, violet used once. */
+:root{
+  --bg:#ffffff; --surface:#f5f5f5; --sunk:#e5e5e5; --line:#e5e5e5;
+  --fg:#111111; --muted:#707072; --accent:#5b3df5; --accent-ink:#ffffff;
+  --cheap:#9e9ea0; --skilled:#111111; --soft:#f5f5f5;
+  --inv-bg:#111111; --inv-fg:#ffffff;
+  --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66;
+  --hero-a:#0d1033; --hero-b:#3a1f8f; --hero-c:#0b5bd3;
+  --display:"Anton","Impact","Arial Narrow Bold",sans-serif;
+  --brand:"Alata","Arial Black",Arial,sans-serif;
+  --body:"Work Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:"Work Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c0c0d; --surface:#1a1a1b; --sunk:#26262a; --line:#26262a;
+  --fg:#f5f5f5; --muted:#a0a0a4; --accent:#9a86ff; --accent-ink:#0c0c0d;
+  --cheap:#6e6e73; --skilled:#f5f5f5; --soft:#1a1a1b;
+  --inv-bg:#f5f5f5; --inv-fg:#111111;
+  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0c0d; --surface:#1a1a1b; --sunk:#26262a; --line:#26262a;
+  --fg:#f5f5f5; --muted:#a0a0a4; --accent:#9a86ff; --accent-ink:#0c0c0d;
+  --cheap:#6e6e73; --skilled:#f5f5f5; --soft:#1a1a1b;
+  --inv-bg:#f5f5f5; --inv-fg:#111111;
+  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6;font-variant-numeric:tabular-nums}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 64px}
+/* utility bar */
+.util{background:var(--surface);font-size:12px;font-weight:500;color:var(--fg)}
+.util .in{max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;gap:12px;padding-block:7px}
+.util .muted{color:var(--muted)}
+/* nav */
+.navbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.navbar .in{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;min-height:64px}
+@media (max-width:720px){.navbar .in{grid-template-columns:auto 1fr;padding-block:8px}.navbar .act{display:none}}
+.logo{display:flex;flex-direction:column;align-items:flex-start;line-height:1;color:var(--fg);text-decoration:none}
+.logo img{height:60px;width:auto;display:block}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo img{filter:invert(1)}}
+:root[data-theme="dark"] .logo img{filter:invert(1)}
+.brandrow{display:flex;align-items:center;gap:14px}
+.appname{font-family:var(--display);font-size:28px;line-height:1;text-transform:uppercase;letter-spacing:.01em;padding-left:14px;border-left:1.5px solid var(--sunk)}
+.logo .mk{font-family:var(--brand);font-size:30px;letter-spacing:-.08em}
+.logo .sub{font-family:var(--body);font-size:7.5px;letter-spacing:.32em;text-transform:uppercase;margin-top:2px}
+nav.tabs{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+nav.tabs button{font:inherit;font-weight:500;font-size:16px;background:transparent;color:var(--fg);border:0;padding:8px 12px;cursor:pointer;box-shadow:inset 0 -2px 0 transparent;border-radius:0}
+nav.tabs button:hover{box-shadow:inset 0 -2px 0 var(--sunk)}
+nav.tabs button[aria-selected="true"]{box-shadow:inset 0 -2px 0 var(--fg)}
+.act{display:flex;justify-content:flex-end}
+.pill{display:inline-flex;align-items:center;gap:8px;font:inherit;font-weight:500;font-size:16px;border-radius:999px;padding:12px 24px;cursor:pointer;border:1.5px solid transparent;text-decoration:none}
+.pill.dark{background:var(--inv-bg);color:var(--inv-fg)}
+.pill.light{background:#ffffff;color:#111111}
+.pill.line{background:transparent;color:inherit;border-color:currentColor}
+.pill.sm{font-size:14px;padding:8px 18px}
+.pill:hover{opacity:.85}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* hero */
+.hero{position:relative;overflow:hidden;color:#ffffff;margin-top:8px;
+  background:radial-gradient(120% 90% at 85% 10%,var(--hero-c) 0%,transparent 55%),radial-gradient(90% 120% at 10% 100%,var(--hero-b) 0%,transparent 60%),linear-gradient(160deg,var(--hero-a),#05060f)}
+.hero::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 2px,transparent 2px 38px);mask-image:linear-gradient(transparent 40%,#000);pointer-events:none}
+.hero .in{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding-block:clamp(56px,10vw,120px) clamp(36px,6vw,64px);display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.hero h1{font-family:var(--display);font-weight:400;font-size:clamp(52px,10vw,120px);line-height:.9;text-transform:uppercase;margin:0;letter-spacing:-.005em;text-wrap:balance;max-width:12ch}
+.hero p{max-width:52ch;font-size:17px;color:rgba(255,255,255,.86)}
+.hero .ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+.beta{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:#ffffff;padding:4px 10px;border-radius:999px}
+/* type */
+h2{font-family:var(--body);font-weight:500;font-size:clamp(24px,3vw,32px);line-height:1.15;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h3{font-family:var(--body);font-weight:500;font-size:18px;margin:0;letter-spacing:-.005em}
+p{margin:0}
+.eyebrow{font-size:14px;font-weight:500;color:var(--muted)}
+.lede{color:var(--muted);max-width:68ch;margin-top:8px}
+section.view{margin-top:40px}
+.grid{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr);gap:28px}}
+.panel{background:transparent;padding:0;display:flex;flex-direction:column;gap:14px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:28px;min-width:0}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;color:var(--fg);min-width:0}
+input,select{font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1.5px solid transparent;border-radius:999px;padding:11px 18px;min-width:0;width:100%;transition:border-color .15s}
+input:hover,select:hover{border-color:var(--sunk)}
+input:focus,select:focus{border-color:var(--fg);outline:none}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--fg) 50%),linear-gradient(135deg,var(--fg) 50%,transparent 50%);background-position:calc(100% - 22px) 50%,calc(100% - 16px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 120px}
+button.btn{font:inherit;font-weight:500;font-size:16px;border-radius:999px;padding:12px 24px;cursor:pointer;border:1.5px solid var(--sunk);background:transparent;color:var(--fg)}
+button.primary{background:var(--inv-bg);border-color:var(--inv-bg);color:var(--inv-fg)}
+button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;border:0;color:var(--muted);padding:4px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.inv{display:flex;flex-direction:column}
+.inv-item{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.inv-item .nm{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.inv-item .fn{display:block;font-size:13px;color:var(--muted);font-weight:400;margin-top:2px}
+.inv-item input{padding:7px 10px;text-align:center}
+.tag{font-size:12px;font-weight:500;padding:2px 10px;border-radius:999px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.tag.spec{background:var(--inv-bg);color:var(--inv-fg)}
+.tag.tech{background:var(--sunk);color:var(--fg)}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:620px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.summary div{background:var(--surface);padding:20px;display:flex;flex-direction:column;gap:4px;min-width:0;border-radius:16px}
+.summary b{font-family:var(--display);font-size:clamp(32px,4vw,44px);font-weight:400;line-height:1}
+.summary span{font-size:13px;color:var(--muted);font-weight:500}
+.phase{background:var(--surface);border-radius:20px;overflow:hidden}
+.phase>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;flex-wrap:wrap}
+.phase>summary::-webkit-details-marker{display:none}
+.phase>summary .pn{display:flex;align-items:baseline;gap:12px}
+.phase>summary .num{font-family:var(--display);font-size:22px;color:var(--muted)}
+.status{font-size:13px;color:var(--muted);display:flex;gap:10px;align-items:center;font-weight:500}
+.meter{width:90px;height:4px;background:var(--sunk);border-radius:999px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.tasks{list-style:none;margin:0;padding:0 22px 12px}
+.tasks li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.tasks input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--fg);padding:0}
+.tasks .t{min-width:0;cursor:pointer}
+.tasks .t small{display:block;color:var(--muted);font-size:13px}
+.tasks li.done .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--cheap)}
+.note{font-size:14px;color:var(--muted)}
+.note.box{background:var(--surface);border-radius:16px;padding:16px 20px;color:var(--fg)}
+.ledger{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);background:var(--surface);border-radius:20px;overflow:hidden;padding:6px 8px}
+.ledger>div{padding:12px 14px;border-top:1px solid var(--line);min-width:0}
+.ledger .h{border-top:0;font-weight:500;font-size:14px;color:var(--muted)}
+.ledger .n{text-align:right;font-weight:500}
+.ledger .lbl small{display:block;color:var(--muted);font-size:13px}
+.ledger .tot{font-weight:600}
+.ledger .tot.n{font-family:var(--display);font-weight:400;font-size:24px}
+@media (max-width:560px){.ledger{font-size:14px}.ledger>div{padding:10px 6px}}
+.verdict{padding:clamp(24px,4vw,40px);background:var(--inv-bg);color:var(--inv-fg);border-radius:24px;display:flex;flex-direction:column;gap:10px}
+.verdict .big{font-family:var(--display);font-size:clamp(34px,5.5vw,60px);font-weight:400;line-height:.95;text-transform:uppercase}
+.verdict .big em{font-style:normal;color:var(--accent)}
+.verdict .note,.verdict .eyebrow{color:var(--inv-fg);opacity:.72}
+.bars{display:flex;flex-direction:column;gap:14px}
+.bar{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:center}
+.bar .k{font-size:13px;font-weight:500;color:var(--muted)}
+.track{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--sunk)}
+.track i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:999px;display:inline-block}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.colhead{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.colhead.s{color:var(--fg)} .colhead.c{color:var(--muted)}
+.inc{display:grid;grid-template-columns:22px minmax(0,1fr) 104px;gap:10px;align-items:center;padding:6px 0}
+.inc input[type=checkbox]{width:20px;height:20px;accent-color:var(--fg);padding:0}
+.inc input[type=text]{padding:8px 14px}
+.inc input[type=number]{padding:8px 12px;text-align:right}
+.foot{margin-top:48px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;max-width:90ch}
+@media (prefers-reduced-motion:no-preference){.meter i,.track i{transition:width .35s ease}}
+#view-rooms .grid{grid-template-columns:minmax(0,320px) minmax(0,1fr)}
+@media (max-width:900px){#view-rooms .grid{grid-template-columns:minmax(0,1fr)}}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{font:inherit;font-size:14px;font-weight:500;border-radius:999px;padding:7px 13px;border:1.5px solid var(--sunk);background:transparent;color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.chips button i{width:9px;height:9px;border-radius:999px;display:inline-block}
+.chips button[aria-pressed="false"]{color:var(--muted);opacity:.6}
+.chips button[aria-pressed="false"] i{background:var(--sunk)!important}
+.seg{display:flex;background:var(--surface);border-radius:999px;padding:4px;gap:4px;flex-wrap:wrap}
+.seg button{flex:1 1 90px;font:inherit;font-size:15px;font-weight:500;border:0;border-radius:999px;padding:9px 12px;background:transparent;color:var(--fg);cursor:pointer}
+.seg button[aria-checked="true"]{background:var(--inv-bg);color:var(--inv-fg)}
+.mapbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:16px}
+.mapbtns{display:flex;gap:8px;flex-wrap:wrap}
+.mapwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,320px);gap:20px;margin-top:20px;align-items:start}
+@media (max-width:960px){.mapwrap{grid-template-columns:minmax(0,1fr)}}
+.map{position:relative;height:min(74vh,760px);min-height:420px;background:var(--surface);border-radius:24px;overflow:hidden}
+#map{display:block;width:100%;height:100%;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#map.dragging{cursor:grabbing}
+#map.moving [data-drag],#map.moving .pc{cursor:move}
+.mapctl{position:absolute;display:flex;gap:6px;z-index:2}
+.mapctl.tl{top:12px;left:12px}.mapctl.tr{top:12px;right:12px}.mapctl.br{bottom:12px;right:12px}
+.mb{font:inherit;font-size:14px;font-weight:500;border:0;border-radius:999px;padding:9px 16px;background:var(--bg);color:var(--fg);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.mb.sq{width:40px;padding:9px 0;font-size:18px;line-height:1}
+.mb[aria-pressed="true"]{background:var(--inv-bg);color:var(--inv-fg)}
+.lens{background:var(--bg);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:500;display:flex;gap:10px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.lens .dots{display:flex;gap:4px}.lens .dots i{width:8px;height:8px;border-radius:999px;background:var(--sunk)}.lens .dots i.on{background:var(--fg)}
+.lens .mag{font-family:var(--display);font-size:16px}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.plist{display:flex;flex-direction:column;max-height:360px;overflow:auto;border-top:1px solid var(--line)}
+.plist button{font:inherit;text-align:left;display:grid;grid-template-columns:12px 74px minmax(0,1fr);gap:8px;align-items:center;padding:9px 4px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;font-size:14px}
+.plist button:hover{background:var(--surface)}
+.plist i{width:9px;height:9px;border-radius:999px}
+.plist .cd{font-weight:600;font-variant-numeric:tabular-nums}
+.plist .nm{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card{background:var(--inv-bg);color:var(--inv-fg);border-radius:20px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px}
+.card .code{font-family:var(--display);font-size:40px;line-height:.95;text-transform:uppercase}
+.card .sub{font-size:14px;opacity:.75}
+.card ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+.card ol li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;padding:6px 0;font-size:14px;border-top:1px solid rgba(127,127,127,.3)}
+.card ol li::before{content:"";width:9px;height:9px;border-radius:999px;margin-top:6px;background:var(--wc,currentColor)}
+.card ol small{display:block;opacity:.7;font-size:12.5px}
+.card .x{align-self:flex-start;font:inherit;font-size:13px;background:transparent;border:1px solid currentColor;color:inherit;border-radius:999px;padding:4px 12px;cursor:pointer;opacity:.8}
+/* map drawing */
+#map text{font-family:var(--body);font-size:calc(var(--fs,1) * 1px);fill:var(--fg);pointer-events:none}
+#map .room{fill:var(--bg);stroke:var(--fg);stroke-width:2;vector-effect:non-scaling-stroke}
+#map .gl{stroke:var(--sunk);stroke-width:1;vector-effect:non-scaling-stroke}
+#map .gl2{stroke:var(--line);stroke-width:.5;vector-effect:non-scaling-stroke;opacity:.6}
+#map .door{stroke:var(--bg);stroke-width:6;vector-effect:non-scaling-stroke}
+#map .stage{fill:var(--inv-bg);opacity:.92}
+#map .stage-t{fill:var(--inv-fg);font-weight:600;letter-spacing:.06em}
+#map .foh{fill:var(--sunk);stroke:var(--fg);stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-dasharray:6 4}
+#map .aud{fill:var(--sunk);opacity:.7}
+#map .seat{fill:var(--cheap)}
+#map .tbl{fill:var(--sunk);stroke:var(--cheap);stroke-width:1;vector-effect:non-scaling-stroke}
+#map .zone{font-weight:600;fill:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+#map .route{fill:none;stroke-width:1.5;vector-effect:non-scaling-stroke;opacity:.55}
+#map .route.pw{stroke-dasharray:4 4;opacity:.45}
+#map .route.hot{stroke-width:4;opacity:1}
+#map .pc .body{stroke:var(--bg);stroke-width:1;vector-effect:non-scaling-stroke}
+#map .pc.selId .body{stroke:var(--fg);stroke-width:3}
+#map .pc.dim{opacity:.25}
+#map .port{fill:var(--bg);stroke-width:1.2;vector-effect:non-scaling-stroke}
+#map .ptxt,#map .rowl,#map .seatn{fill:var(--muted)}
+#map .code{font-weight:700}
+#map .meta{fill:var(--muted)}
+#map .halo{paint-order:stroke;stroke:var(--bg);stroke-width:calc(var(--fs) * .28px);stroke-linejoin:round}
+#map .l2,#map .l3,#map .l4{display:none}
+#map.z2 .l2,#map.z3 .l2,#map.z4 .l2,#map.z3 .l3,#map.z4 .l3,#map.z4 .l4{display:inline}
+#map.z2 .l1,#map.z3 .l1,#map.z4 .l1{display:none}
+#map.z3 .not3,#map.z4 .not3{display:none}
+#map .hidew{display:none!important}
+.guide{list-style:none;counter-reset:g;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.guide li{counter-increment:g;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;background:var(--surface);border-radius:16px;padding:16px 18px}
+.guide li::before{content:counter(g,decimal-leading-zero);font-family:var(--display);font-size:26px;line-height:1;color:var(--muted)}
+.guide li b{display:block;font-weight:600;margin-bottom:2px}
+.guide li p{color:var(--muted);font-size:15px}
+
+</style>
+</head>
+<body>
+<div class="util gut"><div class="in"><span>ADV Media Limited Company</span><span class="muted">Teams module · Rundown <span class="beta" style="margin-left:6px;padding:1px 8px;font-size:10px">Beta</span></span></div></div>
+
+<div class="navbar gut">
+  <div class="in">
+    <div class="brandrow"><a class="logo" id="logo" aria-label="ADV Media Limited Company"><img src="data:image/webp;base64,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" alt="ADV Media Limited Company" width="480" height="241"></a><span class="appname">Rundown</span></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" id="tab-build" aria-selected="true" data-view="build">Checklist builder</button>
+      <button role="tab" id="tab-math" aria-selected="false" data-view="math">Labor math</button>
+      <button role="tab" id="tab-rooms" aria-selected="false" data-view="rooms">Room map</button>
+    </nav>
+    <div class="act" style="gap:8px"><a class="pill line sm" id="gridLink" href="facility-grid.html#upcoming">Facility grid</a><button class="pill dark sm" id="heroSample" type="button">Load example show</button></div>
+  </div>
+</div>
+
+<header class="hero gut">
+  <div class="in">
+    <span style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;letter-spacing:.14em;text-transform:uppercase">ADV Rundown <span class="beta">Beta</span></span>
+    <h1>Know what's on the truck.</h1>
+    <p>Build the checklist from the gear, plan the room to scale, size the crew to the work, and see what a cheap call really costs.</p>
+    <div class="ctas">
+      <button class="pill light" type="button" data-go="build">Build a checklist</button>
+      <button class="pill line" type="button" data-go="math">See the labor math</button>
+      <button class="pill line" type="button" data-go="rooms">Room map</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- CHECKLIST BUILDER -->
+  <section class="view" id="view-build">
+    <div class="grid">
+      <div class="stack">
+        <div class="panel">
+          <h2>Show</h2>
+          <label class="f">Show name<input id="showName" type="text"></label>
+          <div class="row">
+            <label class="f">Load-in window (hrs)<input id="window" type="number" min="1" step="0.5"></label>
+            <label class="f">Strike window (hrs)<input id="strikeWin" type="number" min="1" step="0.5"></label>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Add equipment</h2>
+          <label class="f">What it is<input id="newName" type="text" placeholder="e.g. Line array box"></label>
+          <div class="row">
+            <label class="f" style="flex:2 1 160px">What it does<select id="newFn"></select></label>
+            <label class="f" style="flex:1 1 70px">Qty<input id="newQty" type="number" min="1" value="1"></label>
+          </div>
+          <button class="btn primary" id="addBtn">Add to load</button>
+          <p class="note">The function decides the checklist. A box called anything still gets the right steps.</p>
+        </div>
+        <div class="panel">
+          <div class="row" style="align-items:center;justify-content:space-between">
+            <h2 style="flex:0 0 auto">On the truck</h2>
+            <button class="ghost" id="loadSample" style="flex:0 0 auto">Load example show</button>
+          </div>
+          <div class="inv" id="inv"></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="summary" id="sum"></div>
+        <div id="crewNote" class="note box"></div>
+        <div id="phases" class="stack"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LABOR MATH -->
+  <section class="view" id="view-math" hidden>
+    <h2 style="font-family:var(--display);text-transform:uppercase;font-weight:400;font-size:clamp(40px,6vw,72px);line-height:.95">Cheap crew vs. skilled crew</h2>
+    <p class="lede">Same show, same gear, same call. The left column is what the invoice says. The rest is what the show actually pays. Every number below is editable. Rates start at current DFW job listings; incident costs are examples to replace with real invoices.</p>
+
+    <div class="grid" style="margin-top:18px">
+      <div class="stack">
+        <div class="panel">
+          <h3>The call</h3>
+          <div class="row">
+            <label class="f">Scheduled hours<input id="m_hours" type="number" min="1" step="0.5"></label>
+            <label class="f">Shows per year<input id="m_shows" type="number" min="1"></label>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Crew comparison</h3>
+          <div class="two"><span class="colhead s">Skilled</span><span class="colhead c">Cheap</span></div>
+          <div class="two"><label class="f">Hands needed<input id="s_crew" type="number" min="1"></label><label class="f">Hands needed<input id="c_crew" type="number" min="1"></label></div>
+          <div class="two"><label class="f">Hourly rate ($)<input id="s_rate" type="number" step="0.5"></label><label class="f">Hourly rate ($)<input id="c_rate" type="number" step="0.5"></label></div>
+          <div class="two"><label class="f">Time to finish (x scheduled)<input id="s_mult" type="number" step="0.05" min="1"></label><label class="f">Time to finish (x scheduled)<input id="c_mult" type="number" step="0.05" min="1"></label></div>
+          <div class="two"><label class="f">Lead hrs spent fixing<input id="s_sup" type="number" step="0.5" min="0"></label><label class="f">Lead hrs spent fixing<input id="c_sup" type="number" step="0.5" min="0"></label></div>
+          <div class="two"><label class="f">No-show rate (%)<input id="s_ns" type="number" step="1" min="0"></label><label class="f">No-show rate (%)<input id="c_ns" type="number" step="1" min="0"></label></div>
+          <div class="two"><label class="f">Shows with damage (%)<input id="s_dmg" type="number" step="1" min="0"></label><label class="f">Shows with damage (%)<input id="c_dmg" type="number" step="1" min="0"></label></div>
+          <div class="row">
+            <label class="f">Lead tech rate ($/hr)<input id="m_lead" type="number" step="1"></label>
+            <label class="f">Last-minute replacement ($/person)<input id="m_repl" type="number" step="5"></label>
+          </div>
+          <p class="note">A trained crew covers the same load with fewer hands. Extra hours past the schedule are paid at 1.5x.</p>
+        </div>
+        <div class="panel">
+          <h3>Example damage incidents</h3>
+          <p class="note">One of these averages out per damage incident. Swap in your own.</p>
+          <div id="incList"></div>
+          <p class="note" id="incAvg"></p>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="verdict" id="verdict"></div>
+        <div class="ledger" id="ledger"></div>
+        <div class="panel">
+          <h3>Where each dollar goes, per show</h3>
+          <div class="bars" id="bars"></div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="panel">
+          <h3>Over a season</h3>
+          <div class="ledger" id="season" style="border:0"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROOM MAP -->
+  <section class="view" id="view-rooms" hidden>
+    <h2 style="font-family:var(--display);text-transform:uppercase;font-weight:400;font-size:clamp(40px,6vw,72px);line-height:.95">Room map</h2>
+    <p class="note box" id="gridStrip" hidden style="margin-top:12px"></p>
+    <p class="lede">Every show gets its own room. Turn on Move, drag the stage and the gear to match the venue, then zoom in like a microscope: the room, then each world, then each piece and its patch, then every port and seat.</p>
+
+    <div class="mapbar">
+      <label class="f" style="flex:2 1 220px">Show<select id="mShow"></select></label>
+      <label class="f" style="flex:2 1 220px">Show name<input id="mName" type="text"></label>
+      <div class="mapbtns">
+        <button class="btn" id="mNew" type="button">New show</button>
+        <button class="btn" id="mRebuild" type="button">Rebuild from truck</button>
+      </div>
+    </div>
+    <div class="mapbar">
+      <label class="f" style="flex:1 1 90px">Width (ft)<input id="m_w" type="number" min="30" max="300"></label>
+      <label class="f" style="flex:1 1 90px">Length (ft)<input id="m_l" type="number" min="30" max="400"></label>
+      <label class="f" style="flex:1 1 90px">Ceiling (ft)<input id="m_h" type="number" min="8" max="80"></label>
+      <div class="f" style="flex:3 1 300px">Seating<div class="seg" id="mLayout" role="radiogroup" aria-label="Seating layout"></div></div>
+    </div>
+
+    <div class="mapwrap">
+      <div class="map" id="mapBox">
+        <svg id="map" role="img" aria-label="Interactive room map"></svg>
+        <div class="mapctl tl">
+          <div class="lens" id="lens"></div>
+        </div>
+        <div class="mapctl tr">
+          <button class="mb" id="mMove" type="button" aria-pressed="false">Move: off</button>
+        </div>
+        <div class="mapctl br">
+          <button class="mb sq" id="zIn" type="button" aria-label="Zoom in">+</button>
+          <button class="mb sq" id="zOut" type="button" aria-label="Zoom out">−</button>
+          <button class="mb" id="zFit" type="button">Fit room</button>
+        </div>
+      </div>
+      <aside class="side">
+        <label class="f">Pathfinder position<select id="mRole"></select></label>
+        <div class="chips" id="mWorlds"></div>
+        <div id="mInfo"></div>
+        <label class="f">Find a piece<input id="mFind" type="text" placeholder="MIC-03, camera, distro…"></label>
+        <div class="plist" id="mList"></div>
+      </aside>
+    </div>
+
+    <div class="summary" id="roomSum" style="margin-top:28px"></div>
+    <div class="note box" id="screenNote" style="margin-top:12px"></div>
+
+    <div style="margin-top:40px">
+      <h2>Setup guide</h2>
+      <p class="note" style="margin-top:4px" id="guideSub"></p>
+      <ol class="guide" id="guide"></ol>
+    </div>
+  </section>
+
+  <p class="foot">Default rates come from DFW listings as of 2026: general live event crew posted at $18 to $19 per hour, experienced freelance production crew at $25 to $41 per hour. Time, no-show, and damage percentages are planning assumptions, not industry statistics. Replace them with this client's own numbers after the first few shows. Room map: screen height uses the farthest-seat rule (seat distance divided by 4, 6, or 8 by content type) with the image bottom at 48 inches, per Draper. The convention ballroom preset matches the published size of Austin Convention Center Ballroom A. Seating is drawn from fixed spacing, so confirm final counts with the venue. Port numbers and DMX addresses are suggested starting points, not a finished patch.</p>
+</div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const fmt=n=>'$'+Math.round(n).toLocaleString('en-US');
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- Function library: function drives tasks, skill, and minutes per unit ---------- */
+const PHASES=[["prep","Prep at shop"],["loadin","Load-in"],["setup","Setup"],["check","Check"],["show","Show"],["strike","Strike & load-out"]];
+const FN={
+ console:{label:"Audio mixing console",skill:"Specialist",set:60,strike:25,t:{
+  prep:["Load show file; copy backup to USB","Confirm input list matches stage plot"],
+  loadin:["Case stays closed until FOH position is set"],
+  setup:["Power from a clean audio circuit","Patch stage box per input list","Label every channel strip"],
+  check:["Line check every input","Confirm record and stream sends"],
+  show:["Operator at position 30 min before doors"],
+  strike:["Save show file before power down","Cap connectors, close case lid"]}},
+ speaker:{label:"Loudspeaker / PA",skill:"Trained tech",set:15,strike:10,t:{
+  prep:["Test each box on the shop rig"],
+  loadin:["Two people per box, use handles not grilles"],
+  setup:["Place or fly per plot (flying by rigging vendor only)","Run and label speaker cable"],
+  check:["Listen to each box individually","Check coverage at back row"],
+  strike:["Coil speaker cable over-under","Covers on before rolling"]}},
+ wireless:{label:"Wireless mic / IEM",skill:"Trained tech",set:8,strike:5,t:{
+  prep:["Fresh batteries in every pack, spares counted","Run frequency scan for venue"],
+  setup:["Antennas in line of sight","Label each pack with talent name"],
+  check:["Walk test every channel across the stage"],
+  show:["Battery swap plan at intermission"],
+  strike:["Collect and count every pack and capsule","Batteries out before casing"]}},
+ camera:{label:"Camera",skill:"Specialist",set:30,strike:15,t:{
+  prep:["Clean sensor and lens, check firmware","Charge and count batteries and media"],
+  loadin:["Lens caps on, body and lens travel separately"],
+  setup:["Mount and balance on tripod","Run and label video and comms cable"],
+  check:["Match color to switcher","Confirm tally and comms"],
+  strike:["Lens cap on before anything else","Coil fiber or SDI loosely, no kinks"]}},
+ switcher:{label:"Video switcher / playback",skill:"Specialist",set:60,strike:25,t:{
+  prep:["Load show project, confirm graphics and roll-ins"],
+  setup:["Patch inputs per source list","Set multiview labels"],
+  check:["Test every source and transition","Confirm record and stream"],
+  show:["Operator at position 30 min before doors"],
+  strike:["Save project, stop records before power down"]}},
+ ledwall:{label:"LED video wall panel",skill:"Trained tech",set:6,strike:4,t:{
+  prep:["Count panels and spares, check data and power jumpers"],
+  loadin:["Carry by the frame only, never touch the face"],
+  setup:["Hang or stack per wall map (flying by rigging vendor only)","Data and power runs labeled by column"],
+  check:["Run test pattern, flag dead modules"],
+  strike:["Face covers on before any panel moves","Pack panels face to face in carts"]}},
+ display:{label:"Monitor / display",skill:"General hand",set:10,strike:8,t:{
+  loadin:["Two hands per screen, keep it upright"],
+  setup:["Mount on stand rated for the screen","Secure cable so no one trips"],
+  check:["Confirm signal and correct input"],
+  strike:["Screen into padded case before moving"]}},
+ fixture:{label:"Lighting fixture",skill:"Trained tech",set:12,strike:8,t:{
+  prep:["Test each fixture and confirm addressing"],
+  loadin:["Moving heads travel locked in road cases"],
+  setup:["Hang with safety cable on every fixture","DMX and power labeled by position"],
+  check:["Focus and run every cue"],
+  strike:["Let fixtures cool before casing","Re-engage tilt locks"]}},
+ lightdesk:{label:"Lighting console",skill:"Specialist",set:40,strike:20,t:{
+  prep:["Load show file; copy backup to USB"],
+  setup:["Patch universes, confirm fixture profiles"],
+  check:["Run full cue stack"],
+  show:["Operator at position 30 min before doors"],
+  strike:["Save show file before power down"]}},
+ power:{label:"Power distribution",skill:"Specialist",set:45,strike:20,t:{
+  prep:["Inspect feeder and connectors for damage"],
+  setup:["Tie in by qualified person only","Separate audio and lighting circuits","Meter voltage before anything plugs in"],
+  check:["Re-check loads after full system is on"],
+  strike:["Everything downstream off before the tie-in comes out"]}},
+ cable:{label:"Snake / fiber / long cable run",skill:"General hand",set:15,strike:15,t:{
+  prep:["Test each run end to end"],
+  setup:["Route away from walkways, ramp at crossings","Label both ends"],
+  strike:["Over-under coil, never around the elbow","Fiber ends capped and cleaned"]}},
+ deck:{label:"Staging deck / riser",skill:"General hand",set:10,strike:8,t:{
+  loadin:["Legs and decks counted at the dock"],
+  setup:["Level and lock every leg","Skirt and edge-mark per plan"],
+  check:["Walk the deck for bounce and gaps"],
+  strike:["Pins and clamps bagged, counted"]}},
+ comms:{label:"Intercom / comms",skill:"Trained tech",set:8,strike:5,t:{
+  prep:["Charge beltpacks, count headsets"],
+  setup:["Run party line or base station, label each position"],
+  check:["Call every position by name"],
+  strike:["Count every headset and pack"]}},
+ truss:{label:"Ground support / truss",skill:"Trained tech",set:12,strike:10,t:{
+  prep:["Inspect sections for dents and bent tubes"],
+  setup:["Rigging vendor leads; hands assist on the ground only","Pins and safeties on every joint"],
+  strike:["Pull pins only on rigger's call","Pack sections, never stack on chords"]}}
+};
+const SKILL_CLASS={"Specialist":"spec","Trained tech":"tech","General hand":""};
+
+const SAMPLE={name:"Example: 2,000-seat general session",window:8,strike:4,items:[
+ {name:"Digital mixing console",fn:"console",qty:1},{name:"Line array box",fn:"speaker",qty:12},
+ {name:"Handheld and lav mics",fn:"wireless",qty:8},{name:"Broadcast camera",fn:"camera",qty:3},
+ {name:"Video switcher",fn:"switcher",qty:1},{name:"LED wall panel",fn:"ledwall",qty:48},
+ {name:"Moving head",fn:"fixture",qty:16},{name:"Lighting console",fn:"lightdesk",qty:1},
+ {name:"Company switch / distro",fn:"power",qty:2},{name:"Fiber and snake runs",fn:"cable",qty:4},
+ {name:"4x8 stage deck",fn:"deck",qty:12},{name:"Comms beltpack",fn:"comms",qty:6}]};
+
+let st=store.get("lp_state",null)||{name:SAMPLE.name,window:SAMPLE.window,strike:SAMPLE.strike,items:SAMPLE.items.map(x=>({...x,id:Math.random().toString(36).slice(2,9)})),done:{}};
+const save=()=>store.set("lp_state",st);
+
+const sel=$("#newFn");
+Object.entries(FN).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v.label;sel.appendChild(o)});
+
+$("#showName").value=st.name;$("#window").value=st.window;$("#strikeWin").value=st.strike;
+$("#showName").addEventListener("input",e=>{st.name=e.target.value;save()});
+$("#window").addEventListener("input",e=>{st.window=+e.target.value||1;save();renderBuild()});
+$("#strikeWin").addEventListener("input",e=>{st.strike=+e.target.value||1;save();renderBuild()});
+$("#addBtn").addEventListener("click",()=>{
+  const fn=sel.value,name=$("#newName").value.trim()||FN[fn].label,qty=Math.max(1,+$("#newQty").value||1);
+  st.items.push({id:Math.random().toString(36).slice(2,9),name,fn,qty});
+  $("#newName").value="";$("#newQty").value=1;save();renderBuild();});
+$("#loadSample").addEventListener("click",()=>{
+  st={name:SAMPLE.name,window:SAMPLE.window,strike:SAMPLE.strike,items:SAMPLE.items.map(x=>({...x,id:Math.random().toString(36).slice(2,9)})),done:{}};
+  $("#showName").value=st.name;$("#window").value=st.window;$("#strikeWin").value=st.strike;save();renderBuild();});
+
+function renderBuild(){
+  // inventory
+  const inv=$("#inv");inv.innerHTML="";
+  if(!st.items.length){inv.innerHTML='<p class="note" style="padding:10px 0">Nothing on the truck yet. Add a piece of gear above or load the example show.</p>'}
+  st.items.forEach(it=>{
+    const f=FN[it.fn];const d=document.createElement("div");d.className="inv-item";
+    d.innerHTML=`<span class="nm">${esc(it.name)}<span class="fn">${f.label} · <span class="tag ${SKILL_CLASS[f.skill]}">${f.skill}</span></span></span>
+      <input type="number" min="1" value="${it.qty}" aria-label="Quantity for ${esc(it.name)}" id="q_${it.id}">
+      <button class="ghost" aria-label="Remove ${esc(it.name)}">Remove</button>`;
+    d.querySelector("input").addEventListener("input",e=>{it.qty=Math.max(1,+e.target.value||1);save();renderBuild2()});
+    d.querySelector("button").addEventListener("click",()=>{st.items=st.items.filter(x=>x.id!==it.id);save();renderBuild()});
+    inv.appendChild(d)});
+  renderBuild2();
+}
+function renderBuild2(){
+  // labor-hours by skill
+  const hrs={"Specialist":[0,0],"Trained tech":[0,0],"General hand":[0,0]};
+  st.items.forEach(it=>{const f=FN[it.fn];hrs[f.skill][0]+=f.set*it.qty/60;hrs[f.skill][1]+=f.strike*it.qty/60});
+  const need=(h,w)=>h>0?Math.max(1,Math.ceil(h/(w*0.8))):0; // 80% of window is usable working time
+  const crew=Object.fromEntries(Object.entries(hrs).map(([k,[a,b]])=>[k,Math.max(need(a,st.window),need(b,st.strike))]));
+  const totalCrew=Object.values(crew).reduce((a,b)=>a+b,0);
+  const totalSet=Object.values(hrs).reduce((a,[x])=>a+x,0);
+  // tasks
+  const tasks={};PHASES.forEach(([p])=>tasks[p]=[]);
+  st.items.forEach(it=>{const f=FN[it.fn];PHASES.forEach(([p])=>(f.t[p]||[]).forEach((txt,i)=>tasks[p].push({id:it.id+"_"+p+"_"+i,txt,item:it,skill:f.skill})))});
+  const all=Object.values(tasks).flat();const doneN=all.filter(t=>st.done[t.id]).length;
+  $("#sum").innerHTML=`<div><span>Items</span><b>${st.items.reduce((a,b)=>a+b.qty,0)}</b></div>
+   <div><span>Setup labor</span><b>${totalSet.toFixed(1)} hrs</b></div>
+   <div><span>Suggested crew</span><b>${totalCrew}</b></div>
+   <div><span>Checklist</span><b>${doneN}/${all.length}</b></div>`;
+  $("#crewNote").innerHTML=totalCrew?`<strong>Crew for this load:</strong> ${crew["Specialist"]} specialist${crew["Specialist"]===1?"":"s"}, ${crew["Trained tech"]} trained tech${crew["Trained tech"]===1?"":"s"}, ${crew["General hand"]} general hand${crew["General hand"]===1?"":"s"}. Sized to finish setup in ${st.window} hrs and strike in ${st.strike} hrs using 80% of each window as working time. Specialist and trained-tech tasks should not be handed to general hands.`:"Add gear to size the crew.";
+  const ph=$("#phases");ph.innerHTML="";
+  PHASES.forEach(([p,label],i)=>{
+    const list=tasks[p];if(!list.length)return;
+    const d=list.filter(t=>st.done[t.id]).length;const pct=Math.round(d/list.length*100);
+    const status=d===0?"not started":d===list.length?"done":"in progress";
+    const det=document.createElement("details");det.className="phase";det.open=status!=="done";
+    det.innerHTML=`<summary><span class="pn"><span class="num">${String(i+1).padStart(2,"0")}</span><h3>${label}</h3></span>
+      <span class="status">${status} · ${d}/${list.length}<span class="meter"><i style="width:${pct}%"></i></span></span></summary><ul class="tasks"></ul>`;
+    const ul=det.querySelector("ul");
+    list.forEach(t=>{const li=document.createElement("li");if(st.done[t.id])li.className="done";
+      li.innerHTML=`<input type="checkbox" id="c_${t.id}" ${st.done[t.id]?"checked":""}><label class="t" for="c_${t.id}">${esc(t.txt)}<small>${esc(t.item.name)}${t.item.qty>1?" × "+t.item.qty:""}</small></label><span class="tag ${SKILL_CLASS[t.skill]}">${t.skill}</span>`;
+      li.querySelector("input").addEventListener("change",e=>{if(e.target.checked)st.done[t.id]=1;else delete st.done[t.id];save();renderBuild2()});
+      ul.appendChild(li)});
+    ph.appendChild(det)});
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+/* ---------- Labor math ---------- */
+const MDEF={s_crew:7,c_crew:10,m_hours:10,m_shows:40,s_rate:30,c_rate:18,s_mult:1.0,c_mult:1.3,s_sup:0.5,c_sup:3,s_ns:2,c_ns:12,s_dmg:3,c_dmg:15,m_lead:45,m_repl:150};
+const INCDEF=[
+ {on:true,name:"Cracked LED wall panel, dropped face down",cost:1450},
+ {on:true,name:"Moving head yoke bent, cased without tilt lock",cost:1800},
+ {on:true,name:"Fiber run crushed by a road case",cost:900},
+ {on:true,name:"Wireless capsule lost at strike",cost:420},
+ {on:true,name:"Deck leg sheared, deck top replaced",cost:380},
+ {on:false,name:"Truss section dented from stacking",cost:650}];
+let M=Object.assign({},MDEF,store.get("lp_math",{}));
+let INC=store.get("lp_inc",null)||INCDEF.map(x=>({...x}));
+Object.keys(MDEF).forEach(k=>{const el=document.getElementById(k);el.value=M[k];el.addEventListener("input",()=>{M[k]=+el.value||0;store.set("lp_math",M);renderMath()})});
+
+function renderInc(){
+  const box=$("#incList");box.innerHTML="";
+  INC.forEach((x,i)=>{const r=document.createElement("div");r.className="inc";
+    r.innerHTML=`<input type="checkbox" id="inc_on_${i}" ${x.on?"checked":""} aria-label="Include"><input type="text" id="inc_nm_${i}" value="${esc(x.name)}" aria-label="Incident"><input type="number" id="inc_c_${i}" value="${x.cost}" aria-label="Cost">`;
+    const [c,n,v]=r.querySelectorAll("input");
+    c.addEventListener("change",()=>{x.on=c.checked;store.set("lp_inc",INC);renderMath()});
+    n.addEventListener("input",()=>{x.name=n.value;store.set("lp_inc",INC)});
+    v.addEventListener("input",()=>{x.cost=+v.value||0;store.set("lp_inc",INC);renderMath()});
+    box.appendChild(r)});
+}
+function avgInc(){const on=INC.filter(x=>x.on);return on.length?on.reduce((a,b)=>a+b.cost,0)/on.length:0}
+
+function calc(side){
+  const r=M[side+"_rate"],mult=Math.max(1,M[side+"_mult"]),N=M[side+"_crew"],H=M.m_hours;
+  const wages=N*H*r;
+  const extra=N*H*(mult-1)*r*1.5;
+  const sup=M[side+"_sup"]*M.m_lead;
+  const noshow=N*(M[side+"_ns"]/100)*M.m_repl;
+  const dmg=(M[side+"_dmg"]/100)*avgInc();
+  return {wages,extra,sup,noshow,dmg,total:wages+extra+sup+noshow+dmg};
+}
+const LINES=[["wages","Wages on the invoice","hands × hours × rate"],["extra","Extra time to finish","slower crew, paid at 1.5x"],["sup","Lead tech fixing work","hours × lead rate"],["noshow","No-shows replaced","rate × crew × replacement cost"],["dmg","Gear damage","damage chance × avg incident"]];
+function renderMath(){
+  const s=calc("s"),c=calc("c");
+  $("#incAvg").textContent="Average incident: "+fmt(avgInc());
+  let h=`<div class="h">Per show</div><div class="h n" style="color:var(--skilled)">Skilled</div><div class="h n" style="color:var(--cheap)">Cheap</div>`;
+  LINES.forEach(([k,l,sub])=>{h+=`<div class="lbl">${l}<small>${sub}</small></div><div class="n">${fmt(s[k])}</div><div class="n">${fmt(c[k])}</div>`});
+  h+=`<div class="tot lbl">What the show really pays</div><div class="tot n">${fmt(s.total)}</div><div class="tot n">${fmt(c.total)}</div>`;
+  $("#ledger").innerHTML=h;
+  const saved=s.wages-c.wages,diff=c.total-s.total,yr=diff*M.m_shows;
+  $("#verdict").innerHTML= diff>0
+   ? `<span class="eyebrow">The cheap call</span><div class="big">Saves ${fmt(saved)} on paper.<br>Costs <em>${fmt(diff)}</em> more per show.</div><p class="note">Across ${M.m_shows} shows that is ${fmt(yr)} a year spent on the cheaper crew.</p>`
+   : `<span class="eyebrow">With these inputs</span><div class="big">Cheap crew comes out ${fmt(-diff)} ahead per show.</div><p class="note">Check the time, no-show, and damage numbers against real show history.</p>`;
+  // bars
+  const cols={wages:"var(--skilled)",extra:"var(--accent)",sup:"var(--cheap)",noshow:"var(--muted)",dmg:"var(--fg)"};
+  const max=Math.max(s.total,c.total)||1;
+  const bar=(lab,o)=>`<div class="bar"><span class="k">${lab}<br>${fmt(o.total)}</span><div class="track">${LINES.map(([k])=>`<i style="width:${o[k]/max*100}%;background:${cols[k]}" title="${k}"></i>`).join("")}</div></div>`;
+  $("#bars").innerHTML=bar("Skilled",s)+bar("Cheap",c);
+  $("#legend").innerHTML=LINES.map(([k,l])=>`<span><i style="background:${cols[k]}"></i>${l}</span>`).join("");
+  // season
+  const n=M.m_shows;
+  $("#season").innerHTML=`<div class="h">${n} shows</div><div class="h n" style="color:var(--skilled)">Skilled</div><div class="h n" style="color:var(--cheap)">Cheap</div>
+   <div class="lbl">Wages on the invoice</div><div class="n">${fmt(s.wages*n)}</div><div class="n">${fmt(c.wages*n)}</div>
+   <div class="lbl">Everything else</div><div class="n">${fmt((s.total-s.wages)*n)}</div><div class="n">${fmt((c.total-c.wages)*n)}</div>
+   <div class="lbl">Expected damage incidents</div><div class="n">${(M.s_dmg/100*n).toFixed(1)}</div><div class="n">${(M.c_dmg/100*n).toFixed(1)}</div>
+   <div class="tot lbl">Total</div><div class="tot n">${fmt(s.total*n)}</div><div class="tot n">${fmt(c.total*n)}</div>`;
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>show(b.dataset.view)));
+const VIEWS=["build","math","rooms"];const fromHash=()=>VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):"build";
+function show(v){document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===v));
+  VIEWS.forEach(k=>$("#view-"+k).hidden=k!==v);if(v==="rooms")requestAnimationFrame(fit);if(location.hash!=="#"+v)history.replaceState(null,"","#"+v)}
+window.addEventListener("hashchange",()=>show(fromHash()));
+
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{show(b.dataset.go);document.getElementById("view-"+b.dataset.go).scrollIntoView({behavior:"smooth",block:"start"})}));
+document.getElementById("heroSample").addEventListener("click",()=>{document.getElementById("loadSample").click();show("build")});
+/* ---------- Room map (semantic zoom) ---------- */
+const WORLDS={audio:"Audio",video:"Video",lighting:"Lighting",power:"Power",staging:"Staging",comms:"Comms"};
+const WC=w=>`var(--w-${w})`;
+const ROLES={eic:["EIC (sees everything)",Object.keys(WORLDS)],a1:["A1 / FOH audio",["audio","power","comms","staging"]],a2:["A2 / stage audio",["audio","comms","staging"]],vid:["Video lead",["video","power","comms"]],ld:["Lighting director",["lighting","power","staging"]],sm:["Stage manager",["staging","comms","audio"]]};
+const TYPES={
+ foh_audio:{w:"audio",name:"FOH audio console",code:"AUD",sw:6,sd:2.6,shape:"rect",power:1},
+ stagebox:{w:"audio",name:"Stage box",code:"SB",sw:2.2,sd:1.6,shape:"rect",parent:"foh_audio",power:1},
+ speaker:{w:"audio",name:"Loudspeaker",code:"SPK",sw:3,sd:2.4,shape:"spk",parent:"stagebox",power:1},
+ mic:{w:"audio",name:"Mic position",code:"MIC",sw:1.2,sd:1.2,shape:"dot",parent:"stagebox"},
+ foh_video:{w:"video",name:"Video switcher",code:"SW",sw:5,sd:2.6,shape:"rect",power:1},
+ cam:{w:"video",name:"Camera",code:"CAM",sw:2.6,sd:2.6,shape:"cam",parent:"foh_video",power:1},
+ ledwall:{w:"video",name:"LED wall",code:"LED",sw:20,sd:1.4,shape:"rect",parent:"foh_video",power:1},
+ screen:{w:"video",name:"Display / monitor",code:"DSP",sw:4,sd:.8,shape:"rect",parent:"foh_video",power:1},
+ foh_light:{w:"lighting",name:"Lighting console",code:"LXD",sw:4.4,sd:2.6,shape:"rect",power:1},
+ fixture:{w:"lighting",name:"Lighting fixture",code:"LX",sw:1.6,sd:1.6,shape:"dot",parent:"foh_light",power:1},
+ truss:{w:"staging",name:"Truss / ground support",code:"TR",sw:10,sd:1,shape:"rect"},
+ distro:{w:"power",name:"Power distro",code:"PWR",sw:3,sd:2,shape:"rect"},
+ commsbase:{w:"comms",name:"Comms base station",code:"COM",sw:2.2,sd:1.6,shape:"rect",power:1},
+ beltpack:{w:"comms",name:"Comms beltpack",code:"BP",sw:1,sd:1,shape:"dot",parent:"commsbase"}
+};
+const LAYOUTS={theater:"Theater",banquet:"Banquet rounds",classroom:"Classroom"};
+const rid=()=>Math.random().toString(36).slice(2,9);
+const pad=n=>String(n).padStart(2,"0");
+let SH=store.get("rd_shows",null);
+const saveSH=()=>store.set("rd_shows",SH);
+const cur=()=>SH.list[SH.cur];
+
+function buildFromTruck(sh){
+  const W=sh.room.w,L=sh.room.l;
+  const cnt=fn=>st.items.filter(i=>i.fn===fn).reduce((a,b)=>a+b.qty,0);
+  const decks=cnt("deck");
+  const sw=Math.min(W-24,Math.max(16,decks?8*Math.ceil(decks/3):24)),sd=12;
+  sh.stage={x:Math.round((W-sw)/2),y:0,w:sw,d:sd};
+  const front=sd+10,back=L-8;
+  sh.foh={x:Math.round(W/2-8),y:Math.round(front+(back-front)*0.62-5),w:16,d:10};
+  const P=[],n={};
+  const add=(type,x,y,extra={})=>{n[type]=(n[type]||0)+1;P.push({id:rid(),type,code:`${TYPES[type].code}-${pad(n[type])}`,x:+x.toFixed(1),y:+y.toFixed(1),...extra})};
+  const S=sh.stage,F=sh.foh,cx=S.x+S.w/2;
+  let consoles=cnt("console"),spk=cnt("speaker"),mic=cnt("wireless"),cam=cnt("camera"),swc=cnt("switcher"),led=cnt("ledwall"),dsp=cnt("display"),fx=cnt("fixture"),lxd=cnt("lightdesk"),pwr=cnt("power"),com=cnt("comms"),tr=cnt("truss");
+  if(!st.items.length){consoles=1;spk=2;mic=2;cam=1;swc=1;pwr=1}
+  const anyAudio=consoles+spk+mic>0;
+  if(anyAudio&&!consoles)consoles=1;
+  for(let i=0;i<consoles;i++)add("foh_audio",F.x+1.5+i*0.5,F.y+F.d-3.6);
+  if(cam+led+dsp>0&&!swc)swc=1;
+  for(let i=0;i<swc;i++)add("foh_video",F.x+F.w-6.5,F.y+F.d-3.6);
+  if(fx&&!lxd)lxd=1;
+  for(let i=0;i<lxd;i++)add("foh_light",F.x+F.w/2-2.2,F.y+1.2);
+  if(anyAudio)add("stagebox",S.x+S.w-4,S.y+S.d-2.6);
+  if(com){add("commsbase",F.x+1.5,F.y+1.2)}
+  if(led){const cols=Math.ceil(Math.sqrt(led*16/9)),rows=Math.ceil(led/cols),ww=+(cols*1.64).toFixed(1);add("ledwall",cx-ww/2,S.y+1,{w:ww,panels:led,cols,rows})}
+  const half=Math.ceil(spk/2);
+  for(let i=0;i<spk;i++){const left=i<half,k=left?i:i-half;add("speaker",left?S.x-4.2:S.x+S.w+1.2,S.y+1+k*2.6)}
+  for(let i=0;i<mic;i++){add("mic",S.x+3+(S.w-6)*(mic===1?.5:i/(mic-1)),S.y+S.d-3.2-(i%2)*1.6)}
+  for(let i=0;i<dsp;i++){add("screen",S.x+2+((S.w-8)*(dsp===1?.5:i/(dsp-1))),S.y+S.d-0.9)}
+  const rowA=Math.ceil(fx/2);
+  for(let i=0;i<fx;i++){const r=i<rowA?0:1,k=r?i-rowA:i,m=r?fx-rowA:rowA;add("fixture",S.x+1.5+(S.w-4.6)*(m===1?.5:k/(m-1)),S.y+(r?S.d-5.5:3.4))}
+  for(let i=0;i<tr;i++)add("truss",cx-5,S.y+3.1+(i%2)*(S.d-6.4),{w:Math.min(S.w-2,40)});
+  const camSpots=[[F.x+F.w+2,F.y+F.d/2-1.3],[S.x-6.5,S.y+S.d+3],[S.x+S.w+4,S.y+S.d+3],[F.x-4.6,F.y+F.d/2-1.3]];
+  for(let i=0;i<cam;i++){const p=camSpots[i]||[6+i*4,L-6];add("cam",p[0],p[1])}
+  const pSpots=[[S.x+2,S.y+S.d+1],[F.x+F.w+1,F.y+F.d+1.5],[S.x+S.w-5,S.y+S.d+1]];
+  for(let i=0;i<Math.max(pwr,1);i++){const p=pSpots[i]||[4,4+i*4];add("distro",p[0],p[1])}
+  const bpSpots=P.filter(p=>p.type==="cam").map(p=>[p.x+.8,p.y+4.5]).concat([[F.x+5,F.y+F.d-1.5],[S.x+S.w+1,S.y+S.d-1.5],[S.x-1.5,S.y+S.d-1.5]]);
+  for(let i=0;i<com;i++){const p=bpSpots[i]||[F.x+2+i,F.y+F.d+3];add("beltpack",p[0],p[1])}
+  sh.pieces=P;
+}
+function newShow(name){
+  const id=rid();
+  SH.list[id]={id,name,room:{w:80,l:120,h:20,layout:"theater",view:6},pieces:[]};
+  SH.cur=id;buildFromTruck(SH.list[id]);saveSH();return SH.list[id];
+}
+if(!SH||!SH.list||!SH.list[SH.cur]){SH={cur:null,list:{},role:"eic",hide:[]};newShow(st.name||"Example show")}
+(function fromGrid(){let q;try{q=new URLSearchParams(location.search)}catch(e){return}
+  const ev=q.get("ev");if(!ev)return;
+  const name=q.get("name")||"Show",date=q.get("date")||"",venue=q.get("venue")||"",client=q.get("client")||"";
+  const key="grid:"+ev;let found=Object.values(SH.list).find(s=>s.src===key);
+  if(!found){found=newShow(name);found.src=key}
+  found.meta={date,venue,client};SH.cur=found.id;saveSH();
+  if(!location.hash)history.replaceState(null,"",location.pathname+location.search+"#rooms");
+  window.__fromGrid=found;})();
+SH.hide=SH.hide||[];SH.role=SH.role||"eic";
+
+/* derived: parents, ports, routes */
+function pw(p){return p.w||TYPES[p.type].sw} function pd(p){return TYPES[p.type].sd}
+function ctr(p){return [p.x+pw(p)/2,p.y+pd(p)/2]}
+function derive(sh){
+  const by={},links=[],kids={};
+  sh.pieces.forEach(p=>(by[p.type]=by[p.type]||[]).push(p));
+  const near=(p,t)=>{const c=by[t];if(!c)return null;const [x,y]=ctr(p);let b=null,bd=1e9;c.forEach(q=>{const [a,e]=ctr(q),d=Math.hypot(a-x,e-y);if(d<bd){bd=d;b=q}});return b};
+  sh.pieces.forEach(p=>{const T=TYPES[p.type];
+    if(T.parent){const q=near(p,T.parent);if(q){(kids[q.id]=kids[q.id]||[]).push(p);links.push({a:p,b:q,kind:"sig"})}}
+    if(T.power){const q=near(p,"distro");if(q){(kids[q.id+"#pw"]=kids[q.id+"#pw"]||[]).push(p);links.push({a:p,b:q,kind:"pw"})}}});
+  const port={};
+  Object.entries(kids).forEach(([k,arr])=>{arr.sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));const isPw=k.endsWith("#pw");
+    const counters={};arr.forEach(p=>{const grp=isPw?"pw":(p.type==="speaker"?"out":p.type==="ledwall"||p.type==="screen"?"out":"in");counters[grp]=(counters[grp]||0)+1;port[p.id+(isPw?"#pw":"")]={n:counters[grp],grp,idx:arr.indexOf(p),of:arr.length}})});
+  return {by,links,kids,port};
+}
+function portLabel(p,parent,pt){
+  if(!pt)return"";const n=pt.n;
+  switch(p.type){
+    case"mic":return`Stage box in ${n} → FOH ch ${n}`;
+    case"speaker":return`Stage box out ${n}`;
+    case"stagebox":return`Snake → FOH console`;
+    case"cam":return`Switcher in ${n}`;
+    case"ledwall":case"screen":return`Switcher out ${n}`;
+    case"fixture":return`DMX U1 · addr ${1+16*(n-1)}`;
+    case"beltpack":return`Party line ${n%2?"A":"B"}`;
+  }return`Port ${n}`;
+}
+function trunkX(sh,a,b){const W=sh.room.w;const mid=(a[0]+b[0])/2;return mid<W/2?2.5:W-2.5}
+function route(sh,a,b){
+  const A=ctr(a),B=ctr(b);
+  if(Math.abs(A[1]-B[1])>24&&Math.abs(A[0]-B[0])<sh.room.w){const tx=trunkX(sh,A,B);
+    const ys=Math.min(A[1],B[1])===A[1]?sh.stage.y+sh.stage.d+3:A[1];
+    return [A,[A[0],ys],[tx,ys],[tx,B[1]],B]}
+  return [A,[A[0],B[1]],B];
+}
+const plen=pts=>pts.reduce((s,p,i)=>i?s+Math.abs(p[0]-pts[i-1][0])+Math.abs(p[1]-pts[i-1][1]):0,0);
+const cableFt=pts=>Math.ceil((plen(pts)*1.1+10)/5)*5;
+
+/* seating */
+function seating(sh){
+  const W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,lay=sh.room.layout;
+  const front=S.y+S.d+10,back=L-8,cx=S.x+S.w/2,aisle=6,side=5;
+  const out=[],rows=[];let seats=0,far=0;
+  const inF=(x,y,w,d)=>x+w>F.x-4&&x<F.x+F.w+4&&y+d>F.y-3&&y<F.y+F.d+3;
+  const blocks=[[side,cx-aisle/2],[cx+aisle/2,W-side]].filter(([a,b])=>b-a>2);
+  let r=0;
+  if(lay==="theater"){
+    for(let y=front;y+2<=back;y+=3,r++){let sn=0;const L2=String.fromCharCode(65+(r%26))+(r>=26?Math.floor(r/26):"");
+      rows.push([side-1.2,y+1,L2]);
+      blocks.forEach(([a,b])=>{for(let x=a;x+2<=b;x+=2){sn++;if(inF(x,y,2,2))continue;out.push(`<rect class="seat" x="${x+.3}" y="${y+.3}" width="1.4" height="1.4" rx=".3"/><text class="seatn l4" x="${x+1}" y="${y+1}" text-anchor="middle" dominant-baseline="central" style="fill:var(--bg);font-size:calc(var(--fs) * .7px)">${sn}</text>`);seats++;far=Math.max(far,y+2)}})}
+  }else if(lay==="banquet"){
+    const pitch=11,rr=2.75;let tn=0;
+    for(let y=front+pitch/2;y+pitch/2<=back;y+=pitch){
+      blocks.forEach(([a,b])=>{const n=Math.floor((b-a)/pitch),off=a+((b-a)-n*pitch)/2;
+        for(let i=0;i<n;i++){const x=off+pitch*(i+.5);if(inF(x-pitch/2,y-pitch/2,pitch,pitch))continue;tn++;
+          out.push(`<circle class="tbl" cx="${x}" cy="${y}" r="${rr}"/><text class="rowl l3" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">T${tn}</text>`);
+          for(let k=0;k<10;k++){const t=k/10*Math.PI*2;out.push(`<circle class="seat" cx="${(x+Math.cos(t)*(rr+1)).toFixed(2)}" cy="${(y+Math.sin(t)*(rr+1)).toFixed(2)}" r=".55"/>`)}
+          seats+=10;far=Math.max(far,y+rr+1.5)}})}
+  }else{
+    for(let y=front;y+5<=back;y+=5,r++){rows.push([side-1.2,y+1.5,String(r+1)]);
+      blocks.forEach(([a,b])=>{for(let x=a;x+6<=b;x+=6){if(inF(x,y,6,5))continue;
+        out.push(`<rect class="tbl" x="${x+.2}" y="${y}" width="5.6" height="1.5"/>`);
+        for(let k=0;k<3;k++)out.push(`<circle class="seat" cx="${x+1+k*2}" cy="${y+2.6}" r=".6"/>`);
+        seats+=3;far=Math.max(far,y+3.5)}})}
+  }
+  rows.forEach(([x,y,t])=>out.push(`<text class="rowl l3" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${t}</text>`));
+  return {svg:out.join(""),seats,far:far-(S.y+S.d),front,back};
+}
+
+/* view state */
+const svgEl=$("#map"),box=$("#mapBox");
+let view={x:0,y:0,w:100,h:100},fitW=100,selId=null,moveOn=false;
+function fit(){const sh=cur(),W=sh.room.w,L=sh.room.l,bw=box.clientWidth||800,bh=box.clientHeight||600,pad=8;
+  const ar=bw/bh;let w=W+pad*2,h=L+pad*2;if(w/h>ar)h=w/ar;else w=h*ar;
+  view={x:W/2-w/2,y:L/2-h/2,w,h};fitW=w;applyView()}
+function lod(){const k=fitW/view.w;return k>=8?4:k>=3.5?3:k>=1.7?2:1}
+function applyView(){
+  svgEl.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`);
+  const ppf=(box.clientWidth||800)/view.w;svgEl.style.setProperty("--fs",(13/ppf).toFixed(4));
+  const z=lod();svgEl.classList.remove("z1","z2","z3","z4");svgEl.classList.add("z"+z);
+  const k=fitW/view.w;const names=["Room","Worlds","Pieces + patch","Ports + seats"];
+  $("#lens").innerHTML=`<span class="mag">${k<10?k.toFixed(1):Math.round(k)}×</span><span class="dots">${[1,2,3,4].map(i=>`<i class="${i<=z?"on":""}"></i>`).join("")}</span><span>${names[z-1]}</span>`;
+}
+function zoomAt(f,cx,cy){const nw=Math.min(Math.max(view.w/f,fitW/40),fitW*1.5),r=nw/view.w;
+  view.x=cx-(cx-view.x)*r;view.y=cy-(cy-view.y)*r;view.h*=r;view.w=nw;applyView()}
+function toSvg(e){const pt=svgEl.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(svgEl.getScreenCTM().inverse())}
+let anim=null;
+function flyTo(x,y,w){cancelAnimationFrame(anim);const s={...view},ar=view.h/view.w,t0=performance.now(),tw=w,th=w*ar,tx=x-tw/2,ty=y-th/2;
+  const red=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const step=t=>{let u=red?1:Math.min(1,(t-t0)/450);u=1-Math.pow(1-u,3);view={x:s.x+(tx-s.x)*u,y:s.y+(ty-s.y)*u,w:s.w+(tw-s.w)*u,h:s.h+(th-s.h)*u};applyView();if(u<1)anim=requestAnimationFrame(step)};anim=requestAnimationFrame(step)}
+
+/* render */
+function shapeSvg(p){const T=TYPES[p.type],w=pw(p),d=pd(p),c=WC(T.w);
+  if(T.shape==="dot")return`<circle class="body" cx="${w/2}" cy="${d/2}" r="${w/2}" fill="${c}"/>`;
+  if(T.shape==="spk")return`<path class="body" d="M0 0 H${w} L${w*.78} ${d} H${w*.22} Z" fill="${c}"/>`;
+  if(T.shape==="cam")return`<rect class="body" x="0" y="${d*.2}" width="${w*.72}" height="${d*.6}" rx=".2" fill="${c}"/><path class="body" d="M${w*.72} ${d*.5} L${w} ${d*.2} V${d*.8} Z" fill="${c}"/>`;
+  return`<rect class="body" x="0" y="0" width="${w}" height="${d}" rx=".25" fill="${c}"/>`}
+function renderMap(){
+  const sh=cur(),W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,D=derive(sh),seat=seating(sh);
+  const vis=new Set(ROLES[SH.role][1].filter(w=>!SH.hide.includes(w)));
+  const hid=w=>vis.has(w)?"":" hidew";
+  const g=[];
+  g.push(`<rect class="room" x="0" y="0" width="${W}" height="${L}"/>`);
+  for(let x=2;x<W;x+=2)if(x%10)g.push(`<line class="gl2 l3" x1="${x}" y1="0" x2="${x}" y2="${L}"/>`);
+  for(let y=2;y<L;y+=2)if(y%10)g.push(`<line class="gl2 l3" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
+  for(let x=10;x<W;x+=10)g.push(`<line class="gl" x1="${x}" y1="0" x2="${x}" y2="${L}"/>`);
+  for(let y=10;y<L;y+=10)g.push(`<line class="gl" x1="0" y1="${y}" x2="${W}" y2="${y}"/><text class="meta l2" x="-1" y="${y}" text-anchor="end" dominant-baseline="central">${y}′</text>`);
+  for(let x=10;x<W;x+=10)g.push(`<text class="meta l2" x="${x}" y="-1.2" text-anchor="middle">${x}′</text>`);
+  [W*.25,W*.75].forEach((d,i)=>g.push(`<line class="door" x1="${d-3}" y1="${L}" x2="${d+3}" y2="${L}"/><text class="meta l2" x="${d}" y="${L+2.5}" text-anchor="middle">${i?"Doors":"Load-in door"}</text>`));
+  // audience
+  g.push(`<rect class="aud l1" x="5" y="${seat.front}" width="${W-10}" height="${Math.max(0,seat.back-seat.front)}"/>`);
+  g.push(`<g class="l2">${seat.svg}</g>`);
+  // FOH + stage
+  g.push(`<rect class="foh" data-drag="foh" x="${F.x}" y="${F.y}" width="${F.w}" height="${F.d}" rx=".8"/>`);
+  g.push(`<g data-drag="stage" data-dx="0" id="stageG"><rect class="stage" x="${S.x}" y="${S.y}" width="${S.w}" height="${S.d}"/></g>`);
+  // routes
+  D.links.forEach(l=>{if(!vis.has(TYPES[l.a.type].w)&&!(l.kind==="pw"&&vis.has("power")))return;
+    const pts=route(sh,l.a,l.b),wd=l.kind==="pw"?"power":TYPES[l.a.type].w;if(!vis.has(wd))return;
+    g.push(`<path class="route ${l.kind==="pw"?"pw l3":"l2"}" data-rt="${l.a.id}|${l.kind}" d="M${pts.map(p=>p[0].toFixed(2)+" "+p[1].toFixed(2)).join(" L")}" stroke="${WC(wd)}"/>`)});
+  // pieces
+  sh.pieces.forEach(p=>{const T=TYPES[p.type],w=pw(p),d=pd(p),par=D.links.find(l=>l.a===p&&l.kind==="sig"),pt=D.port[p.id];
+    let inner=shapeSvg(p);
+    if(p.type==="ledwall"&&p.cols){for(let c=1;c<p.cols;c++)inner+=`<line class="l3" x1="${c*w/p.cols}" y1="0" x2="${c*w/p.cols}" y2="${d}" stroke="var(--bg)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+      for(let c=0;c<p.cols;c++)inner+=`<text class="l4" x="${(c+.5)*w/p.cols}" y="${d+1}" text-anchor="middle" style="fill:var(--muted);font-size:calc(var(--fs) * .75px)">C${c+1}</text>`}
+    // ports on parents
+    const ks=D.kids[p.id];if(ks){ks.forEach((k,i)=>{const px=(i+1)*w/(ks.length+1);inner+=`<circle class="port l4" cx="${px}" cy="${d}" r="${Math.min(.28,w/(ks.length+1)/2.6)}" stroke="${WC(TYPES[k.type].w)}"/><text class="ptxt l4" x="${px}" y="${d+.9}" text-anchor="middle" style="font-size:calc(var(--fs) * .62px)">${D.port[k.id]?D.port[k.id].n:""}</text>`})}
+    const lab=`<text class="code halo l2" x="${w/2}" y="-0.6" text-anchor="middle">${p.code}</text>`+
+      (par?`<text class="meta halo ${TYPES[p.type].shape==="dot"?"l4":"l3"}" x="${w/2}" y="${d+(ks?1.9:.5)}" text-anchor="middle" dominant-baseline="hanging" style="fill:${WC(T.w)};font-size:calc(var(--fs) * .85px)">${esc(portLabel(p,par.b,pt))}</text>`:"")+
+      `<text class="meta halo l4" x="${w/2}" y="${d+(ks?1.9:.5)}" dy="${par?"1.45em":"0"}" text-anchor="middle" dominant-baseline="hanging" style="font-size:calc(var(--fs) * .8px)">${esc(T.name)}${p.panels?` · ${p.panels} panels`:""}</text>`;
+    g.push(`<g class="pc${p.id===selId?" selId":""}${hid(T.w)}" data-id="${p.id}" transform="translate(${p.x} ${p.y})">${inner}${lab}</g>`)});
+  // labels on top
+  g.push(`<text class="stage-t" x="${S.x+S.w/2}" y="${S.y+S.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">STAGE ${S.w}′ × ${S.d}′</text>`);
+  g.push(`<text class="zone l1" x="${F.x+F.w/2}" y="${F.y+F.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">FOH</text>`);
+  g.push(`<text class="zone l2 halo" x="${F.x+F.w/2}" y="${F.y-1}" text-anchor="middle">FOH / VIDEO VILLAGE</text>`);
+  g.push(`<text class="zone l1" x="${W/2}" y="${(seat.front+seat.back)/2-F.d}" text-anchor="middle" style="font-size:calc(var(--fs) * 1.1px)">AUDIENCE · ${seat.seats.toLocaleString()} SEATS</text>`);
+  g.push(`<text class="meta" x="${W/2}" y="-4" text-anchor="middle" style="font-weight:600;fill:var(--fg)">${W}′ × ${L}′ · upstage wall</text>`);
+  svgEl.innerHTML=g.join("");
+  svgEl.classList.toggle("moving",moveOn);
+  renderSide(D);renderStats(seat);applyView();
+}
+
+/* side panel */
+function renderSide(D){
+  const sh=cur(),roleW=ROLES[SH.role][1];
+  $("#mWorlds").innerHTML=roleW.map(w=>{const c=sh.pieces.filter(p=>TYPES[p.type].w===w).length;return`<button type="button" data-w="${w}" aria-pressed="${!SH.hide.includes(w)}"><i style="background:${WC(w)}"></i>${WORLDS[w]} ${c}</button>`}).join("");
+  $("#mWorlds").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{const w=b.dataset.w;SH.hide=SH.hide.includes(w)?SH.hide.filter(x=>x!==w):[...SH.hide,w];saveSH();renderMap()}));
+  const p=sh.pieces.find(x=>x.id===selId);
+  if(p){const T=TYPES[p.type],sig=D.links.find(l=>l.a===p&&l.kind==="sig"),pwl=D.links.find(l=>l.a===p&&l.kind==="pw");
+    const hops=[`<li style="--wc:${WC(T.w)}"><span><b>${p.code}</b> ${esc(T.name)}<small>${p.x.toFixed(1)} ft from house-left wall · ${p.y.toFixed(1)} ft from upstage wall</small></span></li>`];
+    let a=p,l=sig,guard=0;while(l&&guard++<4){const pts=route(sh,l.a,l.b);hops.push(`<li style="--wc:${WC(TYPES[l.b.type].w)}"><span><b>${l.b.code}</b> ${esc(TYPES[l.b.type].name)}<small>${esc(portLabel(l.a,l.b,D.port[l.a.id]))} · about ${cableFt(pts)} ft of cable</small></span></li>`);a=l.b;l=D.links.find(x=>x.a===a&&x.kind==="sig")}
+    const kids=(D.kids[p.id]||[]).map(k=>k.code).join(", ");
+    const pwTxt=pwl?`<li style="--wc:${WC("power")}"><span><b>${pwl.b.code}</b> Power<small>Circuit ${D.port[p.id+"#pw"].n} · about ${cableFt(route(sh,p,pwl.b))} ft of feeder</small></span></li>`:"";
+    $("#mInfo").innerHTML=`<div class="card"><span class="sub">${WORLDS[T.w]} · Pathfinder</span><div class="code">${p.code}</div><div class="sub">${esc(T.name)}${p.panels?` · ${p.panels} panels (${p.cols} × ${p.rows})`:""}</div><ol>${hops.join("")}${pwTxt}</ol>${kids?`<div class="sub">Feeds: ${kids}</div>`:""}<button class="x" type="button" id="mClose">Close</button></div>`;
+    $("#mClose").addEventListener("click",()=>{selId=null;renderMap()});
+  }else $("#mInfo").innerHTML=`<p class="note">Tap any piece to trace it in Pathfinder: where it plugs in, which port, how much cable, and where its power comes from.</p>`;
+  renderList();
+}
+function renderList(){
+  const sh=cur(),q=$("#mFind").value.trim().toLowerCase(),vis=ROLES[SH.role][1].filter(w=>!SH.hide.includes(w));
+  const list=sh.pieces.filter(p=>vis.includes(TYPES[p.type].w)&&(!q||(p.code+" "+TYPES[p.type].name).toLowerCase().includes(q)));
+  $("#mList").innerHTML=list.map(p=>`<button type="button" data-id="${p.id}"><i style="background:${WC(TYPES[p.type].w)}"></i><span class="cd">${p.code}</span><span class="nm">${esc(TYPES[p.type].name)}</span></button>`).join("")||`<p class="note" style="padding:10px 0">No pieces match.</p>`;
+  $("#mList").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>selectPiece(b.dataset.id,true)));
+}
+function selectPiece(id,fly){selId=id;const p=cur().pieces.find(x=>x.id===id);renderMap();highlight();if(fly&&p){const [x,y]=ctr(p);flyTo(x,y,fitW/5)}}
+function highlight(){if(!selId)return;const sh=cur(),D=derive(sh);let a=sh.pieces.find(x=>x.id===selId),ids=[],g=0;
+  svgEl.querySelectorAll(".pc").forEach(e=>e.classList.add("dim"));
+  while(a&&g++<5){ids.push(a.id);const l=D.links.find(x=>x.a===a&&x.kind==="sig");
+    const r=svgEl.querySelector(`[data-rt="${a.id}|sig"]`);if(r){r.classList.add("hot");r.classList.remove("l2");r.parentNode.appendChild(r)}
+    a=l?l.b:null}
+  const pr=svgEl.querySelector(`[data-rt="${selId}|pw"]`);if(pr){pr.classList.add("hot");pr.classList.remove("l3")}
+  ids.forEach(i=>{const e=svgEl.querySelector(`.pc[data-id="${i}"]`);if(e){e.classList.remove("dim");e.parentNode.appendChild(e)}});
+  (derive(sh).kids[selId]||[]).forEach(k=>{const e=svgEl.querySelector(`.pc[data-id="${k.id}"]`);if(e)e.classList.remove("dim")});
+}
+function renderStats(seat){
+  const sh=cur(),R2=sh.room,far=Math.max(seat.far,10);
+  const scrH=Math.max(4,Math.round(far/R2.view*2)/2),scrW=Math.round(scrH*16/9*2)/2,top=4+scrH+1.5,fits=top<=R2.h;
+  $("#roomSum").innerHTML=`<div><span>Seats</span><b>${seat.seats.toLocaleString()}</b></div><div><span>Sq ft per seat</span><b>${(R2.w*R2.l/Math.max(seat.seats,1)).toFixed(1)}</b></div><div><span>Farthest seat from stage</span><b>${Math.round(far)}′</b></div><div><span>Pieces mapped</span><b>${sh.pieces.length}</b></div>`;
+  $("#screenNote").innerHTML=`<strong>Screens:</strong> a ${scrW}′ × ${scrH}′ image (16:9) covers a ${Math.round(far)}′ farthest seat for slides. Bottom of image at 4′, top near ${top.toFixed(1)}′. `+(fits?`Fits under the ${R2.h}′ ceiling.`:`Does not fit under the ${R2.h}′ ceiling, so go smaller and add delay screens halfway back.`);
+  renderGuide(seat,fits,scrW,scrH);
+}
+function renderGuide(seat,fits,scrW,scrH){
+  const sh=cur(),codes=t=>sh.pieces.filter(p=>p.type===t).map(p=>p.code),lay=sh.room.layout,list=a=>a.length?a.join(", "):"none on this map";
+  const steps=[
+   ["Walk the room with the venue",`Confirm the load-in door, power for ${list(codes("distro"))}, the dock route, and floor and wall rules. Match the map to the venue's own diagram.`],
+   ["Spike from the map",`Zoom to Pieces + patch and tape every position you see: stage corners, FOH, cameras ${list(codes("cam"))}, speakers, and distros. Measure from the upstage and house-left walls, the same way the map does.`],
+   ["Build the stage",`${sh.stage.w}′ × ${sh.stage.d}′. Legs locked and level, skirting, stairs on both sides. Everything else measures off the stage.`],
+   ["Anything overhead goes up next",`Truss, drape, flown speakers, and fixtures (${codes("fixture").length} on this map) by the rigging vendor only. Nobody works under a load while it is in the air.`],
+   ["Run power",`Qualified person makes the tie-in. Feed each distro, then follow the dashed power lines in the Power world to every piece.`],
+   ["Run signal",`Open each world in Pathfinder and follow its lines. Audio: mics into ${list(codes("stagebox"))}, snake to ${list(codes("foh_audio"))}. Video: cameras and walls to ${list(codes("foh_video"))}. Ramp or mat every aisle crossing.`],
+   ["Set screens and walls",`${codes("ledwall").length?`${list(codes("ledwall"))} upstage. `:""}Side screens at about ${scrW}′ × ${scrH}′ with the bottom at 4′.${fits?"":" Ceiling is too low for that size, so go smaller and add delays."}`],
+   ["Set FOH",`Consoles, switcher, and comms inside the FOH box, centered with a clear line to the stage.`],
+   [lay==="banquet"?"Venue sets rounds":lay==="classroom"?"Venue sets tables":"Venue sets chairs",lay==="banquet"?"Rounds go in after cable is down and ramped. Keep service lanes open; confirm widths with the banquet captain.":lay==="classroom"?"Tables go in after cable is down. Power to tables runs under the table line, never across an aisle without a ramp.":"Chairs go in after cable is down. Keep the center and side aisles clear."],
+   ["Check from the farthest seat",`Zoom to Ports + seats, find the back row, and sit there. Read the slides, listen for dead spots, and confirm the cameras clear the audience.`],
+   ["Hand off by position","Each crew member opens Pathfinder at their own position and checks every piece in their world against the map, then marks the checklist done."]];
+  $("#guideSub").textContent=`${sh.name} · ${LAYOUTS[lay]} · ${sh.room.w}′ × ${sh.room.l}′ · ${seat.seats.toLocaleString()} seats.`;
+  $("#guide").innerHTML=steps.map(([t,d])=>`<li><div><b>${esc(t)}</b><p>${esc(d)}</p></div></li>`).join("");
+}
+
+/* controls */
+function syncControls(){const sh=cur();
+  $("#mShow").innerHTML=Object.values(SH.list).map(s=>`<option value="${s.id}"${s.id===SH.cur?" selected":""}>${esc(s.name)}</option>`).join("");
+  $("#mName").value=sh.name;$("#m_w").value=sh.room.w;$("#m_l").value=sh.room.l;$("#m_h").value=sh.room.h;
+  $("#mLayout").querySelectorAll("button").forEach(b=>b.setAttribute("aria-checked",b.dataset.k===sh.room.layout));
+  $("#mRole").value=SH.role}
+$("#mRole").innerHTML=Object.entries(ROLES).map(([k,[n]])=>`<option value="${k}">${n}</option>`).join("");
+$("#mLayout").innerHTML=Object.entries(LAYOUTS).map(([k,v])=>`<button type="button" role="radio" data-k="${k}">${v}</button>`).join("");
+$("#mLayout").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{cur().room.layout=b.dataset.k;saveSH();syncControls();renderMap()}));
+$("#mRole").addEventListener("change",e=>{SH.role=e.target.value;SH.hide=[];saveSH();selId=null;renderMap()});
+$("#mShow").addEventListener("change",e=>{SH.cur=e.target.value;selId=null;saveSH();syncControls();renderMap();fit()});
+$("#mName").addEventListener("input",e=>{cur().name=e.target.value;saveSH();const o=$("#mShow").selectedOptions[0];if(o)o.textContent=e.target.value});
+$("#mNew").addEventListener("click",()=>{newShow("Show "+(Object.keys(SH.list).length+1));selId=null;syncControls();renderMap();fit()});
+let rebuildArm=0;
+$("#mRebuild").addEventListener("click",e=>{const b=e.currentTarget;if(Date.now()-rebuildArm<4000){buildFromTruck(cur());saveSH();selId=null;b.textContent="Rebuild from truck";rebuildArm=0;renderMap();return}
+  rebuildArm=Date.now();b.textContent="Tap again to replace this map";setTimeout(()=>{if(Date.now()-rebuildArm>=3900){b.textContent="Rebuild from truck"}},4000)});
+[["m_w","w",30,300],["m_l","l",30,400],["m_h","h",8,80]].forEach(([id,k,mn,mx])=>$("#"+id).addEventListener("change",e=>{const v=+e.target.value;if(v>=mn&&v<=mx){cur().room[k]=v;saveSH();renderMap();fit()}}));
+$("#mFind").addEventListener("input",renderList);
+$("#mFind").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("#mList button");if(b)selectPiece(b.dataset.id,true)}});
+$("#mMove").addEventListener("click",e=>{moveOn=!moveOn;e.currentTarget.setAttribute("aria-pressed",moveOn);e.currentTarget.textContent=moveOn?"Move: on":"Move: off";svgEl.classList.toggle("moving",moveOn)});
+$("#zIn").addEventListener("click",()=>zoomAt(1.6,view.x+view.w/2,view.y+view.h/2));
+$("#zOut").addEventListener("click",()=>zoomAt(1/1.6,view.x+view.w/2,view.y+view.h/2));
+$("#zFit").addEventListener("click",fit);
+svgEl.addEventListener("wheel",e=>{e.preventDefault();const p=toSvg(e);zoomAt(Math.pow(1.0018,-e.deltaY),p.x,p.y)},{passive:false});
+
+/* pointer: pan, pinch, drag, tap */
+const ptrs=new Map();let gest=null;
+svgEl.addEventListener("pointerdown",e=>{svgEl.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];gest={type:"pinch",d:Math.hypot(a.x-b.x,a.y-b.y)};return}
+  const t=e.target.closest("[data-id],[data-drag]"),s=toSvg(e),sh=cur();
+  gest={type:"pan",sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y,moved:false,target:t};
+  if(moveOn&&t){
+    if(t.dataset.id){const p=sh.pieces.find(x=>x.id===t.dataset.id);gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:t}],s0:s}}
+    else if(t.dataset.drag==="foh"){const F=sh.foh,inF=sh.pieces.filter(p=>{const [x,y]=ctr(p);return x>=F.x&&x<=F.x+F.w&&y>=F.y&&y<=F.y+F.d});gest={...gest,type:"drag",box:"foh",bo:{x:F.x,y:F.y},items:inF.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
+    else if(t.dataset.drag==="stage"){const S=sh.stage,on=sh.pieces.filter(p=>{const [x,y]=ctr(p);return x>=S.x-5&&x<=S.x+S.w+5&&y>=S.y&&y<=S.y+S.d+1});gest={...gest,type:"drag",box:"stage",bo:{x:S.x,y:S.y},items:on.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
+  }
+  svgEl.classList.add("dragging")});
+svgEl.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId)||!gest)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(gest.type==="pinch"&&ptrs.size===2){const [a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);const m=toSvg({clientX:(a.x+b.x)/2,clientY:(a.y+b.y)/2});zoomAt(d/gest.d,m.x,m.y);gest.d=d;return}
+  if(Math.hypot(e.clientX-gest.sx,e.clientY-gest.sy)>4)gest.moved=true;
+  if(gest.type==="pan"){const ppf=box.clientWidth/view.w;view.x=gest.vx-(e.clientX-gest.sx)/ppf;view.y=gest.vy-(e.clientY-gest.sy)/ppf;applyView()}
+  else if(gest.type==="drag"&&gest.moved){const s=toSvg(e),sh=cur(),snap=v=>Math.round(v*2)/2;
+    const dx=snap(s.x-gest.s0.x),dy=snap(s.y-gest.s0.y);
+    gest.items.forEach(it=>{it.p.x=+(it.ox+dx).toFixed(1);it.p.y=+(it.oy+dy).toFixed(1);if(it.el)it.el.setAttribute("transform",`translate(${it.p.x} ${it.p.y})`)});
+    if(gest.box){const B=sh[gest.box];B.x=Math.max(0,Math.min(sh.room.w-B.w,gest.bo.x+dx));B.y=Math.max(0,Math.min(sh.room.l-(B.d||0),gest.bo.y+dy));
+      const r=gest.el.tagName==="rect"?gest.el:gest.el.querySelector("rect");r.setAttribute("x",B.x);r.setAttribute("y",B.y)}}});
+function endPtr(e){ptrs.delete(e.pointerId);if(!gest)return;
+  if(gest.type==="pinch"){if(ptrs.size===0)gest=null;return}
+  if(!gest.moved&&gest.type!=="pinch"){const t=gest.target;if(t&&t.dataset.id)selectPiece(t.dataset.id,false);else if(selId){selId=null;renderMap()}}
+  else if(gest.type==="drag"){saveSH();renderMap();if(selId)highlight()}
+  gest=null;svgEl.classList.remove("dragging")}
+svgEl.addEventListener("pointerup",endPtr);svgEl.addEventListener("pointercancel",endPtr);
+window.addEventListener("resize",()=>applyView());
+function initMap(){syncControls();renderMap();fit();
+  const g=window.__fromGrid;if(g){const m=g.meta||{},d=m.date?new Date(m.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"";
+    const el=$("#gridStrip");el.hidden=false;el.innerHTML=`<strong>From the facility grid:</strong> ${esc(g.name)}${d?" · "+esc(d):""}${m.venue?" · "+esc(m.venue):""}${m.client?" · "+esc(m.client):""}. This map is saved to this show, so it reopens here next time.`}}
+
+renderBuild();renderInc();renderMath();initMap();show(fromHash());
+})();
+</script>
+</body>
+</html>
