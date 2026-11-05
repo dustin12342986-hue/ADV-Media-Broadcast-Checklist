@@ -18,7 +18,7 @@
   --inv-bg:#111111; --inv-fg:#ffffff;
   --turf:#b7d3b9; --turf-ez:#a3c6a6; --trackc:#d6a58c; --court:#efe3cf; --line-w:#ffffff; --line-c:#8a7a62;
   --loss:#b4531a; --loss-soft:#f7e6da; --gain:#1f7a55; --gain-soft:#dcefe5; --loss-on-inv:#ff9b5c;
-  --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66;
+  --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66; --w-house:#8a6f4d;
   --hero-a:#0d1033; --hero-b:#3a1f8f; --hero-c:#0b5bd3;
   --display:"Anton","Impact","Arial Narrow Bold",sans-serif;
   --brand:"Alata","Arial Black",Arial,sans-serif;
@@ -32,7 +32,7 @@
   --inv-bg:#f5f5f5; --inv-fg:#111111;
   --turf:#16261b; --turf-ez:#1c3123; --trackc:#3a2620; --court:#2e271d; --line-w:#c9d4cc; --line-c:#9c8b70;
   --loss:#f0995c; --loss-soft:#3a2418; --gain:#5cc29a; --gain-soft:#173126; --loss-on-inv:#b4531a;
-  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}}
+  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; --w-house:#c8a77c; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0c0c0d; --surface:#1a1a1b; --sunk:#26262a; --line:#26262a;
   --fg:#f5f5f5; --muted:#a0a0a4; --accent:#9a86ff; --accent-ink:#0c0c0d;
@@ -40,7 +40,7 @@
   --inv-bg:#f5f5f5; --inv-fg:#111111;
   --turf:#16261b; --turf-ez:#1c3123; --trackc:#3a2620; --court:#2e271d; --line-w:#c9d4cc; --line-c:#9c8b70;
   --loss:#f0995c; --loss-soft:#3a2418; --gain:#5cc29a; --gain-soft:#173126; --loss-on-inv:#b4531a;
-  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; color-scheme:dark}
+  --w-audio:#9a86ff; --w-video:#5aa2f0; --w-lighting:#e0ad4a; --w-power:#a3a3a8; --w-staging:#d8d8dc; --w-comms:#5cc29a; --w-house:#c8a77c; color-scheme:dark}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6;font-variant-numeric:tabular-nums}
@@ -223,6 +223,8 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
 #map .pc .body{stroke:var(--bg);stroke-width:1;vector-effect:non-scaling-stroke}
 #map .pc.selId .body{stroke:var(--fg);stroke-width:3}
 #map .pc.dim{opacity:.25}
+#map .roomb{fill:var(--w-house);fill-opacity:.12;stroke:var(--w-house);stroke-width:1.5;vector-effect:non-scaling-stroke}
+#map .route.house{stroke:var(--w-house);stroke-dasharray:10 4;opacity:.5}
 #map .port{fill:var(--bg);stroke-width:1.2;vector-effect:non-scaling-stroke}
 #map .ptxt,#map .rowl,#map .seatn{fill:var(--muted)}
 #map .code{font-weight:700}
@@ -763,9 +765,9 @@ window.addEventListener("hashchange",()=>show(fromHash()));
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{show(b.dataset.go);document.getElementById("view-"+b.dataset.go).scrollIntoView({behavior:"smooth",block:"start"})}));
 document.getElementById("heroSample").addEventListener("click",()=>{document.getElementById("loadSample").click();show("build")});
 /* ---------- Room map (semantic zoom) ---------- */
-const WORLDS={audio:"Audio",video:"Video",lighting:"Lighting",power:"Power",staging:"Staging",comms:"Comms"};
+const WORLDS={audio:"Audio",video:"Video",lighting:"Lighting",power:"Power",staging:"Staging",comms:"Comms",house:"House"};
 const WC=w=>`var(--w-${w})`;
-const ROLES={eic:["EIC (sees everything)",Object.keys(WORLDS)],a1:["A1 / FOH audio",["audio","power","comms","staging"]],a2:["A2 / stage audio",["audio","comms","staging"]],vid:["Video lead",["video","power","comms"]],ld:["Lighting director",["lighting","power","staging"]],sm:["Stage manager",["staging","comms","audio"]]};
+const ROLES={eic:["EIC (sees everything)",Object.keys(WORLDS)],a1:["A1 / FOH audio",["audio","power","comms","staging","house"]],a2:["A2 / stage audio",["audio","comms","staging","house"]],vid:["Video lead",["video","power","comms","house"]],ld:["Lighting director",["lighting","power","staging"]],sm:["Stage manager",["staging","comms","audio","house"]]};
 const TYPES={
  foh_audio:{w:"audio",name:"FOH audio console",code:"AUD",sw:6,sd:2.6,shape:"rect",power:1},
  stagebox:{w:"audio",name:"Stage box",code:"SB",sw:2.2,sd:1.6,shape:"rect",parent:"foh_audio",power:1},
@@ -780,12 +782,18 @@ const TYPES={
  truss:{w:"staging",name:"Truss / ground support",code:"TR",sw:10,sd:1,shape:"rect"},
  distro:{w:"power",name:"Power distro",code:"PWR",sw:3,sd:2,shape:"rect"},
  commsbase:{w:"comms",name:"Comms base station",code:"COM",sw:2.2,sd:1.6,shape:"rect",power:1},
- beltpack:{w:"comms",name:"Comms beltpack",code:"BP",sw:1,sd:1,shape:"dot",parent:"commsbase"}
+ beltpack:{w:"comms",name:"Comms beltpack",code:"BP",sw:1,sd:1,shape:"dot",parent:"commsbase"},
+ ccu:{w:"video",name:"Camera CCU",code:"CCU",sw:2,sd:1.6,shape:"rect",parent:"foh_video",power:1},
+ replay:{w:"video",name:"Replay server",code:"RPL",sw:3,sd:1.8,shape:"rect",parent:"foh_video",power:1},
+ jbt:{w:"house",name:"Field box (JBT)",code:"JBT",sw:3.2,sd:2.2,shape:"rect"},
+ room:{w:"house",name:"Room / booth",code:"RM",sw:10,sd:6,shape:"room"},
+ pedestal:{w:"house",name:"Truck dock pedestal",code:"P",sw:3,sd:3,shape:"rect"}
 };
 const LAYOUTS={theater:"Theater",banquet:"Banquet rounds",classroom:"Classroom"};
 /* ---------- Venues ---------- */
 const VENUES={
  ballroom:{label:"Ballroom / hall",w:80,l:120,h:20,layouts:["theater","banquet","classroom"]},
+ cisd:{label:"CISD Stadium",w:460,l:400,h:0,layouts:[]},
  football:{label:"Football stadium",w:460,l:350,h:0,layouts:[]},
  track:{label:"Track and field",w:640,l:440,h:0,layouts:[]},
  indoor:{label:"Indoor event center",w:330,l:240,h:40,layouts:["courts","theater","banquet","classroom"]}
@@ -794,6 +802,10 @@ LAYOUTS.courts="Courts";
 const TRK={r:119.75,st:276.87,lane:4,n:8}; // 400 m track in feet: 36.5 m bend radius, 84.39 m straights, 1.22 m lanes
 function vkey(sh){return VENUES[sh.room.venue]?sh.room.venue:"ballroom"}
 function geo(sh){const v=vkey(sh),W=sh.room.w,L=sh.room.l,g={v,stands:[],surf:[],gates:null,cams:null,floorBack:L-8,fohLabel:"FOH / VIDEO VILLAGE",standsLabel:"STANDS"};
+  if(v==="cisd"){const {fx,fy,F}=cisdGeo(W,L);g.field={x:fx,y:fy};g.cisd=true;
+    g.stage={x:W/2-8,y:fy+168,w:16,d:8};g.foh={...F};
+    g.stands=[{x:fx+20,y:fy+192,w:320,d:Math.max(10,F.y-4-(fy+192)),name:"Home stands (west)"},{x:fx+40,y:12,w:280,d:Math.max(10,fy-30-12),name:"Visitor stands (east)"}];
+    g.fohLabel="PRESS BOX / MEZZANINE";g.gates=[[W*.12,"Home gate"],[W*.6,"Field gate"]];return g;}
   if(v==="football"){const fx=(W-360)/2,fy=Math.max(60,(L-160)/2-10);g.field={x:fx,y:fy};
     g.stage={x:W/2-12,y:fy+168,w:24,d:12};g.foh={x:W/2-22,y:L-18,w:44,d:14};
     g.stands=[{x:fx+20,y:fy+192,w:320,d:Math.max(10,L-18-2-(fy+192)),name:"Home stands"},{x:fx+40,y:12,w:280,d:Math.max(10,fy-30-12),name:"Visitor stands"}];
@@ -813,6 +825,11 @@ function geo(sh){const v=vkey(sh),W=sh.room.w,L=sh.room.l,g={v,stands:[],surf:[]
     if(sh.room.layout&&sh.room.layout!=="courts")g.courtsDim=true;}
   return g;}
 function venueSvg(sh,G){const o=[];
+  if(G.cisd){const {x,y}=G.field,W=sh.room.w,L=sh.room.l;
+    o.push(`<rect x="4" y="${y+40}" width="5" height="80" fill="var(--w-video)"/><text class="zone halo" x="16" y="${y+30}" text-anchor="middle" style="font-size:calc(var(--fs) * .9px)">LED WALL</text>`);
+    o.push(`<rect x="${W-24}" y="${y+48}" width="20" height="64" fill="none" stroke="var(--w-house)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/><text class="zone halo" x="${W-14}" y="${y+44}" text-anchor="middle" style="font-size:calc(var(--fs) * .9px)">VIP BALCONY</text>`);
+    o.push(`<text class="zone halo l2" x="${x+30}" y="${y+178}" text-anchor="middle">NORTH</text><text class="zone halo l2" x="${x+330}" y="${y+178}" text-anchor="middle">SOUTH</text>`);
+    o.push(`<text class="meta halo l2" x="${W-14}" y="${L-20}" text-anchor="end">SW parking lot</text>`);}
   if(G.field){const {x,y}=G.field;
     o.push(`<rect x="${x-6}" y="${y-6}" width="372" height="172" fill="var(--turf)" stroke="none"/>`);
     o.push(`<rect x="${x}" y="${y}" width="30" height="160" fill="var(--turf-ez)"/><rect x="${x+330}" y="${y}" width="30" height="160" fill="var(--turf-ez)"/>`);
@@ -852,10 +869,10 @@ function standsSeating(G,F){const out=[];let seats=0;
     for(let k=0;k<sec;k++)out.push(`<text class="meta halo l2" x="${s.x+(k+.5)*Math.min(33,s.w/sec)}" y="${s.y-1.5}" text-anchor="middle">Sec ${k+1}</text>`);
     out.push(`<text class="zone l1" x="${s.x+s.w/2}" y="${s.y+s.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1px)">${s.name.toUpperCase()}</text>`);});
   return {svg:out.join(""),seats};}
-function setVenue(sh,v){const V=VENUES[v];sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=V.h;
+function setVenue(sh,v){if(v==="cisd"){const V=VENUES.cisd;sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=0;buildCisd(sh);return}sh.runs=null;const V=VENUES[v];sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=V.h;
   if(V.layouts.length)sh.room.layout=V.layouts[0];
   buildFromTruck(sh);}
-function venueFromName(n){n=(n||"").toLowerCase();return /stadium|football|field house|gridiron/.test(n)&&!/track/.test(n)?"football":/track/.test(n)?"track":/indoor|court|gym|center|arena/.test(n)?"indoor":null}
+function venueFromName(n){n=(n||"").toLowerCase();if(/^stadium\b|cisd|crowley/.test(n))return "cisd";return /stadium|football|field house|gridiron/.test(n)&&!/track/.test(n)?"football":/track/.test(n)?"track":/indoor|court|gym|center|arena/.test(n)?"indoor":null}
 
 const rid=()=>Math.random().toString(36).slice(2,9);
 const pad=n=>String(n).padStart(2,"0");
@@ -863,7 +880,65 @@ let SH=store.get("rd_shows",null);
 const saveSH=()=>store.set("rd_shows",SH);
 const cur=()=>SH.list[SH.cur];
 
+/* ---------- CISD Stadium plot (from the stadium AV drawings in Pathfinder / Signal Finder) ---------- */
+const JBTFACE={"JBT.0C.01":"Face: 12 fiber, 6 SMFO, 4 UTP, 20 audio, 12 radio, 2 SMPTE","JBT.0D.01":"Face: 12 fiber, 6 SMFO, 4 UTP, 14 audio, 12 radio, 2 SMPTE","JBT.0F.01":"Face: 12 fiber, 6 SMFO, 4 UTP, 14 audio, 18 radio, 2 SMPTE","JBT.0G.01":"Face: 12 fiber, 6 SMFO, 4 UTP, 14 audio, 6 radio, 2 SMPTE","JBT.3B.01":"Face: 12 fiber, 6 SMFO, 4 UTP, 14 audio, 6 radio, 2 SMPTE"};
+function cisdGeo(W,L){const fx=(W-360)/2,fy=110,F={x:W/2-90,y:L-54,w:180,d:46};return {fx,fy,F}}
+function buildCisd(sh){
+  const W=sh.room.w,L=sh.room.l,{fx,fy,F}=cisdGeo(W,L),P=[];
+  sh.stage={x:W/2-8,y:fy+168,w:16,d:8};sh.foh={...F};
+  const add=(type,code,x,y,extra={})=>{const p={id:rid(),type,code,x:+x.toFixed(1),y:+y.toFixed(1),...extra};P.push(p);return p};
+  // house rooms (drawn first so gear sits on top)
+  add("room","B200F",F.x+4,F.y+4,{w:46,d:22,fixed:1,note:"AV room, mezzanine. Video racks RCK-200 to 203. Field SMPTE lands on Broadcast Panel 201 in RCK-201."});
+  add("room","B200B",F.x+4,F.y+27,{w:20,d:15,fixed:1,note:"IDF, mezzanine. Audio head end, rack RCK-B200, Q-SYS Core 110f."});
+  add("room","B206",F.x+52,F.y+4,{w:24,d:16,fixed:1,note:"PA / clock booth, rack ER-OP."});
+  add("room","B208",F.x+80,F.y+4,{w:36,d:20,fixed:1,note:"Video room, press box. Rack RCK-300, Behringer X32 rack (MIX.300)."});
+  add("room","FILM DECK",F.x+140,F.y+4,{w:36,d:16,fixed:1,note:"Film deck, press box roof level (B303)."});
+  add("room","B110",fx-28,fy+196,{w:22,d:12,fixed:1,note:"Home concourse IDF. Amp rack RCK-B110."});
+  add("room","D110",fx-28,30,{w:22,d:12,fixed:1,note:"Visitor concourse IDF. Amp rack RCK-D110."});
+  add("room","F217",W-50,fy+192,{w:30,d:16,fixed:1,note:"Field house AV rack (F217 / ER-AV). Spot on this map is approximate."});
+  // field boxes and booths
+  const ccuFor={};
+  const jb=(code,x,y,name,extra={})=>add("jbt",code,x,y,{fixed:1,note:name+(JBTFACE[code]?". "+JBTFACE[code]+".":""),...extra});
+  jb("JBT.0C.01",W/2-1.6,fy+163,"Home 50 yard line field box",{port:"SMPTE to B200F, Broadcast Panel 201",to:"CCU.201D"});
+  jb("JBT.0D.01",W/2-1.6,fy-5,"Visitor 50 yard line field box",{port:"SMPTE to B200F, Broadcast Panel 201",to:"CCU.201B"});
+  jb("JBT.0G.01",fx-12,fy+79,"North end zone field box. Dead until the replacement box is in, so Camera 2 runs to the visitor 50 box");
+  jb("JBT.0F.01",fx+368,fy+79,"South end zone field box",{port:"SMPTE to B200F, Broadcast Panel 201",to:"CCU.201C"});
+  jb("JBT.3B.01",F.x+150,F.y+8,"Film deck box (press box roof)",{port:"SMPTE to B200F, Broadcast Panel 201",to:"CCU.201A"});
+  jb("JBT.2B.02",F.x+120,F.y+8,"Home radio booth box. Ties to Home 50 and South end zone. DA feeds: crowd L/R, announcer, PA");
+  jb("JBT.2B.03",F.x+120,F.y+14,"Visitor radio booth box. Ties to Visitor 50 and South end zone. DA feeds: crowd L/R, announcer, PA");
+  add("pedestal","P1",W-14,L-14,{fixed:1,note:"Truck dock pedestal, SW parking lot. Fiber, 6-pair audio, and 4 outdoor Cat6 from every field box, plus 12-strand fiber and two 6-pair multis to B200F."});
+  // ADV broadcast package in the AV room
+  const sw=add("foh_video","PSV.200",F.x+7,F.y+17,{note:"TriCaster TC1 with Flex Dual control panel, RCK-200."});
+  ["A","B","C","D"].forEach((k,i)=>add("ccu","CCU.201"+k,F.x+6+i*5,F.y+7,{to:"PSV.200",port:"URSA CCU → TriCaster input "+(i+1)}));
+  add("replay","RPL.200",F.x+18,F.y+17,{to:"PSV.200",port:"3Play replay, RCK-200",note:"3Play replay server, RCK-200."});
+  add("commsbase","COM-01",F.x+30,F.y+7,{note:"Clear-Com MS-704 and FreeSpeak II base, RCK-200. Intercom runs IC-404 to 414 go to B206 and B208."});
+  add("foh_audio","MIX.300",F.x+86,F.y+10,{note:"Behringer X32 rack in B208. Two 16-channel multis (MA16-201/202) from B200F."});
+  add("distro","PWR-01",F.x+40,F.y+19,{note:"Rack power, AV room."});
+  add("distro","PWR-02",W-16,fy+90,{note:"Balcony outlet for Camera 3, the only camera that needs a power cable."});
+  // cameras
+  add("cam","CAM-01",W/2-1.3,F.y-4,{to:"JBT.3B.01",runFt:10,nopower:1,port:"10 ft SMPTE to JBT.3B.01",note:"Blue. High 50, in the press box opening. Tripod + sandbag, viewfinder."});
+  add("cam","CAM-02",fx+8,fy+78,{to:"JBT.0D.01",runFt:200,nopower:1,port:"200 ft SMPTE to JBT.0D.01, the long way round",note:"Red. Field level, just above the Crowley mark in the north end zone, under the LED wall. North box is dead: 200 ft to the visitor 50 box for now. Once replaced: 100 ft to the north end zone box, about 75 ft away."});
+  add("cam","CAM-03",W-17,fy+78,{to:"JBT.0F.01",runFt:100,port:"100 ft SMPTE up from JBT.0F.01 (a 50 and a 25 usually makes it)",note:"Green. VIP balcony, south end under the awning, opposite the LED wall. Needs a power cable."});
+  add("cam","CAM-04",fx+120,fy+166,{to:"JBT.0C.01",runFt:100,nopower:1,port:"100 ft SMPTE to JBT.0C.01, yellow tape",note:"Yellow. Home sideline, usually handheld. No viewfinder. Tripod and sandbag still go in the case."});
+  add("cam","CAM-05",F.x+40,F.y+7,{nopower:1,to:"(cased)",note:"Spare. Stays cased and comes to every game."});
+  // audio
+  add("mic","LAV-01",W/2-.6,fy+79,{to:"MIX.300",port:"ULXD receiver → X32",note:"Referee headset with push-to-talk tab."});
+  [0,1,2].forEach(i=>add("mic","HH-0"+(i+1),W/2+6+i*2,fy+166,{to:"MIX.300",port:"ULXD handheld → X32",note:"Shure ULXD handheld: anthem, announcers, special event instructions."}));
+  add("mic","DJ",fx+372,fy+150,{to:"JBT.0F.01",port:"DJ line: low south end zone D → home radio D",note:"Tag both ends: ADV MEDIA, LIVE BROADCAST LINE, DO NOT UNPLUG, with a phone number. It crosses public space."});
+  // comms beltpacks at camera spots
+  P.filter(p=>p.type==="cam"&&p.code!=="CAM-05").forEach((c,i)=>add("beltpack","BP-0"+(i+1),c.x+.8,c.y+4,{to:"COM-01",port:"Clear-Com party line "+(i%2?"B":"A")}));
+  sh.pieces=P;
+  // house infrastructure runs (from the broadcast cable schedule)
+  const R=[];const run=(a,b,t)=>R.push([a,b,t]);
+  ["JBT.0C.01","JBT.0D.01","JBT.0F.01","JBT.0G.01","JBT.3B.01"].forEach(j=>{run(j,"B200F","SMPTE, 2 video coax, 4-pair audio, 12-strand fiber");run(j,"P1","Fiber, 6-pair audio, 4 outdoor Cat6")});
+  run("JBT.0C.01","JBT.2B.02","4-pair audio, 2 Cat6");run("JBT.0F.01","JBT.2B.02","4-pair audio, 2 Cat6");run("JBT.0D.01","JBT.2B.03","4-pair audio, 2 Cat6");run("JBT.0F.01","JBT.2B.03","4-pair audio, 2 Cat6");
+  run("P1","B200F","Two 6-pair multis, 12-strand fiber");run("B200F","B208","10 intercom, 2× 16-ch multi, 9 network, 6 video");run("B200F","B206","Intercom");
+  sh.runs=R;
+}
+
+function houseRuns(p){const sh=cur();if(!sh.runs)return"";const rs=sh.runs.filter(r=>r[0]===p.code||r[1]===p.code);if(!rs.length)return"";return `<div class="sub" style="opacity:.85">House runs: ${rs.map(r=>esc((r[0]===p.code?"to "+r[1]:"from "+r[0])+" ("+r[2]+")")).join("; ")}</div>`}
 function buildFromTruck(sh){
+  if(vkey(sh)==="cisd")return buildCisd(sh);
   const W=sh.room.w,L=sh.room.l;
   const cnt=fn=>st.items.filter(i=>i.fn===fn).reduce((a,b)=>a+b.qty,0);
   const decks=cnt("deck");
@@ -919,21 +994,24 @@ if(!SH||!SH.list||!SH.list[SH.cur]){SH={cur:null,list:{},role:"eic",hide:[]};new
 SH.hide=SH.hide||[];SH.role=SH.role||"eic";
 
 /* derived: parents, ports, routes */
-function pw(p){return p.w||TYPES[p.type].sw} function pd(p){return TYPES[p.type].sd}
+function pw(p){return p.w||TYPES[p.type].sw} function pd(p){return p.d||TYPES[p.type].sd}
 function ctr(p){return [p.x+pw(p)/2,p.y+pd(p)/2]}
 function derive(sh){
   const by={},links=[],kids={};
   sh.pieces.forEach(p=>(by[p.type]=by[p.type]||[]).push(p));
   const near=(p,t)=>{const c=by[t];if(!c)return null;const [x,y]=ctr(p);let b=null,bd=1e9;c.forEach(q=>{const [a,e]=ctr(q),d=Math.hypot(a-x,e-y);if(d<bd){bd=d;b=q}});return b};
   sh.pieces.forEach(p=>{const T=TYPES[p.type];
-    if(T.parent){const q=near(p,T.parent);if(q){(kids[q.id]=kids[q.id]||[]).push(p);links.push({a:p,b:q,kind:"sig"})}}
-    if(T.power){const q=near(p,"distro");if(q){(kids[q.id+"#pw"]=kids[q.id+"#pw"]||[]).push(p);links.push({a:p,b:q,kind:"pw"})}}});
+    const ex=p.to?sh.pieces.find(x=>x.code===p.to&&x!==p):null;
+    if(ex){(kids[ex.id]=kids[ex.id]||[]).push(p);links.push({a:p,b:ex,kind:"sig"})}
+    else if(T.parent&&!p.to){const q=near(p,T.parent);if(q){(kids[q.id]=kids[q.id]||[]).push(p);links.push({a:p,b:q,kind:"sig"})}}
+    if(T.power&&!p.nopower){const q=near(p,"distro");if(q){(kids[q.id+"#pw"]=kids[q.id+"#pw"]||[]).push(p);links.push({a:p,b:q,kind:"pw"})}}});
   const port={};
   Object.entries(kids).forEach(([k,arr])=>{arr.sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));const isPw=k.endsWith("#pw");
     const counters={};arr.forEach(p=>{const grp=isPw?"pw":(p.type==="speaker"?"out":p.type==="ledwall"||p.type==="screen"?"out":"in");counters[grp]=(counters[grp]||0)+1;port[p.id+(isPw?"#pw":"")]={n:counters[grp],grp,idx:arr.indexOf(p),of:arr.length}})});
   return {by,links,kids,port};
 }
 function portLabel(p,parent,pt){
+  if(p.port)return p.port;
   if(!pt)return"";const n=pt.n;
   switch(p.type){
     case"mic":return`Stage box in ${n} → FOH ch ${n}`;
@@ -959,7 +1037,7 @@ const cableFt=pts=>Math.ceil((plen(pts)*1.1+10)/5)*5;
 /* seating */
 function seating(sh){
   const W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,G=geo(sh);let lay=sh.room.layout;
-  if(G.v==="football"||G.v==="track"||(G.v==="indoor"&&lay==="courts")){const st2=standsSeating(G,F);
+  if(G.v==="football"||G.v==="cisd"||G.v==="track"||(G.v==="indoor"&&lay==="courts")){const st2=standsSeating(G,F);
     if(G.v==="indoor"&&lay==="courts")return {svg:st2.svg,seats:st2.seats,far:0,front:0,back:0,stands:true};
     return {svg:st2.svg,seats:st2.seats,far:0,front:0,back:0,stands:true}}
   let extra=null;if(G.v==="indoor")extra=standsSeating(G,F);
@@ -1015,6 +1093,7 @@ function flyTo(x,y,w){cancelAnimationFrame(anim);const s={...view},ar=view.h/vie
 
 /* render */
 function shapeSvg(p){const T=TYPES[p.type],w=pw(p),d=pd(p),c=WC(T.w);
+  if(T.shape==="room")return`<rect class="roomb" x="0" y="0" width="${w}" height="${d}" rx=".6"/>`;
   if(T.shape==="dot")return`<circle class="body" cx="${w/2}" cy="${d/2}" r="${w/2}" fill="${c}"/>`;
   if(T.shape==="spk")return`<path class="body" d="M0 0 H${w} L${w*.78} ${d} H${w*.22} Z" fill="${c}"/>`;
   if(T.shape==="cam")return`<rect class="body" x="0" y="${d*.2}" width="${w*.72}" height="${d*.6}" rx=".2" fill="${c}"/><path class="body" d="M${w*.72} ${d*.5} L${w} ${d*.2} V${d*.8} Z" fill="${c}"/>`;
@@ -1041,6 +1120,9 @@ function renderMap(){
   // FOH + stage
   g.push(`<rect class="foh" data-drag="foh" x="${F.x}" y="${F.y}" width="${F.w}" height="${F.d}" rx=".8"/>`);
   g.push(`<g data-drag="stage" data-dx="0" id="stageG"><rect class="stage" x="${S.x}" y="${S.y}" width="${S.w}" height="${S.d}"/></g>`);
+  // house infrastructure runs
+  if(vis.has("house")&&sh.runs)sh.runs.forEach(([a,b,t])=>{const A=sh.pieces.find(x=>x.code===a),B=sh.pieces.find(x=>x.code===b);if(!A||!B)return;const pts=route(sh,A,B);
+    g.push(`<path class="route house l2" data-hr="${esc(a)}|${esc(b)}" d="M${pts.map(p=>p[0].toFixed(2)+" "+p[1].toFixed(2)).join(" L")}"><title>${esc(a)} to ${esc(b)}: ${esc(t)}</title></path>`)});
   // routes
   D.links.forEach(l=>{if(!vis.has(TYPES[l.a.type].w)&&!(l.kind==="pw"&&vis.has("power")))return;
     const pts=route(sh,l.a,l.b),wd=l.kind==="pw"?"power":TYPES[l.a.type].w;if(!vis.has(wd))return;
@@ -1074,11 +1156,11 @@ function renderSide(D){
   $("#mWorlds").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{const w=b.dataset.w;SH.hide=SH.hide.includes(w)?SH.hide.filter(x=>x!==w):[...SH.hide,w];saveSH();renderMap()}));
   const p=sh.pieces.find(x=>x.id===selId);
   if(p){const T=TYPES[p.type],sig=D.links.find(l=>l.a===p&&l.kind==="sig"),pwl=D.links.find(l=>l.a===p&&l.kind==="pw");
-    const hops=[`<li style="--wc:${WC(T.w)}"><span><b>${p.code}</b> ${esc(T.name)}<small>${p.x.toFixed(1)} ft from house-left wall · ${p.y.toFixed(1)} ft from upstage wall</small></span></li>`];
-    let a=p,l=sig,guard=0;while(l&&guard++<4){const pts=route(sh,l.a,l.b);hops.push(`<li style="--wc:${WC(TYPES[l.b.type].w)}"><span><b>${l.b.code}</b> ${esc(TYPES[l.b.type].name)}<small>${esc(portLabel(l.a,l.b,D.port[l.a.id]))} · about ${cableFt(pts)} ft of cable</small></span></li>`);a=l.b;l=D.links.find(x=>x.a===a&&x.kind==="sig")}
+    const hops=[`<li style="--wc:${WC(T.w)}"><span><b>${p.code}</b> ${esc(T.name)}<small>${vkey(sh)==="ballroom"?`${p.x.toFixed(1)} ft from house-left wall · ${p.y.toFixed(1)} ft from upstage wall`:`Map spot ${p.x.toFixed(0)} ft across, ${p.y.toFixed(0)} ft down${p.fixed?" · fixed house location":""}`}</small></span></li>`];
+    let a=p,l=sig,guard=0;while(l&&guard++<4){const pts=route(sh,l.a,l.b);hops.push(`<li style="--wc:${WC(TYPES[l.b.type].w)}"><span><b>${l.b.code}</b> ${esc(TYPES[l.b.type].name)}<small>${esc(portLabel(l.a,l.b,D.port[l.a.id]))} · ${l.a.runFt?l.a.runFt+" ft run":l.a.fixed?"installed house cable":"about "+cableFt(pts)+" ft of cable"}</small></span></li>`);a=l.b;l=D.links.find(x=>x.a===a&&x.kind==="sig")}
     const kids=(D.kids[p.id]||[]).map(k=>k.code).join(", ");
     const pwTxt=pwl?`<li style="--wc:${WC("power")}"><span><b>${pwl.b.code}</b> Power<small>Circuit ${D.port[p.id+"#pw"].n} · about ${cableFt(route(sh,p,pwl.b))} ft of feeder</small></span></li>`:"";
-    $("#mInfo").innerHTML=`<div class="card"><span class="sub">${WORLDS[T.w]} · Pathfinder</span><div class="code">${p.code}</div><div class="sub">${esc(T.name)}${p.panels?` · ${p.panels} panels (${p.cols} × ${p.rows})`:""}</div><ol>${hops.join("")}${pwTxt}</ol>${kids?`<div class="sub">Feeds: ${kids}</div>`:""}<button class="x" type="button" id="mClose">Close</button></div>`;
+    $("#mInfo").innerHTML=`<div class="card"><span class="sub">${WORLDS[T.w]} · Pathfinder</span><div class="code">${p.code}</div><div class="sub">${esc(T.name)}${p.panels?` · ${p.panels} panels (${p.cols} × ${p.rows})`:""}</div>${p.note?`<div class="sub" style="opacity:.9">${esc(p.note)}</div>`:""}${houseRuns(p)}<ol>${hops.join("")}${pwTxt}</ol>${kids?`<div class="sub">Feeds: ${kids}</div>`:""}<button class="x" type="button" id="mClose">Close</button></div>`;
     $("#mClose").addEventListener("click",()=>{selId=null;renderMap()});
   }else $("#mInfo").innerHTML=`<p class="note">Tap any piece to trace it in Pathfinder: where it plugs in, which port, how much cable, and where its power comes from.</p>`;
   renderList();
@@ -1102,7 +1184,7 @@ function highlight(){if(!selId)return;const sh=cur(),D=derive(sh);let a=sh.piece
 function renderStats(seat){
   const sh=cur(),R2=sh.room,G=geo(sh);
   if(seat.stands){$("#roomSum").innerHTML=`<div><span>Venue</span><b style="font-size:clamp(22px,2.6vw,30px)">${VENUES[G.v].label}</b></div><div><span>Seats in the stands</span><b>${seat.seats.toLocaleString()}</b></div><div><span>Footprint</span><b>${R2.w}′×${R2.l}′</b></div><div><span>Pieces mapped</span><b>${sh.pieces.length}</b></div>`;
-    $("#screenNote").innerHTML=G.v==="indoor"?`<strong>Courts:</strong> six 84′ × 50′ high school basketball courts with 12′ between them. Switch Seating to Theater, Banquet, or Classroom to put an event floor over the courts.`:`<strong>Open air:</strong> plan on the venue video board for the crowd. Weatherproof every connection on the field, keep cable off the playing surface, and confirm turf rules for any stage or vehicle.`;
+    $("#screenNote").innerHTML=G.v==="cisd"?`<strong>From the stadium drawings:</strong> field boxes, booths, rooms, the truck pedestal, and the house cable runs between them come from the stadium AV schedule in Signal Finder. Camera runs and notes match the football camera setup guide. Spots are placed from the schematic, not surveyed, so confirm distances on site.`:G.v==="indoor"?`<strong>Courts:</strong> six 84′ × 50′ high school basketball courts with 12′ between them. Switch Seating to Theater, Banquet, or Classroom to put an event floor over the courts.`:`<strong>Open air:</strong> plan on the venue video board for the crowd. Weatherproof every connection on the field, keep cable off the playing surface, and confirm turf rules for any stage or vehicle.`;
     renderGuide(seat,true,0,0);return}
   const far=Math.max(seat.far,10);
   const scrH=Math.max(4,Math.round(far/R2.view*2)/2),scrW=Math.round(scrH*16/9*2)/2,top=4+scrH+1.5,fits=top<=R2.h;
@@ -1125,7 +1207,17 @@ function renderGuide(seat,fits,scrW,scrH){
    ["Check from the farthest seat",`Zoom to Ports + seats, find the back row, and sit there. Read the slides, listen for dead spots, and confirm the cameras clear the audience.`],
    ["Hand off by position","Each crew member opens Pathfinder at their own position and checks every piece in their world against the map, then marks the checklist done."]];
   const G=geo(sh);
-  if(G.v==="football"||G.v==="track"){steps[0]=["Walk the venue with the facility",`Confirm gates and the route for the truck, power for ${list(codes("distro"))}, turf and track rules, and where the press box feeds come in. Ask what can roll on the ${G.v==="track"?"track surface":"field"} and what has to be carried.`];
+  if(G.v==="cisd"){const cams=sh.pieces.filter(p=>p.type==="cam"&&p.to);
+    steps=[["Truck to the pedestal","Truck parks at the dock pedestal P1 in the SW lot. P1 has fiber, 6-pair audio, and outdoor Cat6 from every field box, plus fiber and two 6-pair multis to the AV room B200F."],
+     ["Open the AV room","B200F on the mezzanine: TriCaster PSV.200, 3Play RPL.200, CCU.201A to D, and the Clear-Com base live in RCK-200 and RCK-201. Field SMPTE lands on Broadcast Panel 201."],
+     ["Pull camera runs",cams.map(c=>`${c.code}: ${c.port}`).join(". ")+"."],
+     ["North end zone box is dead","Until JBT.0G.01 is replaced, Camera 2 takes the 200 ft run to the visitor 50 box. Check which run you are on before you pull cable."],
+     ["Power Camera 3","VIP balcony is the only camera position that needs a power cable."],
+     ["Audio","Referee lav with push-to-talk, three ULXD handhelds into the X32 (MIX.300) in B208. Run the DJ line from the low south end zone and tag both ends."],
+     ["Comms","Beltpacks at each camera on the Clear-Com party line from the AV room. Call every position by name."],
+     ["Clear the field before the gates open","Every cable on the field is ramped, taped, or pulled. Officials walk the field; fix what they flag."],
+     ["Strike","Cap every SMPTE end and sleeve it. Ends never touch the ground. Coil over-under. Photograph each position as you leave it."]];}
+  else if(G.v==="football"||G.v==="track"){steps[0]=["Walk the venue with the facility",`Confirm gates and the route for the truck, power for ${list(codes("distro"))}, turf and track rules, and where the press box feeds come in. Ask what can roll on the ${G.v==="track"?"track surface":"field"} and what has to be carried.`];
     steps[3]=["Protect the surface","Turf mats or track covers under every case, cart, and stage leg. Nothing with wheels crosses the "+(G.v==="track"?"lanes":"field")+" without the venue's ok."];
     steps[6]=["Set camera positions",`Cameras ${list(codes("cam"))} at the marked spots: press box, sidelines${G.v==="track"?", finish line, and turns":", 25s, and end zones"}. Run fiber or SDI along the wall line, never across a playing surface during warmups.`];
     steps[7]=["Set the press box","Consoles, switcher, and comms in the press box. Confirm the house audio tie-in and the venue video board feed."];
@@ -1178,9 +1270,9 @@ svgEl.addEventListener("pointerdown",e=>{svgEl.setPointerCapture(e.pointerId);pt
   const t=e.target.closest("[data-id],[data-drag]"),s=toSvg(e),sh=cur();
   gest={type:"pan",sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y,moved:false,target:t};
   if(moveOn&&t){
-    if(t.dataset.id){const p=sh.pieces.find(x=>x.id===t.dataset.id);gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:t}],s0:s}}
-    else if(t.dataset.drag==="foh"){const F=sh.foh,inF=sh.pieces.filter(p=>{const [x,y]=ctr(p);return x>=F.x&&x<=F.x+F.w&&y>=F.y&&y<=F.y+F.d});gest={...gest,type:"drag",box:"foh",bo:{x:F.x,y:F.y},items:inF.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
-    else if(t.dataset.drag==="stage"){const S=sh.stage,on=sh.pieces.filter(p=>{const [x,y]=ctr(p);return x>=S.x-5&&x<=S.x+S.w+5&&y>=S.y&&y<=S.y+S.d+1});gest={...gest,type:"drag",box:"stage",bo:{x:S.x,y:S.y},items:on.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
+    if(t.dataset.id){const p=sh.pieces.find(x=>x.id===t.dataset.id);if(!p.fixed)gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:t}],s0:s}}
+    else if(t.dataset.drag==="foh"){const F=sh.foh,inF=sh.pieces.filter(p=>{if(p.fixed)return false;const [x,y]=ctr(p);return x>=F.x&&x<=F.x+F.w&&y>=F.y&&y<=F.y+F.d});gest={...gest,type:"drag",box:"foh",bo:{x:F.x,y:F.y},items:inF.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
+    else if(t.dataset.drag==="stage"){const S=sh.stage,on=sh.pieces.filter(p=>{if(p.fixed)return false;const [x,y]=ctr(p);return x>=S.x-5&&x<=S.x+S.w+5&&y>=S.y&&y<=S.y+S.d+1});gest={...gest,type:"drag",box:"stage",bo:{x:S.x,y:S.y},items:on.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
   }
   svgEl.classList.add("dragging")});
 svgEl.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId)||!gest)return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
