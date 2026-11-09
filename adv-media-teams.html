@@ -1581,7 +1581,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-10-09 · v101 · PDF run of show";
+const APP_BUILD = "build 2026-11-09 · v103 · every event editable";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -3755,7 +3755,7 @@ async function textCrewFor(mode, targetId) {
 
   let game = targetId ? eventById(targetId) : null;
   if (!game) {
-    game = eventById(tomorrowId()) || eventById(localDateId());
+    game = eventOnDate(tomorrowId()) || eventOnDate(localDateId());
   }
   if (!game) {
     alert("Pick an event to text about — nothing is scheduled today or tomorrow.");
@@ -4148,11 +4148,40 @@ let clientEvents = {};
 // show, and "nothing on the schedule for tomorrow" when texting the crew.
 //
 // These two make every one of those places look at both.
+// Changes to the hardcoded football schedule.
+//
+// GAMES lives in this file, so the app cannot rewrite it. Instead an edit to
+// one of those games is stored here against its id and laid over the top when
+// the list is built. That makes every event on the board editable the same
+// way, whether it came from the file or from the database, without a
+// re-upload to move a kickoff.
+//
+// Only these fields can be overridden. Anything else, the id above all, comes
+// from the file: let an override change the id and it stops matching the
+// roster, call times and confirmations stored against it.
+let gameOverrides = {};
+// Admin-only view toggle on the Shifts tab, so a removed game can be found
+// and put back. Not stored: it resets every time the view is opened.
+let showRemovedEvents = false;
+const OVERRIDABLE = ["opp", "day", "date", "eventDate", "venue", "gameTime", "call",
+  "callTime", "endTime", "roles", "cancelled", "cancelReason", "removed"];
+
 async function loadClientEvents() {
   try {
     const snap = await db.ref("clientEvents").once("value");
     clientEvents = snap.val() || {};
   } catch (e) { /* keep whatever is already loaded */ }
+  try {
+    const snap = await db.ref("gameOverrides").once("value");
+    gameOverrides = snap.val() || {};
+  } catch (e) { /* keep whatever is already loaded */ }
+}
+
+// The date an event actually happens on, which is not always the date in its
+// id. An id is fixed at creation, so a game that moves keeps the old date in
+// it. Everything that asks "what is on for this day" goes through here.
+function eventDateOf(g) {
+  return (g && g.eventDate) || String(g && g.id).split("__")[0];
 }
 
 // Matches a plain date too. A custom event's id is the date plus a suffix
@@ -4161,21 +4190,40 @@ async function loadClientEvents() {
 // Everything from today forward, football games and added events together,
 // soonest first. Confirmations and Call Times each built this from GAMES
 // alone, which is why an added event never appeared on either.
-function upcomingEvents(fromId) {
-  return allShiftEvents()
-    .filter((g) => String(g.id).split("__")[0] >= fromId)
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+function upcomingEvents(fromId, opts) {
+  return allShiftEvents(opts)
+    .filter((g) => eventDateOf(g) >= fromId)
+    .sort((a, b) => eventDateOf(a).localeCompare(eventDateOf(b))
+      || String(a.id).localeCompare(String(b.id)));
 }
 
 function eventById(id) {
   const all = allShiftEvents();
   return all.find((g) => g.id === id)
-    || all.find((g) => String(g.id).split("__")[0] === id)
+    || all.find((g) => eventDateOf(g) === id)
     || null;
 }
 
-function allShiftEvents() {
-  const built = GAMES.map((g) => ({ ...g, roles: TRADEABLE_ROLES, client: "CISD" }));
+// What is on a given day, which is a different question from "fetch this
+// event". A game whose id is 2026-10-16 but which has been moved to the 20th
+// must not answer for the 16th: Today would show a call time for a game that
+// isn't happening, and the crew would turn up. eventById() still finds it by
+// id, because the roster and call times are stored against that id forever.
+function eventOnDate(dateId) {
+  return allShiftEvents().find((g) => eventDateOf(g) === dateId) || null;
+}
+
+function allShiftEvents(opts) {
+  const built = [];
+  GAMES.forEach((g) => {
+    const base = { ...g, roles: TRADEABLE_ROLES, client: "CISD" };
+    const ov = gameOverrides[g.id];
+    if (ov) OVERRIDABLE.forEach((k) => { if (ov[k] !== undefined && ov[k] !== null) base[k] = ov[k]; });
+    // A game from the file can't be deleted outright, so removing one hides
+    // it. Admins can show them again from the Shifts tab and put one back.
+    if (base.removed && !(opts && opts.includeRemoved)) return;
+    built.push(base);
+  });
   Object.entries(clientEvents).forEach(([id, ev]) => {
     if (!ev) return;
     built.push({
@@ -4190,10 +4238,13 @@ function allShiftEvents() {
       scheduledHours: ev.scheduledHours || null,
       cancelled: !!ev.cancelled,
       cancelReason: ev.cancelReason || "",
+      eventDate: ev.eventDate || "",
     });
   });
-  // Soonest first.
-  return built.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  // Soonest first, by the date an event actually happens on rather than the
+  // one frozen into its id.
+  return built.sort((a, b) => eventDateOf(a).localeCompare(eventDateOf(b))
+    || String(a.id).localeCompare(String(b.id)));
 }
 
 // Create an event straight onto the shift board.
@@ -4405,8 +4456,23 @@ async function crewOnEvent(eventId) {
 }
 
 async function openEditEventForm(eventId) {
-  const ev = clientEvents[eventId];
-  if (!ev) return alert("That event isn't editable. Only events added to the board can be changed.");
+  // Two kinds of event reach this form. One lives in the database and can be
+  // changed or deleted outright. The other is in the GAMES list in this file,
+  // so it is edited through an override and removed by hiding it. From here
+  // down they behave the same; only where a save lands differs.
+  const fromFile = !clientEvents[eventId];
+  const game = fromFile ? allShiftEvents({ includeRemoved: true }).find((g) => g.id === eventId) : null;
+  if (fromFile && !game) return alert("Couldn't find that event.");
+
+  const ev = fromFile
+    ? Object.assign({
+        name: game.opp, client: game.client || "CISD", venue: game.venue || "",
+        date: game.date, day: game.day, eventDate: eventDateOf(game),
+        callTime: game.callTime || game.call || "", endTime: game.endTime || "",
+        roles: game.roles || TRADEABLE_ROLES,
+        cancelled: !!game.cancelled, cancelReason: game.cancelReason || "",
+      }, {})
+    : clientEvents[eventId];
 
   const oldDate = ev.eventDate || String(eventId).split("__")[0] || "";
   const assigned = await crewOnEvent(eventId);
@@ -4482,10 +4548,15 @@ async function openEditEventForm(eventId) {
           ev.cancelled ? "Restore event" : "Cancel event"}</button>
       <button id="eeDelete" style="margin-top:9px; width:100%; padding:11px;
         background:var(--panel2); border:1px solid var(--red); color:var(--red);
-        border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;">Delete event</button>
+        border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;">${
+          !fromFile ? "Delete event"
+            : (gameOverrides[eventId] || {}).removed ? "Put back on the board"
+            : "Remove from board"}</button>
       <div class="footnote" style="margin-top:8px;">
         Cancelling keeps the event and its crew on the board, marked cancelled.
-        Deleting removes it and everything on it for good.
+        ${fromFile
+          ? "This game is in the app file, so removing it hides it. Show removed on the Shifts tab puts it back."
+          : "Deleting removes it and everything on it for good."}
       </div>
       <div class="error-msg" id="eeMsg" style="display:none; margin-top:10px;"></div>
     </div>`;
@@ -4582,7 +4653,26 @@ async function openEditEventForm(eventId) {
     btn.disabled = true;
     btn.textContent = "Saving…";
     try {
-      if (date === oldDate) {
+      if (fromFile) {
+        // The id stays put because it is in the file. The date moves through
+        // eventDate instead, which is what the board, Today and Call Times
+        // now read, so the game lands on the new day without its id changing
+        // and orphaning the roster stored against it.
+        const patch = {
+          [`gameOverrides/${eventId}`]: {
+            opp: name, day: fields.day, date: fields.date, eventDate: date,
+            venue: fields.venue, callTime: fields.callTime, endTime: fields.endTime,
+            roles, cancelled: !!ev.cancelled, cancelReason: ev.cancelReason || null,
+            removed: (gameOverrides[eventId] || {}).removed || null,
+            updatedBy: fields.updatedBy, updatedAt: fields.updatedAt,
+          },
+        };
+        added.forEach((r) => {
+          patch[`liveRoster/${eventId}/${slotKey(r)}`] = { role: r, name: null, status: "open" };
+        });
+        removed.forEach((r) => { patch[`liveRoster/${eventId}/${slotKey(r)}`] = null; });
+        await db.ref().update(patch);
+      } else if (date === oldDate) {
         // No move. The id still describes the right day, so this is an
         // ordinary edit in place, done as one root write so the event and its
         // positions never disagree.
@@ -4634,7 +4724,7 @@ async function openEditEventForm(eventId) {
     btn.disabled = true;
     btn.textContent = restoring ? "Restoring…" : "Cancelling…";
     try {
-      await db.ref(`clientEvents/${eventId}`).update({
+      await db.ref(`${fromFile ? "gameOverrides" : "clientEvents"}/${eventId}`).update({
         cancelled: !restoring,
         cancelReason: restoring ? null : (reason.trim() || "Cancelled"),
         cancelledAt: restoring ? null : new Date().toISOString(),
@@ -4663,16 +4753,49 @@ async function openEditEventForm(eventId) {
   };
 
   o.querySelector("#eeDelete").onclick = async () => {
-    const warn = assigned.length
-      ? `Delete "${ev.name}"? ${assigned.join(", ")} ${assigned.length === 1 ? "is" : "are"} on it and will be taken off.`
-      : `Delete "${ev.name}"? This cannot be undone.`;
+    // Putting a hidden game back. Nothing was destroyed when it was removed,
+    // so this is just clearing the flag.
+    if (fromFile && (gameOverrides[eventId] || {}).removed) {
+      const btn = o.querySelector("#eeDelete");
+      btn.disabled = true;
+      btn.textContent = "Putting back…";
+      try {
+        await db.ref(`gameOverrides/${eventId}`).update({
+          removed: null, updatedAt: new Date().toISOString(),
+        });
+        await loadClientEvents();
+        close();
+        renderShiftsView();
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Put back on the board";
+        say("Couldn't put that back: " + (e.message || "unknown error"));
+      }
+      return;
+    }
+
+    const warn = fromFile
+      ? `Remove "${ev.name}" from the board?` +
+        (assigned.length ? ` ${assigned.join(", ")} ${assigned.length === 1 ? "is" : "are"} on it.` : "") +
+        `\n\nThis game is in the app file, so it is hidden rather than deleted. You can put it back from Show removed on the Shifts tab.`
+      : assigned.length
+        ? `Delete "${ev.name}"? ${assigned.join(", ")} ${assigned.length === 1 ? "is" : "are"} on it and will be taken off.`
+        : `Delete "${ev.name}"? This cannot be undone.`;
     if (!confirm(warn)) return;
     const btn = o.querySelector("#eeDelete");
     btn.disabled = true;
-    btn.textContent = "Deleting…";
+    btn.textContent = fromFile ? "Removing…" : "Deleting…";
     try {
-      const patch = { [`clientEvents/${eventId}`]: null };
-      EVENT_SCOPED_NODES.forEach((n) => { patch[`${n}/${eventId}`] = null; });
+      let patch;
+      if (fromFile) {
+        // Hidden, not destroyed. The roster and call times stay where they
+        // are so putting it back restores the crew with it.
+        patch = { [`gameOverrides/${eventId}/removed`]: true,
+                  [`gameOverrides/${eventId}/updatedAt`]: new Date().toISOString() };
+      } else {
+        patch = { [`clientEvents/${eventId}`]: null };
+        EVENT_SCOPED_NODES.forEach((n) => { patch[`${n}/${eventId}`] = null; });
+      }
       await db.ref().update(patch);
       await loadClientEvents();
       close();
@@ -5019,8 +5142,12 @@ function renderShiftsList(liveRoster) {
   inner.innerHTML = `
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
     ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:14px;">+ New event</button>` : ""}
+    ${admin && Object.values(gameOverrides).some((o) => o && o.removed) ? `
+      <button class="shift-btn shift-btn-ghost" id="showRemovedBtn"
+        style="margin:-4px 0 14px; padding:7px 13px; font-size:12px;">${
+          showRemovedEvents ? "Hide removed" : "Show removed"}</button>` : ""}
     ${CAMERA_NOTICE_HTML}
-    ${allShiftEvents().map((g) => {
+    ${allShiftEvents({ includeRemoved: admin && showRemovedEvents }).map((g) => {
       const gameRoster = liveRoster[g.id] || {};
       const rows = (g.roles || TRADEABLE_ROLES).map((role) => {
         const key = role.replace(/[^A-Za-z0-9]/g, "_");
@@ -5055,19 +5182,20 @@ function renderShiftsList(liveRoster) {
         `;
       }).join("");
       return `
-        <div class="shift-game-card"${g.cancelled ? ' style="opacity:.62;"' : ""}>
+        <div class="shift-game-card"${g.cancelled || g.removed ? ' style="opacity:.62;"' : ""}>
           ${admin ? `<button class="shift-btn shift-btn-ghost" data-textcrew="${escapeAttr(g.id)}"
             style="float:right; padding:5px 11px; font-size:11.5px;">Text crew</button>` : ""}
           ${admin && openSpotsFor(g.id, liveRoster).length ? `
             <button class="shift-btn shift-btn-ghost" data-alertopen="${escapeAttr(g.id)}"
               style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;
                      border-color:var(--amber); color:var(--amber);">📣 Alert open</button>` : ""}
-          ${admin && clientEvents && clientEvents[g.id] ? `
+          ${admin ? `
             <button class="shift-btn shift-btn-ghost" data-editevent="${escapeAttr(g.id)}"
               style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;">Edit event</button>` : ""}
           <div class="shift-game-header">
             <span${g.cancelled ? ' style="text-decoration:line-through;"' : ""}>${g.day} ${g.date} — ${escapeHtml(g.opp)}</span>
             ${g.cancelled ? `<span style="background:var(--red); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">Cancelled</span>` : ""}
+            ${g.removed ? `<span style="background:var(--text-faint); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">Removed</span>` : ""}
             ${g.client && g.client !== "CISD" ? `<span style="background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">${escapeHtml(g.client)}</span>` : ""}
           </div>
           ${g.cancelled && g.cancelReason ? `<div class="log-reason" style="margin:-4px 0 8px; color:var(--red);">${escapeHtml(g.cancelReason)}</div>` : ""}
@@ -5080,6 +5208,9 @@ function renderShiftsList(liveRoster) {
 
   const nsb = document.getElementById("newShiftBtn");
   if (nsb) nsb.onclick = openNewEventForm;
+
+  const srb = document.getElementById("showRemovedBtn");
+  if (srb) srb.onclick = () => { showRemovedEvents = !showRemovedEvents; renderShiftsView(); };
 
   inner.querySelectorAll("[data-editevent]").forEach((b) => {
     b.onclick = () => openEditEventForm(b.getAttribute("data-editevent"));
@@ -8348,8 +8479,8 @@ async function renderAudioView() {
 
   const todayId = localDateId();
   await loadClientEvents();
-  let game = eventById(todayId);
-  if (!game) game = eventById(tomorrowId());
+  let game = eventOnDate(todayId);
+  if (!game) game = eventOnDate(tomorrowId());
   let gameId = game ? game.id : todayId;
   // No game today or tomorrow: the patch and handoffs are still worth reading,
   // so the page renders without the live parts rather than showing nothing.
@@ -8684,10 +8815,10 @@ async function renderTodayView() {
   // show goes up 24 hours out so Directors and Producers can read it before
   // call time, and there's no point hiding the rest of the card behind that.
   await loadClientEvents();
-  let game = eventById(todayId);
+  let game = eventOnDate(todayId);
   let isTomorrow = false;
   if (!game) {
-    game = eventById(tomorrowId_);
+    game = eventOnDate(tomorrowId_);
     isTomorrow = true;
   }
   // The event's own id, not the bare date — a custom event stores its roster
@@ -8734,7 +8865,7 @@ async function renderTodayView() {
   // than not, and tomorrow's crew text goes out tonight. With a single card
   // there was no way to reach tomorrow's crew from here, because the lookahead
   // only ran when today was empty.
-  const nextGame = isTomorrow ? null : eventById(tomorrowId_);
+  const nextGame = isTomorrow ? null : eventOnDate(tomorrowId_);
   const nextCalls = nextGame ? callsFor(nextGame) : null;
 
   inner.innerHTML = `
@@ -12599,7 +12730,7 @@ function namesMatch(rosterName, legalName, crewHandle) {
 async function findScheduledEventOn(dateId, legalName, crewHandle) {
   await loadClientEvents();
   const liveRoster = await loadLiveRoster();
-  const ev = eventById(dateId);
+  const ev = eventOnDate(dateId);
   // A cancelled event is not a shift. Nobody should be asked to confirm one,
   // or shown a call time and a traffic link for a show that isn't happening.
   if (ev && ev.cancelled) return null;
