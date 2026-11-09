@@ -4188,6 +4188,8 @@ function allShiftEvents() {
       venue: ev.venue || "",
       callTime: ev.callTime || "",
       scheduledHours: ev.scheduledHours || null,
+      cancelled: !!ev.cancelled,
+      cancelReason: ev.cancelReason || "",
     });
   });
   // Soonest first.
@@ -4332,6 +4334,406 @@ function openNewEventForm() {
   };
 }
 
+// ============================================================================
+// EDITING AN EVENT THAT IS ALREADY ON THE BOARD
+// ============================================================================
+//
+// Dates move. Playoffs especially. Before this there was no way to change one:
+// no edit control, no delete, and the only fix was deleting nodes by hand in
+// the Firebase console.
+//
+// The hard part is that an event's date is baked into its id when it is
+// created ("2026-11-05__k3f9a2"), and the board, Call Times and Confirmations
+// all filter and sort on THAT, not on the stored date field. So editing the
+// date field alone would leave the event sitting on its old date everywhere
+// that matters. A date change has to move the event to a new id and bring
+// everything hanging off the old one with it.
+// ---------------------------------------------------------------------------
+
+// Everything else in the database keyed by event id. When an event moves, all
+// of this has to move with it or it is orphaned under an id nothing reads.
+// liveRoster and confirmations are the ones that would hurt: lose those and
+// assigned crew silently fall off the shift and have to pick it up again.
+const EVENT_SCOPED_NODES = [
+  "liveRoster", "gameSettings", "confirmations", "runOfShow", "showSettings",
+  "showDocs", "shiftLog", "incidents", "commsCheck", "signalUp", "weatherHold",
+  "clock", "equipmentReports", "qbApprovals", "payments",
+];
+
+// The same event on a different date. Keeping the original suffix means the
+// new id differs only in the date, so the two are recognisably the same event
+// if anyone ever reads the raw data.
+function eventIdForDate(dateStr, oldId) {
+  const suffix = String(oldId).split("__")[1];
+  return `${dateStr}__${suffix || Date.now().toString(36).slice(-6)}`;
+}
+
+// How a position name becomes its key in liveRoster. Every read and write of
+// a slot goes through this, so a position's name IS its identity: rename one
+// and whoever is on it is orphaned under a key nothing looks at. That is why
+// editing positions below only ever adds or removes, never renames.
+function slotKey(role) { return String(role).replace(/[^A-Za-z0-9]/g, "_"); }
+
+// A second Stagehand becomes "Stagehand 2", not a duplicate "Stagehand".
+// Two positions sharing a name would share a slot, so the second person to
+// pick it up would land on top of the first.
+function uniqueRoleName(base, existing) {
+  if (!existing.includes(base)) return base;
+  for (let n = 2; n < 60; n++) {
+    const candidate = `${base} ${n}`;
+    if (!existing.includes(candidate)) return candidate;
+  }
+  return `${base} ${Date.now().toString(36).slice(-3)}`;
+}
+
+function hhmmToLabel(t) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":").map(Number);
+  const ap = h >= 12 ? "PM" : "AM";
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+// Who is actually on this event right now, by display name. Read fresh rather
+// than from a caller's copy, because the warning before a delete has to be
+// true at the moment it is shown.
+async function crewOnEvent(eventId) {
+  const roster = await loadLiveRoster();
+  const slots = (roster && roster[eventId]) || {};
+  return Object.values(slots)
+    .filter((s) => s && s.status === "assigned" && s.name)
+    .map((s) => s.name);
+}
+
+async function openEditEventForm(eventId) {
+  const ev = clientEvents[eventId];
+  if (!ev) return alert("That event isn't editable. Only events added to the board can be changed.");
+
+  const oldDate = ev.eventDate || String(eventId).split("__")[0] || "";
+  const assigned = await crewOnEvent(eventId);
+  const roster = (await loadLiveRoster())[eventId] || {};
+
+  // Positions are staged here and only written on save, so backing out of the
+  // form changes nothing.
+  let roles = Array.isArray(ev.roles) && ev.roles.length ? ev.roles.slice() : TRADEABLE_ROLES.slice();
+  const startingRoles = roles.slice();
+  const billing = Object.assign({}, ev.billingRoles || {});
+  const whoIsOn = (role) => {
+    const e = roster[slotKey(role)];
+    return e && e.status === "assigned" && e.name ? e.name : "";
+  };
+
+  const o = document.createElement("div");
+  o.className = "modal-overlay";
+  o.innerHTML = `
+    <div class="modal-card" style="max-width:400px; max-height:86vh; overflow-y:auto;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div class="modal-title">Edit event</div>
+          <div class="modal-subtitle">${assigned.length
+            ? escapeHtml(assigned.length + (assigned.length === 1 ? " person is" : " people are") + " on this one. They stay on it.")
+            : "Nobody is on this one yet."}</div>
+        </div>
+        <button id="eeClose" title="Close"
+          style="flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-size:16px; font-weight:800; cursor:pointer;">&#10005;</button>
+      </div>
+
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Event name</div>
+        <input id="eeName" value="${escapeAttr(ev.name || "")}" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Date</div>
+        <input id="eeDate" type="date" value="${escapeAttr(oldDate)}" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Client</div>
+        <input id="eeClient" value="${escapeAttr(ev.client || "")}" />
+      </div>
+      <div class="field-block" style="margin-bottom:9px;">
+        <div class="label">Venue</div>
+        <input id="eeVenue" value="${escapeAttr(ev.venue || "")}" />
+      </div>
+      <div class="row2 ct-top" style="margin-bottom:9px;">
+        <div class="field-block">
+          <div class="label">Call time</div>
+          ${timeFieldHtml({ id: "eeCall", value: ev.callTime })}
+        </div>
+        <div class="field-block">
+          <div class="label">End time</div>
+          ${timeFieldHtml({ id: "eeEnd", value: ev.endTime })}
+        </div>
+      </div>
+
+      <div class="label" style="margin:14px 0 6px;">Positions</div>
+      <div id="eeRoles"></div>
+      <div style="display:flex; gap:7px; margin-top:8px;">
+        <select id="eeAddPick" style="flex:1;">
+          ${NEW_EVENT_ROLES.map((r) => `<option value="${escapeAttr(r)}">${escapeHtml(r)}</option>`).join("")}
+        </select>
+        <button class="shift-btn shift-btn-ghost" id="eeAdd" style="flex:0 0 auto; padding:0 14px;">Add</button>
+      </div>
+
+      <button class="primary-btn" id="eeSave" style="margin-top:16px;">Save changes</button>
+      <button id="eeCancelEvent" style="margin-top:9px; width:100%; padding:11px;
+        background:var(--panel2); border:1px solid var(--amber); color:var(--amber);
+        border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;">${
+          ev.cancelled ? "Restore event" : "Cancel event"}</button>
+      <button id="eeDelete" style="margin-top:9px; width:100%; padding:11px;
+        background:var(--panel2); border:1px solid var(--red); color:var(--red);
+        border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;">Delete event</button>
+      <div class="footnote" style="margin-top:8px;">
+        Cancelling keeps the event and its crew on the board, marked cancelled.
+        Deleting removes it and everything on it for good.
+      </div>
+      <div class="error-msg" id="eeMsg" style="display:none; margin-top:10px;"></div>
+    </div>`;
+  document.body.appendChild(o);
+  document.body.style.overflow = "hidden";
+  const close = () => { o.remove(); document.body.style.overflow = ""; };
+  o.querySelector("#eeClose").onclick = close;
+  o.onclick = (e) => { if (e.target === o) close(); };
+
+  const msg = o.querySelector("#eeMsg");
+  const say = (t) => { msg.textContent = t; msg.style.display = "block"; };
+
+  const paintRoles = () => {
+    const host = o.querySelector("#eeRoles");
+    if (!roles.length) {
+      host.innerHTML = `<div class="log-reason">No positions yet. Add at least one.</div>`;
+      return;
+    }
+    host.innerHTML = roles.map((r, i) => {
+      const who = whoIsOn(r);
+      return `<div style="display:flex; align-items:center; gap:9px; padding:7px 2px;
+                          border-bottom:1px solid var(--border);">
+        <span style="flex:1; font-size:13.5px; font-weight:700;">${escapeHtml(r)}</span>
+        <span style="font-size:12px; color:${who ? "var(--text-muted)" : "var(--text-faint)"};">${
+          who ? escapeHtml(who) : "Open"}</span>
+        <button data-rmrole="${i}" title="Remove this position"
+          style="flex:0 0 auto; width:28px; height:28px; border-radius:7px;
+                 background:var(--panel2); border:1px solid var(--border);
+                 color:var(--text-muted); font-weight:800; cursor:pointer;">&#10005;</button>
+      </div>`;
+    }).join("");
+    host.querySelectorAll("[data-rmrole]").forEach((b) => {
+      b.onclick = () => {
+        const i = Number(b.getAttribute("data-rmrole"));
+        const role = roles[i];
+        const who = whoIsOn(role);
+        if (who && !confirm(`${who} is on ${role}. Remove the position and take them off it?`)) return;
+        roles.splice(i, 1);
+        paintRoles();
+      };
+    });
+  };
+  paintRoles();
+
+  o.querySelector("#eeAdd").onclick = () => {
+    const base = o.querySelector("#eeAddPick").value;
+    roles.push(uniqueRoleName(base, roles));
+    paintRoles();
+  };
+
+  o.querySelector("#eeSave").onclick = async () => {
+    const btn = o.querySelector("#eeSave");
+    const name = o.querySelector("#eeName").value.trim();
+    const date = o.querySelector("#eeDate").value;
+    if (!name) return say("Give the event a name.");
+    if (!date) return say("Pick a date.");
+    if (!roles.length) return say("Keep at least one position.");
+
+    const dt = new Date(date + "T12:00:00");
+    // Built over the existing record rather than from scratch, so fields this
+    // form doesn't show (scheduledHours, anything a labor request put there)
+    // survive an edit instead of being quietly dropped.
+    const fields = Object.assign({}, ev, {
+      name,
+      client: o.querySelector("#eeClient").value.trim() || "CISD",
+      venue: o.querySelector("#eeVenue").value.trim(),
+      date: `${dt.getMonth() + 1}/${dt.getDate()}`,
+      day: dt.toLocaleDateString([], { weekday: "short" }),
+      eventDate: date,
+      callTime: hhmmToLabel(timeFieldValue(o.querySelector("#eeCall"))),
+      endTime: hhmmToLabel(timeFieldValue(o.querySelector("#eeEnd"))),
+      roles,
+      billingRoles: roles.reduce((acc, r) => {
+        // A position added here bills at its own name unless it already had a
+        // base rate, which is what an added "Stagehand 2" inherits.
+        acc[slotKey(r)] = billing[slotKey(r)] || r.replace(/\s+\d+$/, "");
+        return acc;
+      }, {}),
+      cancelled: !!ev.cancelled,
+      cancelReason: ev.cancelReason || "",
+      createdBy: ev.createdBy || "",
+      createdAt: ev.createdAt || new Date().toISOString(),
+      movedFrom: date === oldDate ? (ev.movedFrom || null) : oldDate,
+      updatedBy: currentUser ? (currentUser.email || currentUser.uid) : "",
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Positions that appeared or disappeared while the form was open. Each
+    // one needs its liveRoster slot created or removed, or the board won't
+    // show the new position at all and the removed one keeps its slot.
+    const added = roles.filter((r) => !startingRoles.includes(r));
+    const removed = startingRoles.filter((r) => !roles.includes(r));
+
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      if (date === oldDate) {
+        // No move. The id still describes the right day, so this is an
+        // ordinary edit in place, done as one root write so the event and its
+        // positions never disagree.
+        const patch = { [`clientEvents/${eventId}`]: fields };
+        added.forEach((r) => {
+          patch[`liveRoster/${eventId}/${slotKey(r)}`] = { role: r, name: null, status: "open" };
+        });
+        removed.forEach((r) => { patch[`liveRoster/${eventId}/${slotKey(r)}`] = null; });
+        await db.ref().update(patch);
+      } else {
+        await moveEventToDate(eventId, date, fields, { added, removed });
+      }
+      await loadClientEvents();
+      close();
+      renderShiftsView();
+      advDone("Event updated",
+        `${escapeHtml(fields.day)} ${escapeHtml(fields.date)}<br />${escapeHtml(name)}` +
+        (date !== oldDate && assigned.length
+          ? `<br /><br />${escapeHtml(assigned.join(", "))} moved with it. Worth telling them the date changed.`
+          : ""));
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Save changes";
+      say("Couldn't save that: " + (e.message || "unknown error") +
+        (/permission/i.test(String(e.message)) ? " Check the database rules cover every node this event touches." : ""));
+    }
+  };
+
+  // Cancelling is not deleting. The event stays on the board struck through
+  // and marked, its crew stay listed, and the record of who was on it
+  // survives for billing and for anyone asking what happened. Restoring puts
+  // it straight back, which a delete could never do.
+  o.querySelector("#eeCancelEvent").onclick = async () => {
+    const btn = o.querySelector("#eeCancelEvent");
+    const restoring = !!ev.cancelled;
+
+    let reason = "";
+    if (!restoring) {
+      reason = prompt(
+        assigned.length
+          ? `Cancel "${ev.name}"? ${assigned.join(", ")} ${assigned.length === 1 ? "is" : "are"} on it.\n\nReason (shown on the board):`
+          : `Cancel "${ev.name}"?\n\nReason (shown on the board):`,
+        "");
+      if (reason === null) return;
+    } else if (!confirm(`Put "${ev.name}" back on as a live event?`)) {
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = restoring ? "Restoring…" : "Cancelling…";
+    try {
+      await db.ref(`clientEvents/${eventId}`).update({
+        cancelled: !restoring,
+        cancelReason: restoring ? null : (reason.trim() || "Cancelled"),
+        cancelledAt: restoring ? null : new Date().toISOString(),
+        cancelledBy: restoring ? null : (currentUser ? (currentUser.email || currentUser.uid) : ""),
+        updatedAt: new Date().toISOString(),
+      });
+      await loadClientEvents();
+      close();
+      renderShiftsView();
+      if (!restoring && assigned.length) {
+        // The people who were going to work it are the whole point of
+        // cancelling rather than deleting. Offer the text while it's in hand.
+        if (confirm(`Cancelled. Tell ${assigned.join(", ")} now?`)) {
+          openEventTextBlast({
+            name: ev.name, day: ev.day || "", date: ev.date || "",
+            callTime: "", venue: ev.venue || "", roles: roles,
+            cancelled: true, reason: reason.trim(),
+          });
+        }
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = restoring ? "Restore event" : "Cancel event";
+      say("Couldn't save that: " + (e.message || "unknown error"));
+    }
+  };
+
+  o.querySelector("#eeDelete").onclick = async () => {
+    const warn = assigned.length
+      ? `Delete "${ev.name}"? ${assigned.join(", ")} ${assigned.length === 1 ? "is" : "are"} on it and will be taken off.`
+      : `Delete "${ev.name}"? This cannot be undone.`;
+    if (!confirm(warn)) return;
+    const btn = o.querySelector("#eeDelete");
+    btn.disabled = true;
+    btn.textContent = "Deleting…";
+    try {
+      const patch = { [`clientEvents/${eventId}`]: null };
+      EVENT_SCOPED_NODES.forEach((n) => { patch[`${n}/${eventId}`] = null; });
+      await db.ref().update(patch);
+      await loadClientEvents();
+      close();
+      renderShiftsView();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Delete event";
+      say("Couldn't delete that: " + (e.message || "unknown error"));
+    }
+  };
+}
+
+// Move an event to a new id, carrying everything hanging off the old one.
+//
+// Read first, then write once. Only nodes that actually hold something are
+// touched, which keeps the write off paths the rules may not cover: a root
+// update is atomic, so one denied path would fail the whole move. Atomic is
+// what we want here — a half-finished move would leave the event on the board
+// twice, once on each date.
+async function moveEventToDate(oldId, newDate, fields, slotChanges) {
+  const newId = eventIdForDate(newDate, oldId);
+  if (newId === oldId) {
+    await db.ref(`clientEvents/${oldId}`).update(fields);
+    return newId;
+  }
+
+  const patch = {};
+  patch[`clientEvents/${newId}`] = fields;
+  patch[`clientEvents/${oldId}`] = null;
+
+  for (const node of EVENT_SCOPED_NODES) {
+    let val = null;
+    try {
+      const snap = await db.ref(`${node}/${oldId}`).once("value");
+      val = snap.val();
+    } catch (e) {
+      // Nothing stored under this node, or no read access to it. Either way
+      // there is nothing to carry across.
+      continue;
+    }
+    if (val === null || val === undefined) continue;
+    patch[`${node}/${newId}`] = val;
+    patch[`${node}/${oldId}`] = null;
+  }
+
+  // Position changes apply to the roster as it lands on the new date. Done
+  // here rather than in a second write so a move that also adds or drops a
+  // position is still all or nothing.
+  if (slotChanges) {
+    const carried = Object.assign({}, patch[`liveRoster/${newId}`] || {});
+    (slotChanges.added || []).forEach((r) => {
+      carried[slotKey(r)] = { role: r, name: null, status: "open" };
+    });
+    (slotChanges.removed || []).forEach((r) => { delete carried[slotKey(r)]; });
+    patch[`liveRoster/${newId}`] = Object.keys(carried).length ? carried : null;
+  }
+
+  await db.ref().update(patch);
+  return newId;
+}
+
 // Pick crew and open one group text announcing the event.
 //
 // This opens the phone's own Messages app with the numbers filled in and the
@@ -4391,7 +4793,15 @@ async function openEventTextBlast(ev) {
   o.querySelector("#tbClose").onclick = close;
   o.onclick = (e) => { if (e.target === o) close(); };
 
-  o.querySelector("#tbMsg").value = [
+  o.querySelector("#tbMsg").value = (ev.cancelled ? [
+    `ADV MEDIA \u2014 CANCELLED`,
+    `${ev.name}`,
+    `${ev.day} ${ev.date}`,
+    ev.reason ? ev.reason : null,
+    ``,
+    `You are not needed for this one. Nothing else changes.`,
+    `  ${appLink()}`,
+  ] : [
     `ADV MEDIA \u2014 NEW EVENT`,
     `${ev.name}`,
     `${ev.day} ${ev.date}${ev.callTime ? " \u00b7 Call " + ev.callTime : ""}`,
@@ -4399,7 +4809,7 @@ async function openEventTextBlast(ev) {
     ``,
     `Open shifts are up. Pick one up in the app:`,
     `  ${appLink()}`,
-  ].filter((l) => l !== null).join("\n");
+  ]).filter((l) => l !== null).join("\n");
 
   const boxes = () => [...o.querySelectorAll("[data-tbi]")].filter((b) => !b.disabled);
   o.querySelector("#tbAll").onclick = () => boxes().forEach((b) => { b.checked = true; });
@@ -4421,6 +4831,8 @@ function openSpotsFor(gameId, rosterAll) {
   const out = [];
   allShiftEvents().forEach((g) => {
     if (gameId && g.id !== gameId) return;
+    // Don't advertise shifts on a cancelled event.
+    if (g.cancelled) return;
     const roster = (rosterAll && rosterAll[g.id]) || {};
     const roles = visibleRosterRows(rosterRowsFor(g.id, roster))
       .filter((r) => r.open)
@@ -4643,17 +5055,22 @@ function renderShiftsList(liveRoster) {
         `;
       }).join("");
       return `
-        <div class="shift-game-card">
+        <div class="shift-game-card"${g.cancelled ? ' style="opacity:.62;"' : ""}>
           ${admin ? `<button class="shift-btn shift-btn-ghost" data-textcrew="${escapeAttr(g.id)}"
             style="float:right; padding:5px 11px; font-size:11.5px;">Text crew</button>` : ""}
           ${admin && openSpotsFor(g.id, liveRoster).length ? `
             <button class="shift-btn shift-btn-ghost" data-alertopen="${escapeAttr(g.id)}"
               style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;
                      border-color:var(--amber); color:var(--amber);">📣 Alert open</button>` : ""}
+          ${admin && clientEvents && clientEvents[g.id] ? `
+            <button class="shift-btn shift-btn-ghost" data-editevent="${escapeAttr(g.id)}"
+              style="float:right; margin-right:6px; padding:5px 11px; font-size:11.5px;">Edit event</button>` : ""}
           <div class="shift-game-header">
-            ${g.day} ${g.date} — ${escapeHtml(g.opp)}
+            <span${g.cancelled ? ' style="text-decoration:line-through;"' : ""}>${g.day} ${g.date} — ${escapeHtml(g.opp)}</span>
+            ${g.cancelled ? `<span style="background:var(--red); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">Cancelled</span>` : ""}
             ${g.client && g.client !== "CISD" ? `<span style="background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:8px; vertical-align:middle;">${escapeHtml(g.client)}</span>` : ""}
           </div>
+          ${g.cancelled && g.cancelReason ? `<div class="log-reason" style="margin:-4px 0 8px; color:var(--red);">${escapeHtml(g.cancelReason)}</div>` : ""}
           ${g.venue || g.callTime ? `<div class="log-reason" style="margin:-4px 0 8px;">${escapeHtml(g.venue || "")}${g.venue && g.callTime ? " · " : ""}${g.callTime ? "Call " + escapeHtml(g.callTime) : ""}</div>` : ""}
           ${rows}
         </div>
@@ -4663,6 +5080,10 @@ function renderShiftsList(liveRoster) {
 
   const nsb = document.getElementById("newShiftBtn");
   if (nsb) nsb.onclick = openNewEventForm;
+
+  inner.querySelectorAll("[data-editevent]").forEach((b) => {
+    b.onclick = () => openEditEventForm(b.getAttribute("data-editevent"));
+  });
 
   inner.querySelectorAll("[data-alertopen]").forEach((b) => {
     b.onclick = () => openShiftAlert(b.getAttribute("data-alertopen"));
@@ -12179,6 +12600,9 @@ async function findScheduledEventOn(dateId, legalName, crewHandle) {
   await loadClientEvents();
   const liveRoster = await loadLiveRoster();
   const ev = eventById(dateId);
+  // A cancelled event is not a shift. Nobody should be asked to confirm one,
+  // or shown a call time and a traffic link for a show that isn't happening.
+  if (ev && ev.cancelled) return null;
   const rosterId = ev ? ev.id : dateId;
   const rows = rosterRowsFor(rosterId, liveRoster[rosterId]);
   for (const r of rows) {
