@@ -538,7 +538,9 @@ still opens to `adv-media-teams.html`. To make the board the first screen for
 everyone, change `start_url` in `manifest.json` to `./crew-board.html`. Rotating slides: next call,
 coming up, open shifts, your shift and invoices (signed-in phone only), gear,
 Bring a Show (10% of the gross on the first booked and paid show), shout-outs,
-ADV Media Academy QR code, season numbers.
+ADV Media Academy QR code, season numbers, and an "Every app" page linking
+to each Teams tab (by hash deep link), show tool and guide. Add new apps to
+`APP_GROUPS`. On a phone, a touch holds the current slide for 30 seconds.
 
 - **All live.** Listens on `liveRoster`, `clientEvents`, `gameOverrides`,
   `gameSettings`, `cables`, `cases`, `crewBoard`. Slides with nothing real

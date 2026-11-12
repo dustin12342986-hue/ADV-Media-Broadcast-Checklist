@@ -14,7 +14,8 @@
   ============================================================================
   The lobby TV and the first screen of the app. Rotates through what the crew
   needs to know: next call, what's coming up, open shifts, gear status, the
-  Bring a Show program, the Academy sign-up, shout-outs, season numbers.
+  Bring a Show program, the Academy sign-up, shout-outs, season numbers,
+  and a page of links to every crew app.
 
   EVERYTHING ON IT IS LIVE. It reads the same Firebase nodes as
   adv-media-teams.html and listens for changes, so a shift picked up on a
@@ -185,6 +186,15 @@
   }
   .qr { background:#fff; padding:12px; border-radius:12px; line-height:0; display:inline-block; }
   .qr svg { width:clamp(150px,15vw,300px); height:auto; display:block; }
+
+  .tiles { display:grid; gap:clamp(8px,0.7vw,14px); grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr)); }
+  .tile {
+    display:block; text-decoration:none; color:inherit; background:var(--panel);
+    border:1px solid var(--border); border-radius:12px; padding:clamp(10px,0.9vw,18px);
+  }
+  a.tile:active { border-color:var(--accent); }
+  .tile-name { font-size:clamp(13.5px,1.1vw,21px); font-weight:700; }
+  .tile-sub { font-size:clamp(11.5px,0.85vw,16px); color:var(--text-faint); margin-top:3px; }
 
   .empty { color:var(--text-faint); font-size:clamp(13px,1.15vw,22px); }
 
@@ -641,7 +651,52 @@ function slideSeason() {
     </div>`;
 }
 
-const SLIDES = [slideNext, slideWeek, slideOpen, slideYours, slideGear, slideBring, slideShout, slideAcademy, slideSeason];
+// Every crew app in one place. Tabs inside the app use the deep links
+// adv-media-teams.html already reads from the hash (#runofshow, #audio...).
+const APP_GROUPS = [
+  { name: "In the app", items: [
+    { name: "Today", sub: "Call, weather hold, signal up", url: "adv-media-teams.html#today" },
+    { name: "Run of Show", sub: "Cues and prompter", url: "adv-media-teams.html#runofshow" },
+    { name: "Script", sub: "Announcer copy", url: "adv-media-teams.html#script" },
+    { name: "Audio", sub: "Wireless, comms, patch", url: "adv-media-teams.html#audio" },
+    { name: "Gear", sub: "Cables and cases", url: "adv-media-teams.html#cables" },
+    { name: "Pathfinder", sub: "Signal finder", url: "adv-media-teams.html#pathfinder" },
+    { name: "Shifts", sub: "Pick up or drop", url: "adv-media-teams.html#shifts" },
+    { name: "Profile", sub: "Your info", url: "adv-media-teams.html#profile" },
+    { name: "ID Card", sub: "Your crew ID", url: "adv-media-teams.html#idcard" },
+  ]},
+  { name: "Show tools", items: [
+    { name: "Rundown", sub: "Gear checklists, labor", url: "rundown.html" },
+    { name: "Checklist", sub: "Pre and post shift", url: "checklist.html" },
+    { name: "Time Clock", sub: "Clock in and out", url: "time-clock.html" },
+    { name: "Football Package", sub: "Gear by position", url: "football-package.html" },
+    { name: "Facility Grid", sub: "Every CISD venue", url: "facility-grid.html" },
+    { name: "Equipment", sub: "Booth checkout", url: "https://dustin12342986-hue.github.io/Equipment-Checkout/" },
+  ]},
+  { name: "Guides", items: [
+    { name: "Crew Guide", sub: "How everything works", url: "crew-guide.html" },
+    { name: "Producer Guide", sub: "Running the Run of Show", url: "producer-guide.html" },
+    { name: "Director", sub: "TriCaster", url: "director-tricaster.html" },
+    { name: "Camera Setup", sub: "Operators", url: "cameras-football-setup.html" },
+    { name: "Camera Lead Setup", sub: "Shading, firmware", url: "camera-lead-football-setup.html" },
+    { name: "Blue Bonnet", sub: "The assistant", url: "blue-bonnet-guide.html" },
+    { name: "Install App", sub: "Add to your phone", url: "install.html" },
+  ]},
+];
+
+function slideApps() {
+  return `
+    <div><div class="kicker">ADV Media Teams</div><h1 class="headline">Every app, one tap</h1>
+      ${TV ? `<div class="sub">Open the crew board on your phone to jump straight in.</div>` : ""}</div>
+    ${APP_GROUPS.map((g) => `
+      <div><div class="label">${esc(g.name)}</div>
+        <div class="tiles">${g.items.map((a) => TV
+          ? `<div class="tile"><div class="tile-name">${esc(a.name)}</div><div class="tile-sub">${esc(a.sub)}</div></div>`
+          : `<a class="tile" href="${esc(a.url)}"><div class="tile-name">${esc(a.name)}</div><div class="tile-sub">${esc(a.sub)}</div></a>`).join("")}
+        </div></div>`).join("")}`;
+}
+
+const SLIDES = [slideNext, slideWeek, slideOpen, slideYours, slideApps, slideGear, slideBring, slideShout, slideAcademy, slideSeason];
 
 // ---------------------------------------------------------------------------
 // Rotation. Content is rebuilt on every data change, but the rotation keeps
@@ -687,8 +742,19 @@ function go(i) {
   slideStart = Date.now();
   paintDots();
   clearTimeout(timer);
-  timer = setTimeout(() => go(idx + 1), SLIDE_SECONDS * 1000);
+  timer = setTimeout(function next() {
+    const wait = holdUntil - Date.now();
+    if (wait > 0) { timer = setTimeout(next, wait); return; }
+    go(idx + 1);
+  }, SLIDE_SECONDS * 1000);
 }
+
+// On a phone, a touch means someone is reading or about to tap a link.
+// Hold the current slide for 30 seconds after the last touch.
+const HOLD_MS = 30000;
+let holdUntil = 0;
+if (!TV) ["pointerdown", "touchstart", "scroll"].forEach((ev) =>
+  stage.addEventListener(ev, () => { holdUntil = Date.now() + HOLD_MS; }, { passive: true }));
 
 function buildTicker() {
   const items = [];
