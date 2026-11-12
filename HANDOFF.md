@@ -533,8 +533,9 @@ wording, in `football-package.html` and `FIBER_KB`. Do not reword it.
 
 ## Crew board (crew-board.html)
 
-Added 12 Nov 2026. The lobby TV and the first screen of the installed app
-(`manifest.json` start_url now points here). Rotating slides: next call,
+Added 12 Nov 2026. The lobby TV, reached by link for now. The installed app
+still opens to `adv-media-teams.html`. To make the board the first screen for
+everyone, change `start_url` in `manifest.json` to `./crew-board.html`. Rotating slides: next call,
 coming up, open shifts, your shift and invoices (signed-in phone only), gear,
 Bring a Show (10% of the gross on the first booked and paid show), shout-outs,
 ADV Media Academy QR code, season numbers.
