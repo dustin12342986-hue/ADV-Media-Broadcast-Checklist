@@ -530,3 +530,24 @@ take viewfinders, 4 does not; only 3 needs a power cable.
 
 **SMPTE ends must never get wet or touch the ground.** Dustin's rule, his
 wording, in `football-package.html` and `FIBER_KB`. Do not reword it.
+
+## Crew board (crew-board.html)
+
+Added 12 Nov 2026. The lobby TV and the first screen of the installed app
+(`manifest.json` start_url now points here). Rotating slides: next call,
+coming up, open shifts, your shift and invoices (signed-in phone only), gear,
+Bring a Show (10% of the gross on the first booked and paid show), shout-outs,
+ADV Media Academy QR code, season numbers.
+
+- **All live.** Listens on `liveRoster`, `clientEvents`, `gameOverrides`,
+  `gameSettings`, `cables`, `cases`, `crewBoard`. Slides with nothing real
+  to show are skipped. No sample data anywhere.
+- **`?tv=1`** for the lobby TV. Hides the buttons and every personal slide.
+- **`crewBoard`** is new: announcements, shout-outs, referral numbers, academy
+  link. Edited from the board's Edit button (admins only). Needs the
+  `crewBoard` rule from `firebase-rules.json` published.
+- **`GAMES` is copied in** from `adv-media-teams.html`. Moves, cancels and
+  removals still come through `gameOverrides`, but a new football game added
+  to the app's `GAMES` needs adding here too.
+- QR library is inlined (qrcode-generator, MIT) for the same reason
+  everything else is: stadium networks.

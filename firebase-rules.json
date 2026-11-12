@@ -127,6 +127,10 @@
     "cases": {
       ".read": true,
       ".write": "auth != null"
+    },
+    "crewBoard": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'dustin12342986@gmail.com' || auth.token.email === 'aracely.valencia10@gmail.com')"
     }
   }
 }
