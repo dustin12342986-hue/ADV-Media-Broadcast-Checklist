@@ -1581,7 +1581,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-12 · v104 · client and announcer views stay in step";
+const APP_BUILD = "build 2026-11-12 · v105 · show index loads before it publishes";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1870,7 +1870,14 @@ function renderMainApp() {
 
   if (mainState.view === "shifts") {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
-    renderShiftsView();
+    // Load the added events and schedule overrides before drawing.
+    //
+    // Every other route into this view loaded them first and this one did
+    // not, so opening Shifts straight from a fresh page load drew the board,
+    // and published the show index, from whatever happened to be in memory.
+    // On a cold load that is nothing, so the client and announcer pages were
+    // handed the hardcoded season and none of the added games.
+    loadClientEvents().then(renderShiftsView);
     return;
   }
 
