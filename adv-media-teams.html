@@ -1581,7 +1581,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-09 · v103 · every event editable";
+const APP_BUILD = "build 2026-11-12 · v104 · client and announcer views stay in step";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4184,6 +4184,68 @@ function eventDateOf(g) {
   return (g && g.eventDate) || String(g && g.id).split("__")[0];
 }
 
+// ============================================================================
+// SHOW INDEX — the public list of shows, for show-view and announcer
+// ============================================================================
+//
+// Those two pages are client and talent facing. They have no sign-in, so they
+// read the database anonymously over REST, and they used to carry their own
+// hardcoded copy of the schedule. That copy went stale the moment an event
+// was added here, which is how a client ended up looking at a dropdown that
+// ended weeks before the show they were sitting in.
+//
+// They cannot simply read clientEvents instead: that node holds client names,
+// venues and billing roles, and anyone with the database URL could read it.
+// So this publishes the smallest thing those pages actually need, a label and
+// a date per show, and nothing else. No client, no venue, no roles, no crew.
+//
+// Written by admins only, diffed so a render that changes nothing writes
+// nothing, and recomputed whenever the Shifts view draws. That last part is
+// what keeps it honest: there is no separate step to forget, and an index
+// that drifts repairs itself the next time an admin opens Shifts.
+async function publishShowIndex() {
+  if (!isAdmin() || !db) return;
+
+  const want = {};
+  allShiftEvents().forEach((g) => {
+    want[g.id] = {
+      day: g.day || "", date: g.date || "", opp: g.opp || "",
+      eventDate: eventDateOf(g),
+      cancelled: !!g.cancelled,
+    };
+  });
+
+  let have = {};
+  try {
+    const snap = await db.ref("showIndex").once("value");
+    have = snap.val() || {};
+  } catch (e) {
+    return; // no read access, so no business writing either
+  }
+
+  const patch = {};
+  const same = (a, b) => a && b && a.day === b.day && a.date === b.date
+    && a.opp === b.opp && a.eventDate === b.eventDate && !!a.cancelled === !!b.cancelled;
+
+  Object.keys(want).forEach((id) => {
+    if (!same(have[id], want[id])) patch[`showIndex/${id}`] = want[id];
+  });
+  // A show that is gone from the board comes out of the index too, or the
+  // client keeps seeing a deleted event.
+  Object.keys(have).forEach((id) => {
+    if (!want[id]) patch[`showIndex/${id}`] = null;
+  });
+
+  if (!Object.keys(patch).length) return;
+  try {
+    await db.ref().update(patch);
+  } catch (e) {
+    // Most likely no rule for showIndex yet. The board still works; only the
+    // client and announcer pages go without.
+    console.warn("Couldn't publish the show index:", e && e.message);
+  }
+}
+
 // Matches a plain date too. A custom event's id is the date plus a suffix
 // (2026-09-24__k3x9f1) so two events can share a day, but Today and the crew
 // text look up a bare date. Without this they never match.
@@ -5211,6 +5273,10 @@ function renderShiftsList(liveRoster) {
 
   const srb = document.getElementById("showRemovedBtn");
   if (srb) srb.onclick = () => { showRemovedEvents = !showRemovedEvents; renderShiftsView(); };
+
+  // Keep the client and announcer pages in step. Deliberately not awaited:
+  // the board is already on screen and this must never hold it up.
+  publishShowIndex();
 
   inner.querySelectorAll("[data-editevent]").forEach((b) => {
     b.onclick = () => openEditEventForm(b.getAttribute("data-editevent"));

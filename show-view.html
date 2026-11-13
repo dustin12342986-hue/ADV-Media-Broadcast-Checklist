@@ -480,29 +480,100 @@ let gameId = null;
 let cues = [];
 let current = 0;
 
-const sel = document.getElementById("gameSel");
-GAMES.forEach((g) => {
-  const o = document.createElement("option");
-  o.value = g.id;
-  o.textContent = `${g.day} ${g.date} — ${g.opp}`;
-  sel.appendChild(o);
-});
+// Every show the board knows about, not only the ones hardcoded above.
+//
+// GAMES below is the football season as it stood when this page was written.
+// It is kept as a floor so the page still works if the database is
+// unreachable, but anything the crew app knows about wins: playoff games
+// added mid-season, a game whose date moved, one that was cancelled.
+//
+// This reads showIndex, a deliberately thin public node holding a label and a
+// date per show and nothing else. The events themselves live in clientEvents,
+// which this page must never read: it has no sign-in, and that node carries
+// client names, venues and billing roles.
+let SHOWS = GAMES.map((g) => ({
+  id: g.id, day: g.day, date: g.date, opp: g.opp,
+  eventDate: g.id, cancelled: false,
+}));
 
-const today = localDateId();
-const todayGame = GAMES.find((g) => g.id === today);
-gameId = todayGame ? todayGame.id : (GAMES.find((g) => g.id >= today) || GAMES[0]).id;
-sel.value = gameId;
+function showById(id) { return SHOWS.find((s) => s.id === id) || null; }
+
+async function loadShowIndex() {
+  try {
+    const res = await fetch(`${DB}/showIndex.json`, { cache: "no-store" });
+    const data = await res.json();
+    if (!data || typeof data !== "object") return;
+    const merged = {};
+    SHOWS.forEach((s) => { merged[s.id] = s; });
+    Object.keys(data).forEach((id) => {
+      const d = data[id] || {};
+      merged[id] = {
+        id,
+        day: d.day || "", date: d.date || "", opp: d.opp || "",
+        // A show that moved keeps the old date in its id, so the published
+        // date is the one to sort and search on.
+        eventDate: d.eventDate || String(id).split("__")[0],
+        cancelled: !!d.cancelled,
+      };
+    });
+    SHOWS = Object.values(merged)
+      .sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
+  } catch (e) {
+    // Offline, or no read access to the index. The built-in list stands.
+  }
+}
+
+const sel = document.getElementById("gameSel");
+
+// Once someone picks a show by hand, a later refresh of the list must not
+// move them off it mid-show.
+let userPicked = false;
+
+function paintGameList() {
+  sel.innerHTML = "";
+  SHOWS.forEach((s) => {
+    const o = document.createElement("option");
+    o.value = s.id;
+    o.textContent = `${s.day} ${s.date} — ${s.opp}` + (s.cancelled ? "  (cancelled)" : "");
+    sel.appendChild(o);
+  });
+
+  if (userPicked && showById(gameId)) { sel.value = gameId; return; }
+
+  const today = localDateId();
+  const onToday = SHOWS.find((s) => s.eventDate === today && !s.cancelled);
+  const next = SHOWS.find((s) => s.eventDate >= today && !s.cancelled);
+  const pick = onToday || next || SHOWS[SHOWS.length - 1];
+  gameId = pick ? pick.id : null;
+  sel.value = gameId;
+}
+
+paintGameList();
+applyBranding(showById(gameId));
+
+// Pull the real list in behind the first paint, so the page is usable
+// immediately and correct a moment later. Refreshed on a slow timer as well,
+// because a show can be added while this page is sitting open in a booth.
+loadShowIndex().then(() => {
+  const before = gameId;
+  paintGameList();
+  if (gameId !== before) { cues = []; applyBranding(showById(gameId)); poll(); }
+  else applyBranding(showById(gameId));
+});
+setInterval(() => { loadShowIndex().then(paintGameList); }, 60000);
+
 sel.onchange = () => {
   gameId = sel.value;
+  userPicked = true;
   cues = [];
-  applyBranding(GAMES.find((g) => g.id === gameId));
+  applyBranding(showById(gameId));
   poll();
 };
 
 document.getElementById("lightBtn").onclick = () => {
   const now = localStorage.getItem(LIGHT_KEY) === "1";
   try { localStorage.setItem(LIGHT_KEY, now ? "0" : "1"); } catch (e) {}
-  applyBranding(GAMES.find((g) => g.id === gameId));
+  applyBranding(showById(gameId));
 };
 
 async function poll() {
@@ -600,7 +671,7 @@ let started = false;
 function start() {
   if (started) return;
   started = true;
-  applyBranding(GAMES.find((g) => g.id === gameId));
+  applyBranding(showById(gameId));
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     startVideo();
   } else {
