@@ -499,28 +499,57 @@ let SHOWS = GAMES.map((g) => ({
 function showById(id) { return SHOWS.find((s) => s.id === id) || null; }
 
 async function loadShowIndex() {
-  try {
-    const res = await fetch(`${DB}/showIndex.json`, { cache: "no-store" });
-    const data = await res.json();
-    if (!data || typeof data !== "object") return;
-    const merged = {};
-    SHOWS.forEach((s) => { merged[s.id] = s; });
-    Object.keys(data).forEach((id) => {
-      const d = data[id] || {};
-      merged[id] = {
-        id,
-        day: d.day || "", date: d.date || "", opp: d.opp || "",
-        // A show that moved keeps the old date in its id, so the published
-        // date is the one to sort and search on.
-        eventDate: d.eventDate || String(id).split("__")[0],
-        cancelled: !!d.cancelled,
-      };
+  const merged = {};
+  SHOWS.forEach((s) => { merged[s.id] = s; });
+
+  const put = (id, day, date, opp, eventDate, cancelled) => {
+    if (!id) return;
+    merged[id] = {
+      id,
+      day: day || "", date: date || "", opp: opp || "",
+      // A show that moved keeps the old date in its id, so the stored date
+      // is the one to sort and search on.
+      eventDate: eventDate || String(id).split("__")[0],
+      cancelled: !!cancelled,
+    };
+  };
+
+  // Two sources, both already world readable, because this page has no
+  // sign-in and reads anonymously.
+  //
+  //   clientEvents — the events themselves. Read directly so a game added in
+  //                  the app shows up here immediately, with no publishing
+  //                  step in between that can be missed or fail quietly.
+  //   showIndex    — the published summary. Kept because it is the only
+  //                  thing that carries edits to the hardcoded season.
+  //
+  // Only the label and the date are taken from either. Nothing else on an
+  // event is read, shown, or stored by this page.
+  const [events, index] = await Promise.all([
+    fetch(`${DB}/clientEvents.json`, { cache: "no-store" })
+      .then((r) => r.json()).catch(() => null),
+    fetch(`${DB}/showIndex.json`, { cache: "no-store" })
+      .then((r) => r.json()).catch(() => null),
+  ]);
+
+  if (events && typeof events === "object") {
+    Object.keys(events).forEach((id) => {
+      const e = events[id] || {};
+      put(id, e.day, e.date, e.name || e.opp, e.eventDate, e.cancelled);
     });
-    SHOWS = Object.values(merged)
-      .sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
-  } catch (e) {
-    // Offline, or no read access to the index. The built-in list stands.
   }
+
+  // The index wins where it exists: it is the only source that knows about a
+  // season game that was moved, renamed or cancelled.
+  if (index && typeof index === "object") {
+    Object.keys(index).forEach((id) => {
+      const d = index[id] || {};
+      put(id, d.day, d.date, d.opp, d.eventDate, d.cancelled);
+    });
+  }
+
+  SHOWS = Object.values(merged)
+    .sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
 }
 
 const sel = document.getElementById("gameSel");
