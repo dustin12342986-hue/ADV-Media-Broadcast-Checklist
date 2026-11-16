@@ -34,6 +34,7 @@
     crewBoard/quotes/{push}         { text, by, gameId, at }        quote of the game
     crewBoard/referrals             { paidTotal, inProgress, booked }
     crewBoard/academy               { url }             QR code target
+    crewBoard/allTime               { events }          all-time count, Season screen
   Needs a rules entry, see firebase-rules.json.
 
   TWO MODES
@@ -858,6 +859,15 @@ function slideAcademy() {
     </div>`;
 }
 
+// All-time events worked. Dusty's count: 55 a year for four years, plus
+// another 50 across those years = 270. Change it from Edit board; the saved
+// number lives at crewBoard/allTime/events and wins over this default.
+const ALL_TIME_EVENTS_DEFAULT = 55 * 4 + 50;
+function allTimeEvents() {
+  const n = Number(((S.board || {}).allTime || {}).events);
+  return Number.isFinite(n) && n > 0 ? n : ALL_TIME_EVENTS_DEFAULT;
+}
+
 function slideSeason() {
   const today = localDateId();
   const all = allEvents().filter((e) => !e.cancelled);
@@ -868,7 +878,9 @@ function slideSeason() {
     <div ${ani(0)}><div class="eyebrow">Season so far</div></div>
     <h1 class="mega md" ${ani(1)}>In the <em>books</em></h1>
     <div class="stats">
-      <div class="stat" ${ani(2)}><div class="k">Events worked</div><div class="v"><span data-count="${done.length}">${done.length}</span></div></div>
+      <div class="stat" ${ani(2)}><div class="k">All events worked</div><div class="v"><span data-count="${allTimeEvents()}">${allTimeEvents().toLocaleString()}</span></div>
+        <div class="s">since ADV started</div></div>
+      <div class="stat" ${ani(2)}><div class="k">This season</div><div class="v"><span data-count="${done.length}">${done.length}</span></div></div>
       <div class="stat" ${ani(3)}><div class="k">Still ahead</div><div class="v"><span data-count="${all.length - done.length}">${all.length - done.length}</span></div></div>
       <div class="stat" ${ani(4)}><div class="k">Clients</div><div class="v"><span data-count="${clients.size}">${clients.size}</span></div>
         <div class="s">${esc([...clients].join(", "))}</div></div>
@@ -1108,6 +1120,11 @@ function drawEditor(msg) {
     <div class="muted">Paid to crew this season, leads in progress, booked and waiting on payment. Leave all three blank to hide the numbers.</div>
     <button class="btn save" id="rSave">Save numbers</button>
 
+    <div class="label">All events worked</div>
+    <input id="allTime" type="number" min="0" value="${allTimeEvents()}" />
+    <div class="muted">The all-time count on the Season screen.</div>
+    <button class="btn save" id="allTimeSave">Save count</button>
+
     <div class="label">Academy sign-up link</div>
     <input id="acUrl" type="url" placeholder="https://advmediaco.com/academy" value="${esc(ac.url || "")}" />
     <div class="muted">The QR code points here. Leave blank and the slide asks people to talk to you instead.</div>
@@ -1138,6 +1155,10 @@ function drawEditor(msg) {
   ed.querySelector("#rSave").onclick = () => {
     const n = (id) => { const v = val(id); return v === "" ? null : Math.max(0, Number(v)); };
     db.ref("crewBoard/referrals").set({ paidTotal: n("#rPaid"), inProgress: n("#rProg"), booked: n("#rBook") }).then(() => done("Saved")).catch(fail);
+  };
+  ed.querySelector("#allTimeSave").onclick = () => {
+    const v = Math.max(0, Math.round(Number(val("#allTime")) || 0));
+    db.ref("crewBoard/allTime").set(v ? { events: v } : null).then(() => done("Saved")).catch(fail);
   };
   ed.querySelector("#acSave").onclick = () => {
     const u = val("#acUrl");
