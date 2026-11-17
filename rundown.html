@@ -317,6 +317,14 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
 .whatif>summary::-webkit-details-marker{display:none}
 .whatif>summary h2::after{content:"  +";color:var(--muted)}
 .whatif[open]>summary h2::after{content:"  −"}
+.brief{margin-top:16px;background:var(--surface);border-radius:20px;padding:clamp(18px,3vw,28px);display:flex;flex-direction:column;gap:14px}
+.brief h3{font-family:var(--display);font-weight:400;font-size:clamp(28px,4vw,44px);line-height:1;text-transform:uppercase;margin-top:4px}
+.brief-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 28px}
+@media (max-width:760px){.brief-g{grid-template-columns:minmax(0,1fr)}}
+.brief-g b{display:block;font-weight:600;margin-bottom:4px}
+.brief-g ul{margin:0;padding-left:18px;color:var(--muted);font-size:15px;display:flex;flex-direction:column;gap:4px}
+.brief-g div:last-child{background:var(--bg);border-radius:14px;padding:12px 14px}
+.brief-g div:last-child ul{color:var(--fg)}
 </style>
 </head>
 <body>
@@ -476,6 +484,7 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
   <section class="view" id="view-rooms" hidden>
     <h2 style="font-family:var(--display);text-transform:uppercase;font-weight:400;font-size:clamp(40px,6vw,72px);line-height:.95">Room map</h2>
     <p class="note box" id="gridStrip" hidden style="margin-top:12px"></p>
+    <div class="brief" id="showBrief" hidden></div>
     <p class="lede">Every show gets its own room. Turn on Move, drag the stage and the gear to match the venue, then zoom in like a microscope: the room, then each world, then each piece and its patch, then every port and seat.</p>
 
     <div class="mapbar">
@@ -825,6 +834,14 @@ function geo(sh){const v=vkey(sh),W=sh.room.w,L=sh.room.l,g={v,stands:[],surf:[]
     if(sh.room.layout&&sh.room.layout!=="courts")g.courtsDim=true;}
   return g;}
 function venueSvg(sh,G){const o=[];
+  if(sh.lot){const t=sh.lot,cx=t.x+t.w/2;
+    o.push(`<rect x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" fill="var(--sunk)" stroke="var(--cheap)" stroke-width="1" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`);
+    for(let k=t.x+10;k<t.x+t.w-8;k+=9)o.push(`<line class="l2" x1="${k}" y1="${t.y+4}" x2="${k}" y2="${t.y+22}" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/><line class="l2" x1="${k}" y1="${t.y+t.h-22}" x2="${k}" y2="${t.y+t.h-4}" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/>`);
+    o.push(`<rect x="${t.x+26}" y="${t.y+40}" width="${t.w-52}" height="${t.h-80}" rx="22" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="10 6" vector-effect="non-scaling-stroke"/>`);
+    o.push(`<rect x="${t.x+40}" y="${t.y+36}" width="3" height="8" fill="var(--fg)"/><text class="zone halo" x="${t.x+41}" y="${t.y+33}" text-anchor="middle" style="font-size:calc(var(--fs) * .9px)">START / FINISH</text>`);
+    o.push(`<text class="zone" x="${cx}" y="${t.y+t.h/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">5K WALK COURSE · PARKING LOT</text>`);
+    o.push(`<text class="meta halo" x="${cx}" y="${t.y+t.h/2+12}" text-anchor="middle">Lot shape and course loop are placeholders. Laps and route confirmed day of.</text>`);
+    o.push(`<text class="meta halo l2" x="${t.x+4}" y="${t.y-3}">SW parking lot, outside the stadium wall</text>`);}
   if(G.cisd){const {x,y}=G.field,W=sh.room.w,L=sh.room.l;
     o.push(`<rect x="4" y="${y+40}" width="5" height="80" fill="var(--w-video)"/><text class="zone halo" x="16" y="${y+30}" text-anchor="middle" style="font-size:calc(var(--fs) * .9px)">LED WALL</text>`);
     o.push(`<rect x="${W-24}" y="${y+48}" width="20" height="64" fill="none" stroke="var(--w-house)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke"/><text class="zone halo" x="${W-14}" y="${y+44}" text-anchor="middle" style="font-size:calc(var(--fs) * .9px)">VIP BALCONY</text>`);
@@ -869,7 +886,7 @@ function standsSeating(G,F){const out=[];let seats=0;
     for(let k=0;k<sec;k++)out.push(`<text class="meta halo l2" x="${s.x+(k+.5)*Math.min(33,s.w/sec)}" y="${s.y-1.5}" text-anchor="middle">Sec ${k+1}</text>`);
     out.push(`<text class="zone l1" x="${s.x+s.w/2}" y="${s.y+s.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1px)">${s.name.toUpperCase()}</text>`);});
   return {svg:out.join(""),seats};}
-function setVenue(sh,v){if(v==="cisd"){const V=VENUES.cisd;sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=0;buildCisd(sh);return}sh.runs=null;const V=VENUES[v];sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=V.h;
+function setVenue(sh,v){sh.preset=null;sh.lot=null;sh.brief=null;sh.guide=null;if(v==="cisd"){const V=VENUES.cisd;sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=0;buildCisd(sh);return}sh.runs=null;const V=VENUES[v];sh.room.venue=v;sh.room.w=V.w;sh.room.l=V.l;sh.room.h=V.h;
   if(V.layouts.length)sh.room.layout=V.layouts[0];
   buildFromTruck(sh);}
 function venueFromName(n){n=(n||"").toLowerCase();if(/^stadium\b|cisd|crowley/.test(n))return "cisd";return /stadium|football|field house|gridiron/.test(n)&&!/track/.test(n)?"football":/track/.test(n)?"track":/indoor|court|gym|center|arena/.test(n)?"indoor":null}
@@ -937,7 +954,63 @@ function buildCisd(sh){
 }
 
 function houseRuns(p){const sh=cur();if(!sh.runs)return"";const rs=sh.runs.filter(r=>r[0]===p.code||r[1]===p.code);if(!rs.length)return"";return `<div class="sub" style="opacity:.85">House runs: ${rs.map(r=>esc((r[0]===p.code?"to "+r[1]:"from "+r[0])+" ("+r[2]+")")).join("; ")}</div>`}
+/* ---------- Special event: 5K Special Abilities Walk (parking lot, CISD Stadium) ---------- */
+const ABILITY={key:"preset:ability-5k-2026-11-18",slug:"ability-5k",name:"5K Special Abilities Walk",date:"2026-11-18",venue:"CISD Stadium, parking lot",client:"CISD"};
+function buildAbility5k(sh){
+  sh.room.venue="cisd";sh.room.w=VENUES.cisd.w;sh.room.l=VENUES.cisd.l;sh.room.h=0;
+  buildCisd(sh);sh.preset="ability5k";
+  const W=sh.room.w,L=sh.room.l;
+  sh.lot={x:150,y:L+14,w:W-150,h:170};
+  const P=sh.pieces,find=c=>P.find(p=>p.code===c),drop=c=>{const i=P.findIndex(p=>p.code===c);if(i>=0)P.splice(i,1)};
+  ["LAV-01","DJ","HH-01","HH-02","HH-03","BP-01","BP-02","BP-03","BP-04"].forEach(drop);
+  const set=(c,o)=>Object.assign(find(c),o);
+  const lot=sh.lot;
+  set("CAM-01",{x:392,y:328,to:"JBT.3B.01",runFt:325,port:"325 ft SMPTE reel from the high 50 JBT, down from the platform through the bleachers",
+    note:"Blue. Actively operated. Sits at the end of the bleachers. Tactical fiber 1 to VIP with AJA FiDO. Exact placement confirmed day of."});
+  set("CAM-02",{x:250,y:92,to:"JBT.0D.01",runFt:100,port:"100 ft SMPTE to the visitor side JBT",
+    note:"Red. Static shot. Exact placement confirmed day of."});
+  set("CAM-03",{to:"JBT.0F.01",runFt:100,port:"100 ft SMPTE to the VIP JBT",
+    note:"Green. Actively operated. Exact placement confirmed day of."});
+  set("CAM-04",{x:lot.x+150,y:lot.y+18,to:"JBT.0C.01",runFt:325,port:"325 ft SMPTE to the home side JBT",
+    note:"Yellow. Actively operated. Utility / A2 grips for this camera. Exact placement confirmed day of."});
+  set("RPL.200",{note:"No traditional live replay. May throw up a few clips during the show. Main job: individualized highlight packages for the parents of the special abilities students. Unused clips get repurposed, so capture great moments of the students all event."});
+  set("COM-01",{note:"Clear-Com base, RCK-200. Four cameras on wired comms. Wireless packs for the A2, Production Manager, EIC, and client. Client hears Channel D only."});
+  // wired comms at each camera
+  ["CAM-01","CAM-02","CAM-03","CAM-04"].forEach((c,i)=>{const k=find(c);P.push({id:rid(),type:"beltpack",code:"WC-"+(i+1),x:+(k.x+.8).toFixed(1),y:+(k.y+4).toFixed(1),to:"COM-01",port:"Wired comms",runTxt:"wired comms run",note:c+" operator, wired comms."})});
+  // wireless comms set up by the A2
+  const wl=[["WL-A2",lot.x+156,lot.y+24,"A2 / Utility. Gripping Camera 4. Carries 2 to 3 wireless mics."],["WL-PM",lot.x+40,lot.y+30,"Production Manager, wireless comms."],["WL-EIC",lot.x+60,lot.y+30,"EIC, wireless comms."]];
+  wl.forEach(([c,x,y,n])=>P.push({id:rid(),type:"beltpack",code:c,x,y,to:"COM-01",port:"Wireless comms (set up by the A2)",runTxt:"wireless",note:n}));
+  P.push({id:rid(),type:"beltpack",code:"CLIENT",x:lot.x+120,y:lot.y+60,to:"COM-01",port:"DJ line · Channel D only",runTxt:"DJ line, length confirmed day of",
+    note:"Client on the field. Receives Channel D only over the DJ line. Producers and directors: keep D muted on your panels when talking to crew. Unmute and key D only to talk to the client."});
+  // wireless mics on the A2
+  [0,1,2].forEach(i=>P.push({id:rid(),type:"mic",code:"HH-0"+(i+1),x:lot.x+160+i*1.6,y:lot.y+28,to:"MIX.300",port:"ULXD wireless → X32",runTxt:"wireless",note:i<2?"Carried by Utility / A2.":"Third mic, if needed. Plan says 2 to 3."}));
+  sh.brief=[
+    ["Cameras, fiber and grip",["All four cameras are set. Exact placement is confirmed day of.","Camera 1, Blue: 325 ft reel from the high 50 JBT. Tactical fiber 1 to VIP with AJA FiDO. SMPTE runs down from the platform through the bleachers to the end of the bleachers. Actively operated.","Camera 2, Red: visitor side JBT, 100 ft SMPTE. Static shot.","Camera 3, Green: VIP JBT, 100 ft SMPTE. Actively operated.","Camera 4, Yellow: home side JBT, 325 ft SMPTE. Actively operated.","Utility / A2 grips Camera 4 and carries 2 to 3 wireless mics."]],
+    ["Replay and packages",["No traditional live replay. Replay may throw up a few clips during the show.","The main goal is individualized highlight packages for the parents of the special abilities students.","Unused clips are repurposed, so focus on capturing great moments of the students all event."]],
+    ["Comms and audio",["Wired comms on all four cameras.","The A2 sets up wireless comms for the A2, Production Manager, EIC, and the client on the field."]],
+    ["Client comms protocol: Channel D",["The client on the field is on a DJ line receiving Channel D only.","Producers and directors: keep Channel D muted on your panels when talking to crew.","Only unmute and key up on D when talking directly to the client."]]];
+  sh.guide=[
+    ["Truck to the pedestal","Truck parks at P1 in the SW lot. Keep the walk course clear of the truck, cable, and carts."],
+    ["Open the AV room","B200F: TriCaster PSV.200, 3Play RPL.200, CCU.201A to D, Clear-Com base."],
+    ["Camera 1, Blue","325 ft SMPTE reel from the high 50 JBT, down from the platform through the bleachers to the end of the bleachers. Run tactical fiber 1 to VIP with the AJA FiDO. Actively operated."],
+    ["Camera 2, Red","100 ft SMPTE to the visitor side JBT. Lock it off as the static shot."],
+    ["Camera 3, Green","100 ft SMPTE to the VIP JBT. Needs its power cable. Actively operated."],
+    ["Camera 4, Yellow","325 ft SMPTE to the home side JBT. Actively operated. Utility / A2 grips and carries 2 to 3 wireless mics."],
+    ["Confirm placement","Exact camera spots get confirmed day of. Move each camera on the map with Move: on once they are set."],
+    ["Comms","Wired comms on all four cameras. A2 sets up wireless packs for the A2, Production Manager, EIC, and client. Client gets the DJ line, Channel D only."],
+    ["Channel D check","Producers and directors: D muted on every panel by default. Key D with the client once to confirm they hear you, then mute it again."],
+    ["Replay brief","Replay builds a package per student for their parents. Shoot names, faces, and finishes. A few clips may go to air."],
+    ["Cable in a public lot","Ramp or mat every crossing on the walk route. Tag runs that cross public space. Nothing loose where walkers or wheelchairs pass."],
+    ["Strike","Cap and sleeve every SMPTE end. Collect every wireless pack and mic. Photograph each position as you leave it."]];
+}
+function renderBrief(){const sh=cur(),el=$("#showBrief");if(!el)return;
+  if(!sh.brief){el.hidden=true;el.innerHTML="";return}
+  const d=sh.meta&&sh.meta.date?dfmtLong(sh.meta.date):"";
+  el.hidden=false;el.innerHTML=`<div class="brief-h"><span class="eyebrow">Crew brief${d?" · "+esc(d):""}${sh.meta&&sh.meta.venue?" · "+esc(sh.meta.venue):""}</span><h3>${esc(sh.name)}</h3></div><div class="brief-g">${sh.brief.map(([t,ls])=>`<div><b>${esc(t)}</b><ul>${ls.map(l=>`<li>${esc(l)}</li>`).join("")}</ul></div>`).join("")}</div>`}
+function dfmtLong(d){try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}catch(e){return d}}
+
 function buildFromTruck(sh){
+  if(sh.preset==="ability5k")return buildAbility5k(sh);
   if(vkey(sh)==="cisd")return buildCisd(sh);
   const W=sh.room.w,L=sh.room.l;
   const cnt=fn=>st.items.filter(i=>i.fn===fn).reduce((a,b)=>a+b.qty,0);
@@ -983,10 +1056,16 @@ function newShow(name){
   SH.cur=id;buildFromTruck(SH.list[id]);saveSH();return SH.list[id];
 }
 if(!SH||!SH.list||!SH.list[SH.cur]){SH={cur:null,list:{},role:"eic",hide:[]};newShow(st.name||"Example show")}
+(function presets(){let ab=Object.values(SH.list).find(s=>s.src===ABILITY.key);
+  if(!ab){ab=newShow(ABILITY.name);ab.src=ABILITY.key;ab.meta={date:ABILITY.date,venue:ABILITY.venue,client:ABILITY.client};buildAbility5k(ab);SH.cur=ab.id;saveSH()}
+  let q;try{q=new URLSearchParams(location.search)}catch(e){return}
+  if(q.get("show")===ABILITY.slug){SH.cur=ab.id;saveSH();if(!location.hash)history.replaceState(null,"",location.pathname+location.search+"#rooms")}})();
 (function fromGrid(){let q;try{q=new URLSearchParams(location.search)}catch(e){return}
   const ev=q.get("ev");if(!ev)return;
   const name=q.get("name")||"Show",date=q.get("date")||"",venue=q.get("venue")||"",client=q.get("client")||"";
   const key="grid:"+ev;let found=Object.values(SH.list).find(s=>s.src===key);
+  if(!found&&date===ABILITY.date&&/abilit/i.test(name)){found=Object.values(SH.list).find(s=>s.src===ABILITY.key);if(found)found.src2=key}
+  if(found&&found.src===ABILITY.key){SH.cur=found.id;saveSH();if(!location.hash)history.replaceState(null,"",location.pathname+location.search+"#rooms");window.__fromGrid=found;return}
   if(!found){found=newShow(name);found.src=key;const vv=venueFromName(venue+" "+name);if(vv)setVenue(found,vv)}
   found.meta={date,venue,client};SH.cur=found.id;saveSH();
   if(!location.hash)history.replaceState(null,"",location.pathname+location.search+"#rooms");
@@ -1072,7 +1151,7 @@ function seating(sh){
 /* view state */
 const svgEl=$("#map"),box=$("#mapBox");
 let view={x:0,y:0,w:100,h:100},fitW=100,selId=null,moveOn=false;
-function fit(){const sh=cur(),W=sh.room.w,L=sh.room.l,bw=box.clientWidth||800,bh=box.clientHeight||600,pad=8;
+function fit(){const sh=cur(),W=sh.room.w,L=sh.lot?sh.lot.y+sh.lot.h+6:sh.room.l,bw=box.clientWidth||800,bh=box.clientHeight||600,pad=8;
   const ar=bw/bh;let w=W+pad*2,h=L+pad*2;if(w/h>ar)h=w/ar;else w=h*ar;
   view={x:W/2-w/2,y:L/2-h/2,w,h};fitW=w;applyView()}
 function lod(){const k=fitW/view.w;return k>=8?4:k>=3.5?3:k>=1.7?2:1}
@@ -1098,7 +1177,7 @@ function shapeSvg(p){const T=TYPES[p.type],w=pw(p),d=pd(p),c=WC(T.w);
   if(T.shape==="spk")return`<path class="body" d="M0 0 H${w} L${w*.78} ${d} H${w*.22} Z" fill="${c}"/>`;
   if(T.shape==="cam")return`<rect class="body" x="0" y="${d*.2}" width="${w*.72}" height="${d*.6}" rx=".2" fill="${c}"/><path class="body" d="M${w*.72} ${d*.5} L${w} ${d*.2} V${d*.8} Z" fill="${c}"/>`;
   return`<rect class="body" x="0" y="0" width="${w}" height="${d}" rx=".25" fill="${c}"/>`}
-function renderMap(){
+function renderMap(){renderBrief();
   const sh=cur(),W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,D=derive(sh),seat=seating(sh);
   const vis=new Set(ROLES[SH.role][1].filter(w=>!SH.hide.includes(w)));
   const hid=w=>vis.has(w)?"":" hidew";
@@ -1157,7 +1236,7 @@ function renderSide(D){
   const p=sh.pieces.find(x=>x.id===selId);
   if(p){const T=TYPES[p.type],sig=D.links.find(l=>l.a===p&&l.kind==="sig"),pwl=D.links.find(l=>l.a===p&&l.kind==="pw");
     const hops=[`<li style="--wc:${WC(T.w)}"><span><b>${p.code}</b> ${esc(T.name)}<small>${vkey(sh)==="ballroom"?`${p.x.toFixed(1)} ft from house-left wall · ${p.y.toFixed(1)} ft from upstage wall`:`Map spot ${p.x.toFixed(0)} ft across, ${p.y.toFixed(0)} ft down${p.fixed?" · fixed house location":""}`}</small></span></li>`];
-    let a=p,l=sig,guard=0;while(l&&guard++<4){const pts=route(sh,l.a,l.b);hops.push(`<li style="--wc:${WC(TYPES[l.b.type].w)}"><span><b>${l.b.code}</b> ${esc(TYPES[l.b.type].name)}<small>${esc(portLabel(l.a,l.b,D.port[l.a.id]))} · ${l.a.runFt?l.a.runFt+" ft run":l.a.fixed?"installed house cable":"about "+cableFt(pts)+" ft of cable"}</small></span></li>`);a=l.b;l=D.links.find(x=>x.a===a&&x.kind==="sig")}
+    let a=p,l=sig,guard=0;while(l&&guard++<4){const pts=route(sh,l.a,l.b);hops.push(`<li style="--wc:${WC(TYPES[l.b.type].w)}"><span><b>${l.b.code}</b> ${esc(TYPES[l.b.type].name)}<small>${esc(portLabel(l.a,l.b,D.port[l.a.id]))} · ${l.a.runFt?l.a.runFt+" ft run":l.a.runTxt?esc(l.a.runTxt):l.a.fixed?"installed house cable":"about "+cableFt(pts)+" ft of cable"}</small></span></li>`);a=l.b;l=D.links.find(x=>x.a===a&&x.kind==="sig")}
     const kids=(D.kids[p.id]||[]).map(k=>k.code).join(", ");
     const pwTxt=pwl?`<li style="--wc:${WC("power")}"><span><b>${pwl.b.code}</b> Power<small>Circuit ${D.port[p.id+"#pw"].n} · about ${cableFt(route(sh,p,pwl.b))} ft of feeder</small></span></li>`:"";
     $("#mInfo").innerHTML=`<div class="card"><span class="sub">${WORLDS[T.w]} · Pathfinder</span><div class="code">${p.code}</div><div class="sub">${esc(T.name)}${p.panels?` · ${p.panels} panels (${p.cols} × ${p.rows})`:""}</div>${p.note?`<div class="sub" style="opacity:.9">${esc(p.note)}</div>`:""}${houseRuns(p)}<ol>${hops.join("")}${pwTxt}</ol>${kids?`<div class="sub">Feeds: ${kids}</div>`:""}<button class="x" type="button" id="mClose">Close</button></div>`;
@@ -1207,7 +1286,8 @@ function renderGuide(seat,fits,scrW,scrH){
    ["Check from the farthest seat",`Zoom to Ports + seats, find the back row, and sit there. Read the slides, listen for dead spots, and confirm the cameras clear the audience.`],
    ["Hand off by position","Each crew member opens Pathfinder at their own position and checks every piece in their world against the map, then marks the checklist done."]];
   const G=geo(sh);
-  if(G.v==="cisd"){const cams=sh.pieces.filter(p=>p.type==="cam"&&p.to);
+  if(sh.guide){steps=sh.guide.map(x=>[...x])}
+  else if(G.v==="cisd"){const cams=sh.pieces.filter(p=>p.type==="cam"&&p.to);
     steps=[["Truck to the pedestal","Truck parks at the dock pedestal P1 in the SW lot. P1 has fiber, 6-pair audio, and outdoor Cat6 from every field box, plus fiber and two 6-pair multis to the AV room B200F."],
      ["Open the AV room","B200F on the mezzanine: TriCaster PSV.200, 3Play RPL.200, CCU.201A to D, and the Clear-Com base live in RCK-200 and RCK-201. Field SMPTE lands on Broadcast Panel 201."],
      ["Pull camera runs",cams.map(c=>`${c.code}: ${c.port}`).join(". ")+"."],
