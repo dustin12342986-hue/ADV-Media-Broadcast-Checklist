@@ -18,7 +18,7 @@
   --inv-bg:#111111; --inv-fg:#ffffff;
   --turf:#b7d3b9; --turf-ez:#a3c6a6; --trackc:#d6a58c; --court:#efe3cf; --line-w:#ffffff; --line-c:#8a7a62;
   --loss:#b4531a; --loss-soft:#f7e6da; --gain:#1f7a55; --gain-soft:#dcefe5; --loss-on-inv:#ff9b5c;
-  --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66; --w-house:#8a6f4d;
+  --w-audio:#5b3df5; --w-video:#1f6fd1; --w-lighting:#b7801f; --w-power:#6b6b70; --w-staging:#3a3a3c; --w-comms:#2c8a66; --w-house:#8a6f4d; --cam-blue:#1f6fd1; --cam-red:#c93636; --cam-green:#23935a; --cam-yellow:#e6b31e;
   --hero-a:#0d1033; --hero-b:#3a1f8f; --hero-c:#0b5bd3;
   --display:"Anton","Impact","Arial Narrow Bold",sans-serif;
   --brand:"Alata","Arial Black",Arial,sans-serif;
@@ -182,6 +182,20 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
 #map.dragging{cursor:grabbing}
 #map.moving [data-drag],#map.moving .pc{cursor:move}
 .mapctl{position:absolute;display:flex;gap:6px;z-index:2}
+.mapctl.bl{bottom:12px;left:12px}
+.camkey{flex-direction:column;gap:2px;background:var(--bg);border-radius:16px;padding:10px 10px 8px;box-shadow:0 1px 4px rgba(0,0,0,.18);max-width:min(300px,calc(100% - 200px))}
+.camkey>b{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:0 4px 4px}
+.camkey button{font:inherit;display:flex;gap:10px;align-items:center;text-align:left;border:0;background:transparent;color:var(--fg);padding:5px 4px;border-radius:10px;cursor:pointer}
+.camkey button:hover{background:var(--surface)}
+.camkey i{flex:0 0 24px;height:24px;border-radius:999px;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:13px}
+.camkey span{font-size:14px;font-weight:600;line-height:1.15;min-width:0}
+.camkey small{display:block;font-weight:400;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:640px){.camkey small{display:none}.camkey{max-width:150px}}
+#map .cpin{cursor:pointer}
+#map .cpin .cl{font-family:var(--body);font-size:12.5px;font-weight:700;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3.5px;stroke-linejoin:round;pointer-events:none}
+#map .cpin.on circle:not(.ring){stroke:var(--fg);stroke-width:3}
+#map .cpin .ring{transform-box:fill-box}
+#map.z3 .cpin .cl,#map.z4 .cpin .cl{display:none}
 .mapctl.tl{top:12px;left:12px}.mapctl.tr{top:12px;right:12px}.mapctl.br{bottom:12px;right:12px}
 .mb{font:inherit;font-size:14px;font-weight:500;border:0;border-radius:999px;padding:9px 16px;background:var(--bg);color:var(--fg);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .mb.sq{width:40px;padding:9px 0;font-size:18px;line-height:1}
@@ -512,6 +526,7 @@ button.ghost{font:inherit;font-size:14px;font-weight:500;background:transparent;
         <div class="mapctl tr">
           <button class="mb" id="mMove" type="button" aria-pressed="false">Move: off</button>
         </div>
+        <div class="mapctl bl camkey" id="camKey" hidden></div>
         <div class="mapctl br">
           <button class="mb sq" id="zIn" type="button" aria-label="Zoom in">+</button>
           <button class="mb sq" id="zOut" type="button" aria-label="Zoom out">−</button>
@@ -1155,9 +1170,16 @@ function fit(){const sh=cur(),W=sh.room.w,L=sh.lot?sh.lot.y+sh.lot.h+6:sh.room.l
   const ar=bw/bh;let w=W+pad*2,h=L+pad*2;if(w/h>ar)h=w/ar;else w=h*ar;
   view={x:W/2-w/2,y:L/2-h/2,w,h};fitW=w;applyView()}
 function lod(){const k=fitW/view.w;return k>=8?4:k>=3.5?3:k>=1.7?2:1}
+const CAMC={Blue:"var(--cam-blue)",Red:"var(--cam-red)",Green:"var(--cam-green)",Yellow:"var(--cam-yellow)"};
+function camColor(p){return p.color||((p.note||"").match(/^(Blue|Red|Green|Yellow)\b/)||[])[1]}
+function camPins(sh){return sh.pieces.filter(p=>p.type==="cam"&&camColor(p)).map(p=>{const [x,y]=ctr(p);return {p,n:+(p.code.match(/\d+/)||[0])[0],c:camColor(p),x,y}}).sort((a,b)=>a.n-b.n)}
+function placePins(){const s=view.w/(box.clientWidth||800);svgEl.querySelectorAll(".cpin").forEach(g=>g.setAttribute("transform",`translate(${g.dataset.cx} ${g.dataset.cy}) scale(${s.toFixed(5)})`))}
+function renderCamKey(){const el=$("#camKey");if(!el)return;const pins=camPins(cur());
+  el.hidden=!pins.length;el.innerHTML=`<b>Camera plot</b>${pins.map(({p,n,c})=>`<button type="button" data-cam="${p.id}"><i style="background:${CAMC[c]};color:${c==="Yellow"?"#111":"#fff"}">${n}</i><span>${c}<small>${esc((p.port||"").split(" to ")[0].replace(/ SMPTE.*$/," SMPTE")+(p.to?" · "+p.to:""))}</small></span></button>`).join("")}`;
+  el.querySelectorAll("[data-cam]").forEach(b=>b.addEventListener("click",()=>selectPiece(b.dataset.cam,true)))}
 function applyView(){
   svgEl.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`);
-  const ppf=(box.clientWidth||800)/view.w;svgEl.style.setProperty("--fs",(13/ppf).toFixed(4));
+  const ppf=(box.clientWidth||800)/view.w;svgEl.style.setProperty("--fs",(13/ppf).toFixed(4));placePins();
   const z=lod();svgEl.classList.remove("z1","z2","z3","z4");svgEl.classList.add("z"+z);
   const k=fitW/view.w;const names=["Room","Worlds","Pieces + patch","Ports + seats"];
   $("#lens").innerHTML=`<span class="mag">${k<10?k.toFixed(1):Math.round(k)}×</span><span class="dots">${[1,2,3,4].map(i=>`<i class="${i<=z?"on":""}"></i>`).join("")}</span><span>${names[z-1]}</span>`;
@@ -1177,7 +1199,7 @@ function shapeSvg(p){const T=TYPES[p.type],w=pw(p),d=pd(p),c=WC(T.w);
   if(T.shape==="spk")return`<path class="body" d="M0 0 H${w} L${w*.78} ${d} H${w*.22} Z" fill="${c}"/>`;
   if(T.shape==="cam")return`<rect class="body" x="0" y="${d*.2}" width="${w*.72}" height="${d*.6}" rx=".2" fill="${c}"/><path class="body" d="M${w*.72} ${d*.5} L${w} ${d*.2} V${d*.8} Z" fill="${c}"/>`;
   return`<rect class="body" x="0" y="0" width="${w}" height="${d}" rx=".25" fill="${c}"/>`}
-function renderMap(){renderBrief();
+function renderMap(){renderBrief();renderCamKey();
   const sh=cur(),W=sh.room.w,L=sh.room.l,S=sh.stage,F=sh.foh,D=derive(sh),seat=seating(sh);
   const vis=new Set(ROLES[SH.role][1].filter(w=>!SH.hide.includes(w)));
   const hid=w=>vis.has(w)?"":" hidew";
@@ -1217,6 +1239,9 @@ function renderMap(){renderBrief();
       (par?`<text class="meta halo ${TYPES[p.type].shape==="dot"?"l4":"l3"}" x="${w/2}" y="${d+(ks?1.9:.5)}" text-anchor="middle" dominant-baseline="hanging" style="fill:${WC(T.w)};font-size:calc(var(--fs) * .85px)">${esc(portLabel(p,par.b,pt))}</text>`:"")+
       `<text class="meta halo l4" x="${w/2}" y="${d+(ks?1.9:.5)}" dy="${par?"1.45em":"0"}" text-anchor="middle" dominant-baseline="hanging" style="font-size:calc(var(--fs) * .8px)">${esc(T.name)}${p.panels?` · ${p.panels} panels`:""}</text>`;
     g.push(`<g class="pc${p.id===selId?" selId":""}${hid(T.w)}" data-id="${p.id}" transform="translate(${p.x} ${p.y})">${inner}${lab}</g>`)});
+  // camera pins: fixed screen size at every zoom
+  camPins(sh).forEach(({p,n,c,x,y})=>{if(!vis.has("video"))return;
+    g.push(`<g class="cpin${p.id===selId?" on":""}" data-pin="${p.id}" data-cx="${x}" data-cy="${y}"><circle class="ring" r="19" fill="${CAMC[c]}" opacity=".22"/><circle r="13" fill="${CAMC[c]}" stroke="var(--bg)" stroke-width="2.5"/><text text-anchor="middle" dominant-baseline="central" style="fill:${c==="Yellow"?"#111":"#fff"};font-weight:700;font-size:14px">${n}</text><text class="cl" x="19" y="1" dominant-baseline="central">CAM ${n} · ${c}</text></g>`)});
   // labels on top
   g.push(`<text class="stage-t${geo(sh).v!=="ballroom"?" l2":""}" x="${S.x+S.w/2}" y="${S.y+S.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">STAGE ${S.w}′ × ${S.d}′</text>`);
   g.push(`<text class="zone l1" x="${F.x+F.w/2}" y="${F.y+F.d/2}" text-anchor="middle" dominant-baseline="central" style="font-size:calc(var(--fs) * 1.1px)">${G.v==="ballroom"?"FOH":G.fohLabel.split(" / ")[0]}</text>`);
@@ -1347,10 +1372,11 @@ svgEl.addEventListener("wheel",e=>{e.preventDefault();const p=toSvg(e);zoomAt(Ma
 const ptrs=new Map();let gest=null;
 svgEl.addEventListener("pointerdown",e=>{svgEl.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===2){const [a,b]=[...ptrs.values()];gest={type:"pinch",d:Math.hypot(a.x-b.x,a.y-b.y)};return}
-  const t=e.target.closest("[data-id],[data-drag]"),s=toSvg(e),sh=cur();
+  const t=e.target.closest("[data-pin],[data-id],[data-drag]"),s=toSvg(e),sh=cur();
   gest={type:"pan",sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y,moved:false,target:t};
   if(moveOn&&t){
-    if(t.dataset.id){const p=sh.pieces.find(x=>x.id===t.dataset.id);if(!p.fixed)gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:t}],s0:s}}
+    if(t.dataset.pin){const p=sh.pieces.find(x=>x.id===t.dataset.pin);if(p&&!p.fixed)gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)},{p,pin:t,ox:p.x,oy:p.y}],s0:s}}
+    else if(t.dataset.id){const p=sh.pieces.find(x=>x.id===t.dataset.id);if(!p.fixed)gest={...gest,type:"drag",items:[{p,ox:p.x,oy:p.y,el:t}],s0:s}}
     else if(t.dataset.drag==="foh"){const F=sh.foh,inF=sh.pieces.filter(p=>{if(p.fixed)return false;const [x,y]=ctr(p);return x>=F.x&&x<=F.x+F.w&&y>=F.y&&y<=F.y+F.d});gest={...gest,type:"drag",box:"foh",bo:{x:F.x,y:F.y},items:inF.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
     else if(t.dataset.drag==="stage"){const S=sh.stage,on=sh.pieces.filter(p=>{if(p.fixed)return false;const [x,y]=ctr(p);return x>=S.x-5&&x<=S.x+S.w+5&&y>=S.y&&y<=S.y+S.d+1});gest={...gest,type:"drag",box:"stage",bo:{x:S.x,y:S.y},items:on.map(p=>({p,ox:p.x,oy:p.y,el:svgEl.querySelector(`.pc[data-id="${p.id}"]`)})),s0:s,el:t}}
   }
@@ -1361,12 +1387,12 @@ svgEl.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId)||!gest)return
   if(gest.type==="pan"){const ppf=box.clientWidth/view.w;view.x=gest.vx-(e.clientX-gest.sx)/ppf;view.y=gest.vy-(e.clientY-gest.sy)/ppf;applyView()}
   else if(gest.type==="drag"&&gest.moved){const s=toSvg(e),sh=cur(),snap=v=>Math.round(v*2)/2;
     const dx=snap(s.x-gest.s0.x),dy=snap(s.y-gest.s0.y);
-    gest.items.forEach(it=>{it.p.x=+(it.ox+dx).toFixed(1);it.p.y=+(it.oy+dy).toFixed(1);if(it.el)it.el.setAttribute("transform",`translate(${it.p.x} ${it.p.y})`)});
+    gest.items.forEach(it=>{it.p.x=+(it.ox+dx).toFixed(1);it.p.y=+(it.oy+dy).toFixed(1);if(it.pin){const [cx,cy]=ctr(it.p);it.pin.dataset.cx=cx;it.pin.dataset.cy=cy;placePins()}else if(it.el)it.el.setAttribute("transform",`translate(${it.p.x} ${it.p.y})`)});
     if(gest.box){const B=sh[gest.box];B.x=Math.max(0,Math.min(sh.room.w-B.w,gest.bo.x+dx));B.y=Math.max(0,Math.min(sh.room.l-(B.d||0),gest.bo.y+dy));
       const r=gest.el.tagName==="rect"?gest.el:gest.el.querySelector("rect");r.setAttribute("x",B.x);r.setAttribute("y",B.y)}}});
 function endPtr(e){ptrs.delete(e.pointerId);if(!gest)return;
   if(gest.type==="pinch"){if(ptrs.size===0)gest=null;return}
-  if(!gest.moved&&gest.type!=="pinch"){const t=gest.target;if(t&&t.dataset.id)selectPiece(t.dataset.id,false);else if(selId){selId=null;renderMap()}}
+  if(!gest.moved&&gest.type!=="pinch"){const t=gest.target;if(t&&t.dataset.pin)selectPiece(t.dataset.pin,false);else if(t&&t.dataset.id)selectPiece(t.dataset.id,false);else if(selId){selId=null;renderMap()}}
   else if(gest.type==="drag"){saveSH();renderMap();if(selId)highlight()}
   gest=null;svgEl.classList.remove("dragging")}
 svgEl.addEventListener("pointerup",endPtr);svgEl.addEventListener("pointercancel",endPtr);
