@@ -295,7 +295,11 @@
 // ============================================================================
 // Data
 // ============================================================================
-const GAMES = [
+// The schedule comes from showIndex, the public show list ADV Media Teams
+// publishes whenever an admin opens Shifts: every football game with its
+// moves and cancels applied, plus every event added in Teams. No sign-in
+// needed to read it. This list is only the fallback for when it can't load.
+let GAMES = [
   { id: "2026-08-27", day: "Thu", date: "8/27", opp: "Tx. Wesleyan vs Central Oklahoma" },
   { id: "2026-08-28", day: "Fri", date: "8/28", opp: "NCHS vs Aledo" },
   { id: "2026-09-03", day: "Thu", date: "9/3", opp: "CHS vs Lamar (Arlington)" },
@@ -557,6 +561,7 @@ async function initFirebaseAndBoot() {
   populateGameSelect();
   updateTabs();
   renderView();
+  listenForSchedule();
 
   // Safety net: if nothing has rendered real content within a few seconds, surface a clear message
   // instead of leaving the page stuck on a loading placeholder.
@@ -670,10 +675,46 @@ function dbListen(path, cb) {
 // ============================================================================
 // State
 // ============================================================================
+// An event added in Teams has an id like 2026-11-19__k3f9a2; the date is
+// the part before the "__", or eventDate when the event was moved.
+function gameDate(g) { return (g && g.eventDate) || String(g && g.id).split("__")[0]; }
+function gameLabel(g) { return `${g.day} ${g.date} \u2014 ${g.opp}${g.cancelled ? " (cancelled)" : ""}`; }
+function currentGameObj() {
+  return GAMES.find((g) => g.id === state.gameId) || { id: state.gameId, day: "", date: "", opp: "Event" };
+}
+
 function nextUpcomingGameId() {
   const today = new Date(); today.setHours(0,0,0,0);
-  for (const g of GAMES) { if (new Date(g.id + "T00:00:00") >= today) return g.id; }
-  return GAMES[GAMES.length - 1].id;
+  for (const g of GAMES) { if (!g.cancelled && new Date(gameDate(g) + "T00:00:00") >= today) return g.id; }
+  return GAMES.length ? GAMES[GAMES.length - 1].id : "";
+}
+
+// Replace the fallback list with the live one and keep the dropdown in step.
+// The checklist someone has open stays open; only a page that hasn't been
+// pointed at a game yet moves to the next upcoming one.
+let liveScheduleLoaded = false;
+function listenForSchedule() {
+  if (!db) return;
+  db.ref("showIndex").on("value", (snap) => {
+    const idx = snap.val();
+    if (!idx || !Object.keys(idx).length) return;
+    const list = Object.entries(idx)
+      .filter(([, e]) => e && e.opp)
+      .map(([id, e]) => ({ id, day: e.day || "", date: e.date || "", opp: e.opp, eventDate: e.eventDate || "", cancelled: !!e.cancelled }))
+      .sort((a, b) => gameDate(a).localeCompare(gameDate(b)) || a.id.localeCompare(b.id));
+    const first = !liveScheduleLoaded;
+    GAMES = list;
+    liveScheduleLoaded = true;
+    if (first && requestedGame && GAMES.some((g) => g.id === requestedGame) && state.gameId !== requestedGame) {
+      state.gameId = requestedGame; populateGameSelect(); renderView(); return;
+    }
+    if (first && !(requestedGame && GAMES.some((g) => g.id === requestedGame))) {
+      const next = nextUpcomingGameId();
+      if (next && next !== state.gameId) { state.gameId = next; populateGameSelect(); renderView(); return; }
+    }
+    if (!GAMES.some((g) => g.id === state.gameId)) { state.gameId = nextUpcomingGameId(); populateGameSelect(); renderView(); return; }
+    populateGameSelect();
+  }, (err) => console.warn("Couldn't load the show list, using the built-in schedule:", err && err.message));
 }
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -705,7 +746,7 @@ let unsubDash = [];
 // ============================================================================
 function populateGameSelect() {
   const sel = document.getElementById("gameSelect");
-  sel.innerHTML = GAMES.map(g => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("");
+  sel.innerHTML = GAMES.map(g => `<option value="${g.id}">${gameLabel(g)}</option>`).join("");
   sel.value = state.gameId;
   sel.onchange = () => { state.gameId = sel.value; renderView(); };
 }
@@ -1018,7 +1059,7 @@ function renderChecklistBody(rec, items, position) {
   if (!body) return;
   const st = statusOf(rec, items.length);
   const doneCount = rec.checked.filter(Boolean).length;
-  const currentGame = GAMES.find(g => g.id === state.gameId);
+  const currentGame = currentGameObj();
 
   let html = `
     <div class="status-card">
@@ -1188,7 +1229,7 @@ async function pollUlxdStatus() {
 
 function renderDashboard() {
   const root = document.getElementById("viewRoot");
-  const currentGame = GAMES.find(g => g.id === state.gameId);
+  const currentGame = currentGameObj();
   root.innerHTML = `<div class="dash-gamehead">${currentGame.day} ${currentGame.date} — ${currentGame.opp}</div><div class="footnote">Loading…</div>`;
 
   unsubDash.forEach(u => u());

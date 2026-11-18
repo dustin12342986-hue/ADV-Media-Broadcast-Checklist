@@ -554,3 +554,14 @@ to each Teams tab (by hash deep link), show tool and guide. Add new apps to
   to the app's `GAMES` needs adding here too.
 - QR library is inlined (qrcode-generator, MIT) for the same reason
   everything else is: stadium networks.
+
+## Checklist schedule (checklist.html)
+
+Updated 18 Nov 2026. The game dropdown reads `showIndex` live (public, no
+sign-in), the same list `show-view.html` and `announcer.html` use, so every
+football game with its moves and cancels plus every event added in Teams shows
+up on its own. The `GAMES` list in the file is only the fallback when
+`showIndex` can't load. Event ids with a `__` suffix are handled by date.
+`index.html` (the old time clock at the site root) still has its own
+hardcoded list and isn't linked from anywhere.
+
