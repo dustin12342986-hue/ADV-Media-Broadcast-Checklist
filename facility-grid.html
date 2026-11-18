@@ -646,6 +646,10 @@ function pullConst(src,name){
   if(!m)throw new Error(name+' was not found in adv-media-teams.html');
   return Function('"use strict";return ('+m[1]+');')();
 }
+async function readPath(path){
+  try{if(fb&&fbUser){const snap=await fb.db.ref(path).once('value');return snap.val()||{};}}catch(e){}
+  try{return await getJSON(path);}catch(e){return null;}
+}
 async function getJSON(path){
   const r=await fetch(DB_URL+path+'.json',{cache:'no-store'});
   if(!r.ok)throw new Error(path+' returned '+r.status);
@@ -663,18 +667,28 @@ async function loadLive(){
   if(liveBusy)return;liveBusy=true;pill();
   try{
     const src=(ON_PAGES?'':TEAMS_BASE)+'adv-media-teams.html';
-    const [html,ce,lr,gs]=await Promise.all([
+    // Each path is read on its own, signed in when possible, so one locked node
+    // no longer blanks the whole board. clientEvents is admin-only now; signed
+    // out, the board falls back to the public showIndex Teams keeps in sync.
+    const [html,ce,go,lr,gs,si]=await Promise.all([
       fetch(src,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('adv-media-teams.html returned '+r.status);return r.text();}),
-      getJSON('clientEvents'),getJSON('liveRoster'),getJSON('gameSettings')]);
+      readPath('clientEvents'),readPath('gameOverrides'),readPath('liveRoster'),readPath('gameSettings'),readPath('showIndex')]);
     const games=pullConst(html,'GAMES'),roles=pullConst(html,'TRADEABLE_ROLES');
-    const out=[];
-    games.forEach(g=>{const s=gs[g.id];out.push({id:g.id,date:g.id,name:g.opp,client:'CISD',venueRaw:'',venue:'stadium',fromGames:true,roles,
-      start:(s?s.gameTime:g.gameTime)||'',call:(s?s.call:g.call)||'',end:''});});
-    Object.entries(ce).forEach(([id,e])=>{if(!e)return;out.push({id,date:String(e.eventDate||id).split('__')[0],name:e.name||'Event',client:e.client||'Client',
+    const GO=go||{},GS=gs||{},LR=lr||{};
+    const out=[],have=new Set();
+    games.forEach(g0=>{const o=GO[g0.id]||{};if(o.removed)return;const g={...g0,...o},s=GS[g0.id];have.add(g0.id);
+      out.push({id:g0.id,date:String(g.eventDate||g0.id).split('__')[0],name:(g.opp||'Game')+(g.cancelled?' (cancelled)':''),client:'CISD',venueRaw:g.venue||'',venue:g.venue?venueFor(g.venue,'CISD'):'stadium',fromGames:true,
+        roles:Array.isArray(g.roles)&&g.roles.length?g.roles:roles,start:(s&&s.gameTime)||g.gameTime||'',call:(s&&s.call)||g.callTime||g.call||'',end:g.endTime||''});});
+    if(ce)Object.entries(ce).forEach(([id,e])=>{if(!e)return;const o=GO[id]||{};if(o.removed||e.removed)return;have.add(id);
+      out.push({id,date:String(o.eventDate||e.eventDate||id).split('__')[0],name:(e.name||e.opp||'Event')+((o.cancelled||e.cancelled)?' (cancelled)':''),client:e.client||'Client',
       venueRaw:e.venue||'',venue:venueFor(e.venue,e.client),fromGames:false,roles:Array.isArray(e.roles)&&e.roles.length?e.roles:roles,
       start:'',call:e.callTime||'',end:e.endTime||''});});
+    else if(si)Object.entries(si).forEach(([id,e])=>{if(!e||have.has(id))return;
+      out.push({id,date:String(e.eventDate||id).split('__')[0],name:(e.opp||'Event')+(e.cancelled?' (cancelled)':''),client:'Sign in for details',
+      venueRaw:'',venue:venueFor('',''),fromGames:false,roles,start:'',call:'',end:'',limited:true});});
+    if(!ce&&!si)throw new Error('client events are locked and the public show list is missing. Sign in, then Refresh');
     out.forEach(ev=>{
-      const gr=lr[ev.id];ev.onBoard=!!gr;ev.pos=[];
+      const gr=LR[ev.id];ev.onBoard=!!gr;ev.pos=[];
       ev.roles.forEach(r=>{
         if(!gr){if(r!=='EIC'&&r!=='PM')ev.pos.push({role:r,name:''});return;}
         const x=gr[rkey(r)];if(!x)return; // EIC and PM are not on the shift board
@@ -832,7 +846,7 @@ function initAuth(){
         e=>{personalErr=(e&&e.message)||'Could not read personal shows';renderLive();toast('Personal shows are blocked. Add the personalShows rule in Firebase.');});
       personalOff=()=>ref.off('value',cb);
     }
-    authUI();renderLive();
+    authUI();renderLive();if(mode==='live'&&ON_PAGES)loadLive();
   });
 }
 function authUI(){
