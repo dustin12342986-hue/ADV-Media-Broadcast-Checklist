@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v107 · checklist use by show";
+const APP_BUILD = "build 2026-11-19 · v108 · checklist score, log, reset";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1973,6 +1973,7 @@ const AUDIT_AREAS = {
   complianceSettings: "Compliance",
   approvedUsers: "Approvals",
   payments: "Payments",
+  checklistTally: "Checklist Use",
   paidStatus: "Payments",
   qbApprovals: "QB Approval",
   liveRoster: "Shifts",
@@ -4108,23 +4109,45 @@ function tallyPhase(rec, name) {
   if (rec.name && !tallyNameMatch(rec.name, name)) return "not started";
   return c === n || rec.completedAt ? "done" : "in progress";
 }
-let tallyRange = "season", tallyBy = "show";
+let tallyRange = "reset", tallyBy = "show", tallyLogAt = 0, tallyConfirm = false;
+// Score per shift: 50 for the pre-show checklist and 50 for the post-show one.
+// Done earns the full 50, in progress earns 25, not started earns 0. A
+// person's score is the average across their shifts, so 100 means every
+// checklist on every shift, and one shift never outweighs a season.
+const tallyPts = (st) => st === "done" ? 50 : st === "in progress" ? 25 : 0;
+function tallyCsv(rows) {
+  const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["Show date", "Show", "Name", "Position", "Clocked in", "Pre-show checklist", "Post-show checklist", "Shift score"];
+  return [head.map(q).join(",")].concat(rows.map((r) => [r.gameId.split("__")[0], r.show, r.name, r.position, r.at, r.pre, r.post, r.pts].map(q).join(","))).join("\r\n");
+}
+function tallyDownload(rows) {
+  const blob = new Blob(["\ufeff" + tallyCsv(rows)], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `checklist-use-log-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  tallyLogAt = Date.now();
+}
 async function renderChecklistTally() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading clock-ins and checklists…</div>`;
-  let clocks = {}, checks = {};
+  let clocks = {}, checks = {}, meta = {};
   try {
     const [a, b] = await Promise.all([db.ref("clockArchive").once("value"), db.ref("checklists").once("value")]);
     clocks = a.val() || {}; checks = b.val() || {};
+    try { meta = (await db.ref("checklistTally").once("value")).val() || {}; } catch (e) { meta = {}; }
   } catch (e) {
     inner.innerHTML = `<div class="error-msg">Couldn't load clock-ins or checklists (${escapeHtml(e.message || "unknown error")}).</div>`;
     return;
   }
-  const now = new Date(), cutoff = tallyRange === "30" ? new Date(now - 30 * 864e5) : tallyRange === "season" ? new Date(now.getFullYear() - (now.getMonth() < 6 ? 1 : 0), 6, 1) : new Date(0);
+  const resetAt = meta.resetAt ? new Date(meta.resetAt) : null;
+  if (tallyRange === "reset" && !resetAt) tallyRange = "season";
+  const now = new Date(), cutoff = tallyRange === "reset" ? resetAt : tallyRange === "30" ? new Date(now - 30 * 864e5) : tallyRange === "season" ? new Date(now.getFullYear() - (now.getMonth() < 6 ? 1 : 0), 6, 1) : new Date(0);
+  const all = [];
   const shifts = [];
   for (const [gameId, entries] of Object.entries(clocks)) {
     const day = new Date(String(gameId).split("__")[0] + "T12:00:00");
-    if (!isNaN(day) && day < cutoff) continue;
     const seen = new Set();
     for (const c of Object.values(entries || {})) {
       if (!c || !c.name) continue;
@@ -4139,7 +4162,13 @@ async function renderChecklistTally() {
         keys.forEach((pk) => { const st = tallyPhase(game[pk] && game[pk][phase], c.name); if (order[st] > order[out]) out = st; });
         return out;
       };
-      shifts.push({ gameId, name: String(c.name).trim(), position: c.position || "", at: c.clockInAt || "", pre: keys.length ? best("pre") : "no checklist", post: keys.length ? best("post") : "no checklist" });
+      const row = { gameId, day, name: String(c.name).trim(), position: c.position || "", at: c.clockInAt || "", pre: keys.length ? best("pre") : "no checklist", post: keys.length ? best("post") : "no checklist" };
+      row.pts = row.pre === "no checklist" ? "" : tallyPts(row.pre) + tallyPts(row.post);
+      all.push(row);
+      // A reset is a moment, not a date: count a shift after it by clock-in time.
+      const when = row.at ? new Date(row.at) : day;
+      if (!(tallyRange === "reset" ? when >= cutoff : (isNaN(day) || day >= cutoff))) continue;
+      shifts.push(row);
     }
   }
   const counted = shifts.filter((s) => s.pre !== "no checklist");
@@ -4148,14 +4177,19 @@ async function renderChecklistTally() {
     const k = tallyNorm(s.name);
     const p = people[k] || (people[k] = { name: s.name, shifts: 0, pre: 0, post: 0, open: [] });
     p.shifts++; if (s.pre === "done") p.pre++; if (s.post === "done") p.post++;
+    p.pts = (p.pts || 0) + s.pts;
     if (s.pre !== "done" || s.post !== "done") p.open.push(s);
   });
-  const list = Object.values(people).map((p) => Object.assign(p, { rate: p.shifts ? (p.pre + p.post) / (2 * p.shifts) : 0 }))
-    .sort((a, b) => a.rate - b.rate || b.shifts - a.shifts || a.name.localeCompare(b.name));
+  const list = Object.values(people).map((p) => Object.assign(p, { rate: p.shifts ? (p.pre + p.post) / (2 * p.shifts) : 0, score: p.shifts ? Math.round(p.pts / p.shifts) : 0 }))
+    .sort((a, b) => a.score - b.score || b.shifts - a.shifts || a.name.localeCompare(b.name));
+  const avgScore = counted.length ? Math.round(counted.reduce((t, x) => t + x.pts, 0) / counted.length) : null;
   const tot = counted.length, preDone = counted.filter((s) => s.pre === "done").length, postDone = counted.filter((s) => s.post === "done").length;
   const none = list.filter((p) => p.pre + p.post === 0).length;
   const pct = (n, d) => d ? Math.round(n / d * 100) + "%" : "—";
   const label = (id) => { const g = eventById(id); return g ? `${g.day || ""} ${g.date || ""} · ${g.opp || id}` : id; };
+  all.forEach((r) => { r.show = label(r.gameId); });
+  const logRows = all.filter((r) => r.pre !== "no checklist").sort((a, b) => String(a.gameId).localeCompare(String(b.gameId)) || a.name.localeCompare(b.name));
+  const scoreBadge = (n) => `<span style="display:inline-grid;place-items:center;min-width:44px;height:30px;padding:0 8px;border-radius:9px;font-weight:800;font-size:15px;background:${n >= 90 ? "var(--green)" : n >= 60 ? "var(--amber)" : "var(--border)"};color:${n >= 60 ? "#0A0D12" : "var(--text)"}">${n}</span>`;
   const chip = (st) => {
     const c = st === "done" ? "var(--green)" : st === "in progress" ? "var(--amber)" : "var(--text-faint)";
     return `<span style="display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:20px;border:1px solid ${c};color:${c}">${escapeHtml(st)}</span>`;
@@ -4165,33 +4199,34 @@ async function renderChecklistTally() {
   counted.forEach((s) => (byShow[s.gameId] = byShow[s.gameId] || []).push(s));
   const showIds = Object.keys(byShow).sort((a, b) => String(b).localeCompare(String(a)));
   const showsHtml = showIds.map((id, i) => {
-    const rows = byShow[id], d = rows.filter((r) => r.pre === "done").length + rows.filter((r) => r.post === "done").length, r = d / (2 * rows.length);
+    const rows = byShow[id], d = rows.filter((r) => r.pre === "done").length + rows.filter((r) => r.post === "done").length, r = d / (2 * rows.length), sc = Math.round(rows.reduce((t, x) => t + x.pts, 0) / rows.length);
     return `<details class="log-entry" ${i === 0 ? "open" : ""}>
       <summary style="cursor:pointer;list-style:none">
-        <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(label(id))}</strong><span class="log-when">${rows.length} clocked in · ${Math.round(r * 100)}% used</span></div>
+        <div class="log-entry-top"><span style="display:flex;gap:10px;align-items:center">${scoreBadge(sc)}<strong style="font-size:14px">${escapeHtml(label(id))}</strong></span><span class="log-when">${rows.length} clocked in · ${Math.round(r * 100)}% used</span></div>
         <div class="log-entry-body" style="color:var(--text-muted)">Pre-show done ${rows.filter((x) => x.pre === "done").length} of ${rows.length} · Post-show done ${rows.filter((x) => x.post === "done").length} of ${rows.length}</div>
         ${bar(r)}
       </summary>
       <div style="margin-top:10px">${rows.sort((a, b) => a.name.localeCompare(b.name)).map((x) => `
         <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px">
           <span style="flex:1 1 180px"><strong>${escapeHtml(x.name)}</strong><br><span style="color:var(--text-faint)">${escapeHtml(x.position)}</span></span>
-          <span>Pre ${chip(x.pre)}</span><span>Post ${chip(x.post)}</span>
+          <span>Pre ${chip(x.pre)}</span><span>Post ${chip(x.post)}</span><span style="font-weight:800;min-width:30px;text-align:right">${x.pts}</span>
         </div>`).join("")}</div>
     </details>`;
   }).join("");
   const rangeBtn = (v, t) => `<button class="shift-btn ${tallyRange === v ? "active" : ""}" data-trange="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`;
   inner.innerHTML = `
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[["show", "By show"], ["person", "By person"]].map(([v, t]) => `<button class="shift-btn ${tallyBy === v ? "active" : ""}" data-tby="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`).join("")}</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${rangeBtn("30", "Last 30 days")}${rangeBtn("season", "This season")}${rangeBtn("all", "All time")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${resetAt ? rangeBtn("reset", "Since reset") : ""}${rangeBtn("30", "Last 30 days")}${rangeBtn("season", "This season")}${rangeBtn("all", "All time")}</div>
+    ${resetAt && tallyRange === "reset" ? `<div class="footnote" style="margin:-4px 0 12px">Scores count from the last reset, ${escapeHtml(resetAt.toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }))}.</div>` : ""}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
-      ${[[tot, "shifts clocked in"], [pct(preDone, tot), "pre-show checklists done"], [pct(postDone, tot), "post-show checklists done"], [none, none === 1 ? "person has not used it" : "people have not used it"]]
+      ${[[avgScore === null ? "—" : avgScore, "crew score (out of 100)"], [tot, "shifts clocked in"], [pct(preDone, tot), "pre-show checklists done"], [pct(postDone, tot), "post-show checklists done"], [none, none === 1 ? "person has not used it" : "people have not used it"]]
         .map(([b, s]) => `<div class="log-entry" style="margin:0"><div style="font-size:22px;font-weight:800">${b}</div><div style="font-size:12px;color:var(--text-muted)">${s}</div></div>`).join("")}
     </div>
     ${list.length ? "" : `<div class="footnote">No clock-ins in this range yet.</div>`}
     ${tallyBy === "show" ? showsHtml : list.map((p, i) => `
       <details class="log-entry" ${i < 3 && p.rate < 1 ? "open" : ""}>
         <summary style="cursor:pointer;list-style:none">
-          <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(p.name)}</strong><span class="log-when">${p.shifts} shift${p.shifts === 1 ? "" : "s"} · ${Math.round(p.rate * 100)}% used</span></div>
+          <div class="log-entry-top"><span style="display:flex;gap:10px;align-items:center">${scoreBadge(p.score)}<strong style="font-size:14px">${escapeHtml(p.name)}</strong></span><span class="log-when">${p.shifts} shift${p.shifts === 1 ? "" : "s"} · ${Math.round(p.rate * 100)}% used</span></div>
           <div class="log-entry-body" style="color:var(--text-muted)">Pre-show done ${p.pre} of ${p.shifts} · Post-show done ${p.post} of ${p.shifts}</div>
           ${bar(p.rate)}
         </summary>
@@ -4201,8 +4236,48 @@ async function renderChecklistTally() {
             <span>Pre ${chip(s.pre)}</span><span>Post ${chip(s.post)}</span>
           </div>`).join("")}</div>` : `<div class="footnote">Every clocked-in shift has both checklists done.</div>`}
       </details>`).join("")}
-    <div class="footnote">A shift counts when the checklist for that position on that show has marks under the person's name, or no name typed. Positions without a checklist are left out of the counts.</div>
+    <div class="footnote">Score: each shift is worth 100. Pre-show and post-show checklists are 50 each: done is 50, in progress is 25, not started is 0. A person's score is the average of their shifts. A shift counts when the checklist for that position on that show has marks under the person's name, or no name typed. Positions without a checklist are left out.</div>
+
+    <div class="log-entry" style="margin-top:16px">
+      <div class="log-entry-top"><strong style="font-size:14px">Log</strong><span class="log-when">${logRows.length} shift${logRows.length === 1 ? "" : "s"} · all time</span></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">Every clocked-in shift with its checklist status and score, from the first clock-in on record. Resets never remove anything from it.</div>
+      <button class="shift-btn" id="tallyLogBtn" style="margin-top:10px;padding:8px 14px;font-size:12.5px">Download log (CSV)</button>
+    </div>
+
+    <div class="log-entry" style="margin-top:10px">
+      <div class="log-entry-top"><strong style="font-size:14px">Reset scores</strong><span class="log-when">${resetAt ? "last reset " + escapeHtml(resetAt.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "never reset"}</span></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">Starts every score fresh from now. Clock-ins, checklists, and the log stay as they are. Download the log first; the reset unlocks after it downloads.</div>
+      ${tallyLogAt ? `<div class="footnote" style="margin-top:8px">Log downloaded at ${new Date(tallyLogAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.</div>` : ""}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${tallyConfirm
+          ? `<button class="shift-btn" id="tallyResetYes" style="padding:8px 14px;font-size:12.5px;background:var(--blue);color:#fff;border-color:var(--blue)">Reset scores now</button><button class="shift-btn shift-btn-ghost" id="tallyResetNo" style="padding:8px 14px;font-size:12.5px">Cancel</button>`
+          : `<button class="shift-btn" id="tallyResetBtn" ${tallyLogAt ? "" : "disabled"} style="padding:8px 14px;font-size:12.5px;${tallyLogAt ? "" : "opacity:.45;cursor:not-allowed"}">${tallyLogAt ? "Reset scores" : "Download the log to unlock reset"}</button>`}
+      </div>
+      <div id="tallyResetMsg"></div>
+    </div>
   `;
+  document.getElementById("tallyLogBtn").onclick = () => { tallyDownload(logRows); renderChecklistTally(); };
+  const rb = document.getElementById("tallyResetBtn");
+  if (rb) rb.onclick = () => { if (!tallyLogAt) return; tallyConfirm = true; renderChecklistTally(); };
+  const no = document.getElementById("tallyResetNo");
+  if (no) no.onclick = () => { tallyConfirm = false; renderChecklistTally(); };
+  const yes = document.getElementById("tallyResetYes");
+  if (yes) yes.onclick = async () => {
+    if (!tallyLogAt) { tallyConfirm = false; renderChecklistTally(); return; }
+    yes.disabled = true;
+    const at = new Date().toISOString(), key = db.ref("checklistTally/resets").push().key;
+    const updates = {};
+    updates["checklistTally/resetAt"] = at;
+    updates["checklistTally/resets/" + key] = { at, by: (currentUser && currentUser.email) || "", logDownloadedAt: new Date(tallyLogAt).toISOString(), shiftsInLog: logRows.length };
+    try {
+      await db.ref().update(auditInto(updates, { action: "reset", area: "checklistTally", field: "resetAt", oldValue: meta.resetAt || "", newValue: at, note: "Checklist Use scores reset after the log was downloaded" }));
+      tallyConfirm = false; tallyLogAt = 0; tallyRange = "reset";
+      renderChecklistTally();
+    } catch (e) {
+      yes.disabled = false;
+      document.getElementById("tallyResetMsg").innerHTML = `<div class="error-msg" style="margin-top:10px">Couldn't reset (${escapeHtml(e.code || e.message || "unknown error")}). The database needs a rule letting admins write checklistTally.</div>`;
+    }
+  };
   inner.querySelectorAll("[data-trange]").forEach((b) => { b.onclick = () => { tallyRange = b.dataset.trange; renderChecklistTally(); }; });
   inner.querySelectorAll("[data-tby]").forEach((b) => { b.onclick = () => { tallyBy = b.dataset.tby; renderChecklistTally(); }; });
 }
