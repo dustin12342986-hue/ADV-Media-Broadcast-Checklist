@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-12 · v105 · show index loads before it publishes";
+const APP_BUILD = "build 2026-11-19 · v106 · checklist use tally";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1615,6 +1615,7 @@ const ADMIN_GROUPS = [
     { view: "equipmentAdmin", label: "Equipment Reports" },
     { view: "checkout", label: "Equipment Checkout" },
     { view: "log", label: "Shift Log" },
+    { view: "checklistTally", label: "Checklist Use" },
     { view: "audit", label: "Audit Log" },
     { view: "locations", label: "Clock-In Locations" },
     { view: "reset", label: "Reset Clock-Ins" },
@@ -1828,6 +1829,12 @@ function renderMainApp() {
   if (mainState.view === "log" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderShiftLog();
+    return;
+  }
+
+  if (mainState.view === "checklistTally" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderChecklistTally();
     return;
   }
 
@@ -4059,6 +4066,125 @@ async function renderAdminLocations() {
     console.error(e);
     inner.innerHTML = `<div class="error-msg">Couldn't load locations (${escapeHtml(e.message || "unknown error")}). Make sure the database rules include "clockLocations" and "clockArchive" sections — see the setup comment at the top of this file.</div>`;
   }
+}
+
+// ============================================================================
+// CHECKLIST USE — who clocked in and also ran their Broadcast Checklist
+// ============================================================================
+//
+// Clock-ins come from clockArchive (the permanent copy, so a "Reset
+// Clock-Ins" never erases history). Checklist marks come from
+// checklists/{game}/{posKey}/{pre|post}, written by checklist.html.
+//
+// A clock-in counts a phase as used when the checklist for that position on
+// that show has any marks and its typed name matches the person, or was left
+// blank. Positions map from the clock-in label to the checklist keys it can
+// fill: a Camera Operator might run Camera 1 through 4.
+const TALLY_POS = {
+  "eic": ["eic"], "pm": ["pm"], "director": ["director"], "producer": ["producer"],
+  "shader": ["shader"], "clips": ["clips"], "replay": ["replay"],
+  "camera lead": ["camera-lead"],
+  "camera operator": ["camera-op", "camera-1", "camera-2", "camera-3", "camera-4"],
+  "camera 1": ["camera-1", "camera-op"], "camera 2": ["camera-2", "camera-op"],
+  "camera 3": ["camera-3", "camera-op"], "camera 4": ["camera-4", "camera-op"],
+  "audio a1": ["audio-a1"], "a1": ["audio-a1"], "audio": ["audio-a1"],
+  "a2": ["a2"], "utility": ["utility"], "audio a2/utility": ["a2", "utility"],
+};
+const tallyNorm = (s) => String(s || "").toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+function tallyNameMatch(a, b) {
+  const x = tallyNorm(a), y = tallyNorm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const xa = x.split(" "), ya = y.split(" ");
+  // Just a first name typed on the checklist: "Jane" for Jane Doe.
+  if (xa.length === 1 || ya.length === 1) return xa[0] === ya[0];
+  // "Dusty Brown" vs "Dustin Brown": same last name and the same first letter.
+  return xa[xa.length - 1] === ya[ya.length - 1] && xa[0][0] === ya[0][0];
+}
+function tallyPhase(rec, name) {
+  if (!rec || !Array.isArray(rec.checked)) return "not started";
+  const n = rec.checked.length, c = rec.checked.filter(Boolean).length;
+  if (!c) return "not started";
+  if (rec.name && !tallyNameMatch(rec.name, name)) return "not started";
+  return c === n || rec.completedAt ? "done" : "in progress";
+}
+let tallyRange = "season";
+async function renderChecklistTally() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading clock-ins and checklists…</div>`;
+  let clocks = {}, checks = {};
+  try {
+    const [a, b] = await Promise.all([db.ref("clockArchive").once("value"), db.ref("checklists").once("value")]);
+    clocks = a.val() || {}; checks = b.val() || {};
+  } catch (e) {
+    inner.innerHTML = `<div class="error-msg">Couldn't load clock-ins or checklists (${escapeHtml(e.message || "unknown error")}).</div>`;
+    return;
+  }
+  const now = new Date(), cutoff = tallyRange === "30" ? new Date(now - 30 * 864e5) : tallyRange === "season" ? new Date(now.getFullYear() - (now.getMonth() < 6 ? 1 : 0), 6, 1) : new Date(0);
+  const shifts = [];
+  for (const [gameId, entries] of Object.entries(clocks)) {
+    const day = new Date(String(gameId).split("__")[0] + "T12:00:00");
+    if (!isNaN(day) && day < cutoff) continue;
+    const seen = new Set();
+    for (const c of Object.values(entries || {})) {
+      if (!c || !c.name) continue;
+      const k = tallyNorm(c.name) + "|" + tallyNorm(c.position);
+      if (seen.has(k)) continue; // clocked in twice for the same shift
+      seen.add(k);
+      const keys = TALLY_POS[tallyNorm(c.position).replace(/ \(.*$/, "")] || [];
+      const game = checks[gameId] || {};
+      const best = (phase) => {
+        const order = { "done": 2, "in progress": 1, "not started": 0 };
+        let out = "not started";
+        keys.forEach((pk) => { const st = tallyPhase(game[pk] && game[pk][phase], c.name); if (order[st] > order[out]) out = st; });
+        return out;
+      };
+      shifts.push({ gameId, name: String(c.name).trim(), position: c.position || "", at: c.clockInAt || "", pre: keys.length ? best("pre") : "no checklist", post: keys.length ? best("post") : "no checklist" });
+    }
+  }
+  const counted = shifts.filter((s) => s.pre !== "no checklist");
+  const people = {};
+  counted.forEach((s) => {
+    const k = tallyNorm(s.name);
+    const p = people[k] || (people[k] = { name: s.name, shifts: 0, pre: 0, post: 0, open: [] });
+    p.shifts++; if (s.pre === "done") p.pre++; if (s.post === "done") p.post++;
+    if (s.pre !== "done" || s.post !== "done") p.open.push(s);
+  });
+  const list = Object.values(people).map((p) => Object.assign(p, { rate: p.shifts ? (p.pre + p.post) / (2 * p.shifts) : 0 }))
+    .sort((a, b) => a.rate - b.rate || b.shifts - a.shifts || a.name.localeCompare(b.name));
+  const tot = counted.length, preDone = counted.filter((s) => s.pre === "done").length, postDone = counted.filter((s) => s.post === "done").length;
+  const none = list.filter((p) => p.pre + p.post === 0).length;
+  const pct = (n, d) => d ? Math.round(n / d * 100) + "%" : "—";
+  const label = (id) => { const g = eventById(id); return g ? `${g.day || ""} ${g.date || ""} · ${g.opp || id}` : id; };
+  const chip = (st) => {
+    const c = st === "done" ? "var(--green)" : st === "in progress" ? "var(--amber)" : "var(--text-faint)";
+    return `<span style="display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:20px;border:1px solid ${c};color:${c}">${escapeHtml(st)}</span>`;
+  };
+  const bar = (r) => `<div style="height:6px;border-radius:6px;background:var(--border);overflow:hidden;margin-top:6px"><i style="display:block;height:100%;width:${Math.round(r * 100)}%;background:${r >= 0.9 ? "var(--green)" : r >= 0.5 ? "var(--amber)" : "var(--text-faint)"}"></i></div>`;
+  const rangeBtn = (v, t) => `<button class="shift-btn ${tallyRange === v ? "active" : ""}" data-trange="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`;
+  inner.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${rangeBtn("30", "Last 30 days")}${rangeBtn("season", "This season")}${rangeBtn("all", "All time")}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
+      ${[[tot, "shifts clocked in"], [pct(preDone, tot), "pre-show checklists done"], [pct(postDone, tot), "post-show checklists done"], [none, none === 1 ? "person has not used it" : "people have not used it"]]
+        .map(([b, s]) => `<div class="log-entry" style="margin:0"><div style="font-size:22px;font-weight:800">${b}</div><div style="font-size:12px;color:var(--text-muted)">${s}</div></div>`).join("")}
+    </div>
+    ${list.length ? "" : `<div class="footnote">No clock-ins in this range yet.</div>`}
+    ${list.map((p, i) => `
+      <details class="log-entry" ${i < 3 && p.rate < 1 ? "open" : ""}>
+        <summary style="cursor:pointer;list-style:none">
+          <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(p.name)}</strong><span class="log-when">${p.shifts} shift${p.shifts === 1 ? "" : "s"} · ${Math.round(p.rate * 100)}% used</span></div>
+          <div class="log-entry-body" style="color:var(--text-muted)">Pre-show done ${p.pre} of ${p.shifts} · Post-show done ${p.post} of ${p.shifts}</div>
+          ${bar(p.rate)}
+        </summary>
+        ${p.open.length ? `<div style="margin-top:10px">${p.open.map((s) => `
+          <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px">
+            <span style="flex:1 1 180px">${escapeHtml(label(s.gameId))}<br><span style="color:var(--text-faint)">${escapeHtml(s.position)}</span></span>
+            <span>Pre ${chip(s.pre)}</span><span>Post ${chip(s.post)}</span>
+          </div>`).join("")}</div>` : `<div class="footnote">Every clocked-in shift has both checklists done.</div>`}
+      </details>`).join("")}
+    <div class="footnote">A shift counts when the checklist for that position on that show has marks under the person's name, or no name typed. Positions without a checklist are left out of the counts.</div>
+  `;
+  inner.querySelectorAll("[data-trange]").forEach((b) => { b.onclick = () => { tallyRange = b.dataset.trange; renderChecklistTally(); }; });
 }
 
 async function renderShiftLog() {
