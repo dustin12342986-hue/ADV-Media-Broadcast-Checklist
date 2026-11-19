@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v108 · checklist score, log, reset";
+const APP_BUILD = "build 2026-11-19 · v109 · checklist rewards and Contractor of the Month";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1897,7 +1897,7 @@ function renderMainApp() {
   unsubProfile = (() => {
     const cb = (snap) => {
       const profile = snap.val() || {};
-      if (mainState.view === "profile") renderProfileEditor(profile);
+      if (mainState.view === "profile") { renderProfileEditor(profile); renderMyRewards(profile); }
       else renderIdCard(profile);
     };
     ref.on("value", cb);
@@ -4189,6 +4189,9 @@ async function renderChecklistTally() {
   const label = (id) => { const g = eventById(id); return g ? `${g.day || ""} ${g.date || ""} · ${g.opp || id}` : id; };
   all.forEach((r) => { r.show = label(r.gameId); });
   const logRows = all.filter((r) => r.pre !== "no checklist").sort((a, b) => String(a.gameId).localeCompare(String(b.gameId)) || a.name.localeCompare(b.name));
+  const awards = meta.awards || {};
+  const R = rewardBuild(logRows, awards);
+  const pubErr = await rewardPublish(R.badges, meta.badges);
   const scoreBadge = (n) => `<span style="display:inline-grid;place-items:center;min-width:44px;height:30px;padding:0 8px;border-radius:9px;font-weight:800;font-size:15px;background:${n >= 90 ? "var(--green)" : n >= 60 ? "var(--amber)" : "var(--border)"};color:${n >= 60 ? "#0A0D12" : "var(--text)"}">${n}</span>`;
   const chip = (st) => {
     const c = st === "done" ? "var(--green)" : st === "in progress" ? "var(--amber)" : "var(--text-faint)";
@@ -4238,6 +4241,9 @@ async function renderChecklistTally() {
       </details>`).join("")}
     <div class="footnote">Score: each shift is worth 100. Pre-show and post-show checklists are 50 each: done is 50, in progress is 25, not started is 0. A person's score is the average of their shifts. A shift counts when the checklist for that position on that show has marks under the person's name, or no name typed. Positions without a checklist are left out.</div>
 
+    ${rewardAdminHtml(R, awards)}
+    ${pubErr ? `<div class="error-msg" style="margin-top:10px">${escapeHtml(pubErr)}</div>` : `<div class="footnote">Crew see their own recognition on their Profile: perfect shifts, perfect months, perfect seasons, and Contractor of the Month. They never see scores or rankings.</div>`}
+
     <div class="log-entry" style="margin-top:16px">
       <div class="log-entry-top"><strong style="font-size:14px">Log</strong><span class="log-when">${logRows.length} shift${logRows.length === 1 ? "" : "s"} · all time</span></div>
       <div class="log-entry-body" style="color:var(--text-muted)">Every clocked-in shift with its checklist status and score, from the first clock-in on record. Resets never remove anything from it.</div>
@@ -4256,6 +4262,7 @@ async function renderChecklistTally() {
       <div id="tallyResetMsg"></div>
     </div>
   `;
+  rewardAdminWire(R, awards, renderChecklistTally);
   document.getElementById("tallyLogBtn").onclick = () => { tallyDownload(logRows); renderChecklistTally(); };
   const rb = document.getElementById("tallyResetBtn");
   if (rb) rb.onclick = () => { if (!tallyLogAt) return; tallyConfirm = true; renderChecklistTally(); };
@@ -4280,6 +4287,141 @@ async function renderChecklistTally() {
   };
   inner.querySelectorAll("[data-trange]").forEach((b) => { b.onclick = () => { tallyRange = b.dataset.trange; renderChecklistTally(); }; });
   inner.querySelectorAll("[data-tby]").forEach((b) => { b.onclick = () => { tallyBy = b.dataset.tby; renderChecklistTally(); }; });
+}
+
+// ============================================================================
+// CHECKLIST REWARDS — recognition crew can see, built from Checklist Use
+// ============================================================================
+//
+// Scores stay admin-only. What crew see is recognition only, published as a
+// small summary per person at checklistTally/badges, rewritten (diffed) each
+// time an admin opens Checklist Use:
+//   Perfect shift   both checklists done on a shift
+//   Perfect month   every shift in a calendar month perfect, at least 2 shifts
+//   Perfect season  every shift July 1 to June 30 perfect, at least 5 shifts
+//   Contractor of the Month   picked by an admin, stored at checklistTally/awards/{YYYY-MM}
+// Season bonuses come later. The season list below is who would qualify.
+const REWARD_MIN_MONTH = 2, REWARD_MIN_SEASON = 5;
+const rewardMonthOf = (r) => String(r.gameId).slice(0, 7);
+function rewardSeasonOf(r) {
+  const d = String(r.gameId).slice(0, 10), y = +d.slice(0, 4), m = +d.slice(5, 7);
+  const start = m >= 7 ? y : y - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+const rewardMonthLabel = (ym) => { const d = new Date(ym + "-15T12:00:00"); return isNaN(d) ? ym : d.toLocaleDateString([], { month: "long", year: "numeric" }); };
+const rewardKey = (name) => tallyNorm(name).replace(/ /g, "_") || "unknown";
+function rewardBuild(rows, awards) {
+  const per = {};
+  rows.forEach((r) => {
+    const k = rewardKey(r.name);
+    const p = per[k] || (per[k] = { name: r.name, perfectShifts: 0, months: {}, seasons: {} });
+    const ok = r.pts === 100;
+    if (ok) p.perfectShifts++;
+    const m = p.months[rewardMonthOf(r)] || (p.months[rewardMonthOf(r)] = { shifts: 0, perfect: 0, pts: 0 });
+    m.shifts++; m.pts += r.pts; if (ok) m.perfect++;
+    const s = p.seasons[rewardSeasonOf(r)] || (p.seasons[rewardSeasonOf(r)] = { shifts: 0, perfect: 0 });
+    s.shifts++; if (ok) s.perfect++;
+  });
+  const curSeason = rewardSeasonOf({ gameId: localDateId() });
+  const badges = {};
+  Object.entries(per).forEach(([k, p]) => {
+    const perfectMonths = Object.entries(p.months).filter(([, m]) => m.shifts >= REWARD_MIN_MONTH && m.perfect === m.shifts).map(([ym]) => ym).sort();
+    const perfectSeasons = Object.entries(p.seasons).filter(([sn, s]) => sn !== curSeason && s.shifts >= REWARD_MIN_SEASON && s.perfect === s.shifts).map(([sn]) => sn).sort();
+    const cs = p.seasons[curSeason];
+    const cotm = Object.entries(awards || {}).filter(([, a]) => a && rewardKey(a.name) === k).map(([ym]) => ym).sort();
+    badges[k] = { name: p.name, perfectShifts: p.perfectShifts, perfectMonths, perfectSeasons, cotm,
+      season: curSeason, seasonShifts: cs ? cs.shifts : 0, seasonPerfect: !!(cs && cs.shifts && cs.perfect === cs.shifts) };
+  });
+  return { per, badges, curSeason };
+}
+async function rewardPublish(badges, have) {
+  const patch = {}, same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  Object.entries(badges).forEach(([k, b]) => { const h = (have || {})[k]; const x = Object.assign({}, h || {}); delete x.updatedAt; if (!same(x, b)) patch["checklistTally/badges/" + k] = Object.assign({}, b, { updatedAt: new Date().toISOString() }); });
+  Object.keys(have || {}).forEach((k) => { if (!badges[k]) patch["checklistTally/badges/" + k] = null; });
+  if (!Object.keys(patch).length) return "";
+  try { await db.ref().update(patch); return ""; }
+  catch (e) { return "Badges could not be published to crew (" + (e.code || e.message || "error") + "). The database needs a rule letting admins write checklistTally and signed-in crew read checklistTally/badges."; }
+}
+let rewardMonth = null;
+function rewardAdminHtml(R, awards) {
+  const months = new Set();
+  Object.values(R.per).forEach((p) => Object.keys(p.months).forEach((m) => months.add(m)));
+  const list = [...months].sort().reverse();
+  const nowYm = localDateId().slice(0, 7);
+  if (!rewardMonth || !months.has(rewardMonth)) rewardMonth = list.find((m) => m < nowYm) || list[0] || nowYm;
+  const cand = Object.values(R.per).map((p) => { const m = p.months[rewardMonth]; return m ? { name: p.name, shifts: m.shifts, perfect: m.perfect, score: Math.round(m.pts / m.shifts) } : null; })
+    .filter(Boolean).sort((a, b) => b.score - a.score || b.shifts - a.shifts || b.perfect - a.perfect || a.name.localeCompare(b.name));
+  const win = awards[rewardMonth];
+  const perfectMonth = cand.filter((c) => c.shifts >= REWARD_MIN_MONTH && c.perfect === c.shifts);
+  const seasonRows = Object.values(R.per).map((p) => ({ name: p.name, s: p.seasons[R.curSeason] })).filter((x) => x.s && x.s.shifts && x.s.perfect === x.s.shifts)
+    .sort((a, b) => b.s.shifts - a.s.shifts || a.name.localeCompare(b.name));
+  const past = Object.entries(awards).filter(([, a]) => a && a.name).sort((a, b) => b[0].localeCompare(a[0]));
+  const nameBtn = (c, i) => `<button class="shift-btn ${win && rewardKey(win.name) === rewardKey(c.name) ? "active" : ""}" data-cotm="${escapeHtml(c.name)}" data-cotm-i="${i}" style="padding:6px 12px;font-size:12px">${win && rewardKey(win.name) === rewardKey(c.name) ? "Contractor of the Month" : "Name Contractor of the Month"}</button>`;
+  return `
+    <div class="log-entry" style="margin-top:16px">
+      <div class="log-entry-top"><strong style="font-size:14px">Contractor of the Month</strong>
+        <select id="cotmMonth" style="font-size:12.5px;padding:5px 8px;border-radius:8px;background:var(--panel);color:var(--text);border:1px solid var(--border)">${list.map((m) => `<option value="${m}" ${m === rewardMonth ? "selected" : ""}>${rewardMonthLabel(m)}</option>`).join("") || `<option>${rewardMonthLabel(nowYm)}</option>`}</select></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">${win ? `Named: <strong style="color:var(--text)">${escapeHtml(win.name)}</strong> (score ${win.score}, ${win.shifts} shift${win.shifts === 1 ? "" : "s"}).` : "Not named yet for this month."} Ranked by checklist score, then shifts worked.</div>
+      ${cand.slice(0, 6).map((c, i) => `
+        <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px">
+          <span style="width:22px;color:var(--text-faint);font-weight:800">${i + 1}</span>
+          <span style="flex:1 1 150px"><strong>${escapeHtml(c.name)}</strong><br><span style="color:var(--text-faint)">${c.shifts} shift${c.shifts === 1 ? "" : "s"} · ${c.perfect} perfect</span></span>
+          <span style="font-weight:800;min-width:34px">${c.score}</span>${nameBtn(c, i)}
+        </div>`).join("") || `<div class="footnote">No clocked-in shifts this month.</div>`}
+      <div id="cotmMsg"></div>
+    </div>
+    <div class="log-entry" style="margin-top:10px">
+      <div class="log-entry-top"><strong style="font-size:14px">Perfect month · ${escapeHtml(rewardMonthLabel(rewardMonth))}</strong><span class="log-when">${perfectMonth.length}</span></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">${perfectMonth.length ? perfectMonth.map((c) => `${escapeHtml(c.name)} (${c.shifts})`).join(", ") : `Nobody yet. Takes at least ${REWARD_MIN_MONTH} shifts with both checklists done on every one.`}</div>
+    </div>
+    <div class="log-entry" style="margin-top:10px">
+      <div class="log-entry-top"><strong style="font-size:14px">Season bonus track · ${escapeHtml(R.curSeason)}</strong><span class="log-when">bonus amounts not set yet</span></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">Everyone with both checklists done on every shift this season. ${REWARD_MIN_SEASON} shifts or more qualifies.</div>
+      ${seasonRows.map((x) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px"><strong>${escapeHtml(x.name)}</strong><span style="color:${x.s.shifts >= REWARD_MIN_SEASON ? "var(--green)" : "var(--text-muted)"}">${x.s.shifts} perfect shift${x.s.shifts === 1 ? "" : "s"} · ${x.s.shifts >= REWARD_MIN_SEASON ? "qualifies" : (REWARD_MIN_SEASON - x.s.shifts) + " more to qualify"}</span></div>`).join("") || `<div class="footnote">Nobody is perfect for the season so far.</div>`}
+    </div>
+    ${past.length ? `<div class="log-entry" style="margin-top:10px"><div class="log-entry-top"><strong style="font-size:14px">Past Contractors of the Month</strong></div>
+      ${past.map(([ym, a]) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px"><span>${escapeHtml(rewardMonthLabel(ym))}</span><strong>${escapeHtml(a.name)}</strong></div>`).join("")}</div>` : ""}`;
+}
+function rewardAdminWire(R, awards, rerender) {
+  const sel = document.getElementById("cotmMonth");
+  if (sel) sel.onchange = () => { rewardMonth = sel.value; rerender(); };
+  document.querySelectorAll("[data-cotm]").forEach((b) => b.onclick = async () => {
+    const name = b.dataset.cotm, p = Object.values(R.per).find((x) => rewardKey(x.name) === rewardKey(name)), m = p && p.months[rewardMonth];
+    if (!m) return;
+    const prev = awards[rewardMonth];
+    const rec = { name: p.name, score: Math.round(m.pts / m.shifts), shifts: m.shifts, perfect: m.perfect, at: new Date().toISOString(), by: (currentUser && currentUser.email) || "" };
+    b.disabled = true;
+    try {
+      await db.ref().update(auditInto({ ["checklistTally/awards/" + rewardMonth]: rec },
+        { action: "award", area: "checklistTally", field: "Contractor of the Month " + rewardMonth, oldValue: prev ? prev.name : "", newValue: p.name, subject: p.name }));
+      rerender();
+    } catch (e) {
+      b.disabled = false;
+      document.getElementById("cotmMsg").innerHTML = `<div class="error-msg" style="margin-top:8px">Couldn't save (${escapeHtml(e.code || e.message || "error")}). The database needs a rule letting admins write checklistTally.</div>`;
+    }
+  });
+}
+// Crew side: the signed-in person's own recognition on their Profile.
+async function renderMyRewards(profile) {
+  const host = document.getElementById("myRewards");
+  if (!host || !profile || !profile.legalName) return;
+  let all = {};
+  try { all = (await db.ref("checklistTally/badges").once("value")).val() || {}; } catch (e) { return; }
+  const mine = Object.values(all).find((b) => b && b.name && (namesMatch(b.name, profile.legalName, profile.crewHandle) || tallyNameMatch(b.name, profile.legalName)));
+  const tile = (big, small, gold) => `<div style="flex:1 1 140px;border:1px solid ${gold ? "#C9A44C" : "var(--border)"};border-radius:12px;padding:10px 12px;background:${gold ? "rgba(201,164,76,.10)" : "transparent"}"><div style="font-weight:800;font-size:15px;${gold ? "color:#C9A44C" : ""}">${big}</div><div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${small}</div></div>`;
+  const tiles = [];
+  if (mine) {
+    (mine.cotm || []).slice().reverse().forEach((ym) => tiles.push(tile("Contractor of the Month", escapeHtml(rewardMonthLabel(ym)), true)));
+    (mine.perfectSeasons || []).slice().reverse().forEach((s) => tiles.push(tile("Perfect season", escapeHtml(s), true)));
+    if (mine.seasonPerfect && mine.seasonShifts) tiles.push(tile("Perfect so far this season", `${mine.seasonShifts} shift${mine.seasonShifts === 1 ? "" : "s"} · ${escapeHtml(mine.season)}`));
+    (mine.perfectMonths || []).slice().reverse().slice(0, 6).forEach((ym) => tiles.push(tile("Perfect month", escapeHtml(rewardMonthLabel(ym)))));
+    if (mine.perfectShifts) tiles.push(tile(`${mine.perfectShifts} perfect shift${mine.perfectShifts === 1 ? "" : "s"}`, "both checklists done"));
+  }
+  host.innerHTML = `<div class="log-entry" style="margin-bottom:14px">
+    <div class="log-entry-top"><strong style="font-size:14px">Recognition</strong></div>
+    ${tiles.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${tiles.join("")}</div>` : ""}
+    <div class="footnote" style="margin-top:8px">A perfect shift is the pre-show and post-show checklists done in the Broadcast Checklist. Perfect months and seasons count toward Contractor of the Month and future season bonuses.</div>
+  </div>`;
 }
 
 async function renderShiftLog() {
@@ -11475,6 +11617,7 @@ function renderProfileEditor(profile) {
   const inner = document.getElementById("innerRoot");
   const skills = profile.skills || [];
   inner.innerHTML = `
+    <div id="myRewards"></div>
     <div id="cmpMine"></div>
     ${directDepositCardHtml(profile)}
     <div class="photo-upload-box" id="photoBox">
