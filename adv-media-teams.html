@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v106 · checklist use tally";
+const APP_BUILD = "build 2026-11-19 · v107 · checklist use by show";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4108,7 +4108,7 @@ function tallyPhase(rec, name) {
   if (rec.name && !tallyNameMatch(rec.name, name)) return "not started";
   return c === n || rec.completedAt ? "done" : "in progress";
 }
-let tallyRange = "season";
+let tallyRange = "season", tallyBy = "show";
 async function renderChecklistTally() {
   const inner = document.getElementById("innerRoot");
   inner.innerHTML = `<div class="footnote">Loading clock-ins and checklists…</div>`;
@@ -4161,15 +4161,34 @@ async function renderChecklistTally() {
     return `<span style="display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:20px;border:1px solid ${c};color:${c}">${escapeHtml(st)}</span>`;
   };
   const bar = (r) => `<div style="height:6px;border-radius:6px;background:var(--border);overflow:hidden;margin-top:6px"><i style="display:block;height:100%;width:${Math.round(r * 100)}%;background:${r >= 0.9 ? "var(--green)" : r >= 0.5 ? "var(--amber)" : "var(--text-faint)"}"></i></div>`;
+  const byShow = {};
+  counted.forEach((s) => (byShow[s.gameId] = byShow[s.gameId] || []).push(s));
+  const showIds = Object.keys(byShow).sort((a, b) => String(b).localeCompare(String(a)));
+  const showsHtml = showIds.map((id, i) => {
+    const rows = byShow[id], d = rows.filter((r) => r.pre === "done").length + rows.filter((r) => r.post === "done").length, r = d / (2 * rows.length);
+    return `<details class="log-entry" ${i === 0 ? "open" : ""}>
+      <summary style="cursor:pointer;list-style:none">
+        <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(label(id))}</strong><span class="log-when">${rows.length} clocked in · ${Math.round(r * 100)}% used</span></div>
+        <div class="log-entry-body" style="color:var(--text-muted)">Pre-show done ${rows.filter((x) => x.pre === "done").length} of ${rows.length} · Post-show done ${rows.filter((x) => x.post === "done").length} of ${rows.length}</div>
+        ${bar(r)}
+      </summary>
+      <div style="margin-top:10px">${rows.sort((a, b) => a.name.localeCompare(b.name)).map((x) => `
+        <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px">
+          <span style="flex:1 1 180px"><strong>${escapeHtml(x.name)}</strong><br><span style="color:var(--text-faint)">${escapeHtml(x.position)}</span></span>
+          <span>Pre ${chip(x.pre)}</span><span>Post ${chip(x.post)}</span>
+        </div>`).join("")}</div>
+    </details>`;
+  }).join("");
   const rangeBtn = (v, t) => `<button class="shift-btn ${tallyRange === v ? "active" : ""}" data-trange="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`;
   inner.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[["show", "By show"], ["person", "By person"]].map(([v, t]) => `<button class="shift-btn ${tallyBy === v ? "active" : ""}" data-tby="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`).join("")}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${rangeBtn("30", "Last 30 days")}${rangeBtn("season", "This season")}${rangeBtn("all", "All time")}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
       ${[[tot, "shifts clocked in"], [pct(preDone, tot), "pre-show checklists done"], [pct(postDone, tot), "post-show checklists done"], [none, none === 1 ? "person has not used it" : "people have not used it"]]
         .map(([b, s]) => `<div class="log-entry" style="margin:0"><div style="font-size:22px;font-weight:800">${b}</div><div style="font-size:12px;color:var(--text-muted)">${s}</div></div>`).join("")}
     </div>
     ${list.length ? "" : `<div class="footnote">No clock-ins in this range yet.</div>`}
-    ${list.map((p, i) => `
+    ${tallyBy === "show" ? showsHtml : list.map((p, i) => `
       <details class="log-entry" ${i < 3 && p.rate < 1 ? "open" : ""}>
         <summary style="cursor:pointer;list-style:none">
           <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(p.name)}</strong><span class="log-when">${p.shifts} shift${p.shifts === 1 ? "" : "s"} · ${Math.round(p.rate * 100)}% used</span></div>
@@ -4185,6 +4204,7 @@ async function renderChecklistTally() {
     <div class="footnote">A shift counts when the checklist for that position on that show has marks under the person's name, or no name typed. Positions without a checklist are left out of the counts.</div>
   `;
   inner.querySelectorAll("[data-trange]").forEach((b) => { b.onclick = () => { tallyRange = b.dataset.trange; renderChecklistTally(); }; });
+  inner.querySelectorAll("[data-tby]").forEach((b) => { b.onclick = () => { tallyBy = b.dataset.tby; renderChecklistTally(); }; });
 }
 
 async function renderShiftLog() {
