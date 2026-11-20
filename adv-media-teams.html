@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v109 · checklist rewards and Contractor of the Month";
+const APP_BUILD = "build 2026-11-19 · v110 · custom event positions";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4695,6 +4695,24 @@ const NEW_EVENT_ROLES = [
   "Audio A1", "Audio A2/Utility", "Stagehand", "Utility",
 ];
 
+// Positions that aren't on the standard list (Teleprompter, Drone Op, LED
+// Tech...). The last few used are remembered on this device so they come back
+// as one-tap chips next time. They bill at their own name.
+function recentCustomRoles() {
+  try { return JSON.parse(localStorage.getItem("advCustomRoles") || "[]").filter(Boolean).slice(0, 10); } catch (e) { return []; }
+}
+function rememberCustomRole(name) {
+  try {
+    const list = [name].concat(recentCustomRoles().filter((r) => r.toLowerCase() !== name.toLowerCase())).slice(0, 10);
+    localStorage.setItem("advCustomRoles", JSON.stringify(list));
+  } catch (e) {}
+}
+// "led tech  " -> "Led Tech", but leaves "LED tech" or "A3" as typed.
+function cleanRoleName(t) {
+  const v = String(t || "").replace(/\s+/g, " ").trim().slice(0, 40);
+  return v && v === v.toLowerCase() ? v.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : v;
+}
+
 function openNewEventForm() {
   const o = document.createElement("div");
   o.className = "modal-overlay";
@@ -4746,6 +4764,15 @@ function openNewEventForm() {
             style="width:64px; text-align:center;" />
         </div>`).join("")}
 
+      <div class="label" style="margin:14px 0 6px;">Custom positions</div>
+      <div id="neCustomList"></div>
+      <div style="display:flex; gap:7px;">
+        <input id="neCustomName" maxlength="40" placeholder="e.g. Teleprompter, Drone Op, LED Tech" style="flex:1; min-width:0;" />
+        <input id="neCustomCount" type="number" min="1" max="20" value="1" style="width:56px; text-align:center;" />
+        <button class="shift-btn shift-btn-ghost" id="neCustomAdd" style="flex:0 0 auto; padding:0 14px;">Add</button>
+      </div>
+      <div id="neCustomRecent" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+
       <button class="primary-btn" id="neSave" style="margin-top:14px;">Add to shift board</button>
       <div class="error-msg" id="neMsg" style="display:none; margin-top:10px;"></div>
     </div>`;
@@ -4754,6 +4781,39 @@ function openNewEventForm() {
   const close = () => { o.remove(); document.body.style.overflow = ""; };
   o.querySelector("#neClose").onclick = close;
   o.onclick = (e) => { if (e.target === o) close(); };
+
+  // Custom positions become rows just like the standard ones (same
+  // data-nerole count box), so saving treats them exactly the same.
+  const customList = o.querySelector("#neCustomList");
+  const addCustom = (raw, n) => {
+    const name = cleanRoleName(raw);
+    if (!name) return;
+    const count = Math.max(1, Math.min(20, parseInt(n, 10) || 1));
+    const same = [...o.querySelectorAll("[data-nerole]")].find((i) => i.dataset.nerole.toLowerCase() === name.toLowerCase());
+    if (same) { same.value = (parseInt(same.value, 10) || 0) + count; }
+    else {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; align-items:center; gap:10px; margin-bottom:6px;";
+      row.innerHTML = `<span style="flex:1; font-size:14px;">${escapeHtml(name)}</span>
+        <input type="number" min="0" max="20" value="${count}" data-nerole="${escapeAttr(name)}" style="width:64px; text-align:center;" />
+        <button title="Remove" style="flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--panel2); border:1px solid var(--border); color:var(--text-muted); font-weight:800; cursor:pointer;">&#10005;</button>`;
+      row.querySelector("button").onclick = () => row.remove();
+      customList.appendChild(row);
+    }
+    rememberCustomRole(name);
+    paintRecent();
+  };
+  const paintRecent = () => {
+    const box = o.querySelector("#neCustomRecent");
+    const used = new Set([...o.querySelectorAll("[data-nerole]")].map((i) => i.dataset.nerole.toLowerCase()));
+    const chips = recentCustomRoles().filter((r) => !used.has(r.toLowerCase()));
+    box.innerHTML = chips.map((r) => `<button class="shift-btn shift-btn-ghost" data-recent="${escapeAttr(r)}" style="padding:5px 11px; font-size:12px;">+ ${escapeHtml(r)}</button>`).join("");
+    box.querySelectorAll("[data-recent]").forEach((b) => { b.onclick = () => addCustom(b.dataset.recent, 1); });
+  };
+  const nameIn = o.querySelector("#neCustomName"), countIn = o.querySelector("#neCustomCount");
+  o.querySelector("#neCustomAdd").onclick = () => { addCustom(nameIn.value, countIn.value); nameIn.value = ""; countIn.value = 1; nameIn.focus(); };
+  nameIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); o.querySelector("#neCustomAdd").click(); } };
+  paintRecent();
 
   const toLabel = (t) => {
     if (!t) return "";
@@ -4976,6 +5036,11 @@ async function openEditEventForm(eventId) {
         </select>
         <button class="shift-btn shift-btn-ghost" id="eeAdd" style="flex:0 0 auto; padding:0 14px;">Add</button>
       </div>
+      <div style="display:flex; gap:7px; margin-top:7px;">
+        <input id="eeCustomName" maxlength="40" placeholder="Custom position, e.g. Drone Op" style="flex:1; min-width:0;" />
+        <button class="shift-btn shift-btn-ghost" id="eeCustomAdd" style="flex:0 0 auto; padding:0 14px;">Add</button>
+      </div>
+      <div id="eeCustomRecent" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
 
       <button class="primary-btn" id="eeSave" style="margin-top:16px;">Save changes</button>
       <button id="eeCancelEvent" style="margin-top:9px; width:100%; padding:11px;
@@ -5042,6 +5107,22 @@ async function openEditEventForm(eventId) {
     roles.push(uniqueRoleName(base, roles));
     paintRoles();
   };
+  const eeCustom = (raw) => {
+    const name = cleanRoleName(raw);
+    if (!name) return;
+    roles.push(uniqueRoleName(name, roles));
+    rememberCustomRole(name);
+    paintRoles(); paintEeRecent();
+  };
+  const paintEeRecent = () => {
+    const box = o.querySelector("#eeCustomRecent");
+    box.innerHTML = recentCustomRoles().map((r) => `<button class="shift-btn shift-btn-ghost" data-recent="${escapeAttr(r)}" style="padding:5px 11px; font-size:12px;">+ ${escapeHtml(r)}</button>`).join("");
+    box.querySelectorAll("[data-recent]").forEach((b) => { b.onclick = () => eeCustom(b.dataset.recent); });
+  };
+  const eeIn = o.querySelector("#eeCustomName");
+  o.querySelector("#eeCustomAdd").onclick = () => { eeCustom(eeIn.value); eeIn.value = ""; eeIn.focus(); };
+  eeIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); o.querySelector("#eeCustomAdd").click(); } };
+  paintEeRecent();
 
   o.querySelector("#eeSave").onclick = async () => {
     const btn = o.querySelector("#eeSave");
