@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-20 · v117 · clock-in times audit";
+const APP_BUILD = "build 2026-11-20 · v118 · text crew picks the booked crew";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -5566,11 +5566,19 @@ async function openEventTextBlast(ev) {
     const snap = await db.ref("profiles").once("value");
     crew = Object.values(snap.val() || {})
       .filter((p) => p && p.legalName)
-      .map((p) => ({ name: p.legalName, phone: normalizePhoneForSms(p.phone) }))
+      .map((p) => ({ name: p.legalName, handle: p.crewHandle || "", phone: normalizePhoneForSms(p.phone) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch (e) {
     alert("Couldn't load the crew list: " + (e.message || "unknown error"));
     return;
+  }
+  // ev.booked: names on the roster for this shift. Booked people go first and
+  // start ticked; everyone else stays on the list, unticked.
+  const bookedMode = Array.isArray(ev.booked);
+  if (bookedMode) {
+    crew.forEach((c) => { c.booked = ev.booked.some((n) => namesMatch(n, c.name, c.handle)); });
+    crew.sort((a, b) => (b.booked - a.booked) || a.name.localeCompare(b.name));
+    if (!ev.booked.length) alert("Nobody is booked on this shift yet. Tick who you want to text.");
   }
 
   const o = document.createElement("div");
@@ -5579,7 +5587,7 @@ async function openEventTextBlast(ev) {
     <div class="modal-card" style="max-width:400px; max-height:86vh; overflow-y:auto;">
       <div style="display:flex; align-items:flex-start; gap:10px;">
         <div style="flex:1;">
-          <div class="modal-title">Text crew about it?</div>
+          <div class="modal-title">${bookedMode ? "Text the booked crew" : "Text crew about it?"}</div>
           <div class="modal-subtitle">${escapeHtml(ev.name)} \u00b7 ${escapeHtml(ev.day)} ${escapeHtml(ev.date)}</div>
         </div>
         <button id="tbClose" title="Close"
@@ -5596,10 +5604,11 @@ async function openEventTextBlast(ev) {
       ${crew.map((c, i) => `
         <label style="display:flex; align-items:center; gap:10px; padding:9px 4px;
                       border-bottom:1px solid var(--border); ${c.phone ? "" : "opacity:.45;"}">
-          <input type="checkbox" data-tbi="${i}" ${c.phone ? "" : "disabled"}
+          <input type="checkbox" data-tbi="${i}" ${c.phone ? "" : "disabled"} ${c.phone && c.booked ? "checked" : ""}
             style="width:19px; height:19px; margin:0;" />
           <span style="flex:1; font-size:14px;">${escapeHtml(c.name)}</span>
-          ${c.phone ? "" : `<span style="font-size:11px; color:var(--text-faint);">no phone</span>`}
+          ${c.phone ? (c.booked ? `<span style="font-size:11px; color:var(--green); font-weight:700;">booked</span>` : "")
+                    : `<span style="font-size:11px; color:var(--text-faint);">${c.booked ? "booked · " : ""}no phone</span>`}
         </label>`).join("")}
 
       <div class="label" style="margin:14px 0 6px;">Message</div>
@@ -5614,7 +5623,15 @@ async function openEventTextBlast(ev) {
   o.querySelector("#tbClose").onclick = close;
   o.onclick = (e) => { if (e.target === o) close(); };
 
-  o.querySelector("#tbMsg").value = (ev.cancelled ? [
+  o.querySelector("#tbMsg").value = (bookedMode && !ev.cancelled ? [
+    `ADV MEDIA: YOUR SHIFT`,
+    `${ev.name}`,
+    `${ev.day} ${ev.date}${ev.callTime ? " \u00b7 Call " + ev.callTime : ""}`,
+    ev.venue ? ev.venue : null,
+    ``,
+    `You're booked on this one. Please confirm in the app:`,
+    `  ${appLink()}`,
+  ] : ev.cancelled ? [
     `ADV MEDIA \u2014 CANCELLED`,
     `${ev.name}`,
     `${ev.day} ${ev.date}`,
@@ -5743,7 +5760,7 @@ async function openShiftAlert(gameId) {
         <button class="shift-btn shift-btn-ghost" id="osNone" style="flex:1; padding:9px 0;">Clear</button>
       </div>
       <div class="footnote" style="margin-bottom:8px;">
-        "Everyone free" skips anyone already working it. Tick them yourself if you want them told anyway.
+        Everyone not booked on it starts ticked. Anyone already working it is left off; tick them yourself if you want them told anyway.
       </div>
 
       ${crew.map((c, i) => `
@@ -5785,6 +5802,8 @@ async function openShiftAlert(gameId) {
     tally();
   };
   o.querySelector("#osNone").onclick = () => { boxes().forEach((b) => { b.checked = false; }); tally(); };
+  // Start with everyone who isn't booked on it already ticked.
+  boxes().forEach((b) => { b.checked = b.dataset.onit !== "1"; });
   tally();
 
   o.querySelector("#osSend").onclick = () => {
@@ -5956,14 +5975,19 @@ function renderShiftsList(liveRoster) {
   // Send (or resend) the crew text for any event, not just at the moment it
   // was created — a failed send used to leave no way to try again.
   inner.querySelectorAll("[data-textcrew]").forEach((btn) => {
-    btn.onclick = () => {
+    btn.onclick = async () => {
       const g = allShiftEvents().find((x) => x.id === btn.dataset.textcrew);
       if (!g) return;
       const calls = typeof callsFor === "function" ? callsFor(eventById(g.id)) : {};
+      // From a shift card the text is for the people booked on it, so they
+      // start ticked and the message is about their shift, not open spots.
+      let booked = [];
+      try { booked = assignedNamesFor(g.id, await loadLiveRoster()); } catch (e) { booked = []; }
       openEventTextBlast({
         name: g.opp, day: g.day, date: g.date,
-        callTime: (calls && calls.call) || g.callTime || "",
+        callTime: fmtCall((calls && calls.call) || g.callTime || ""),
         venue: g.venue || "", roles: g.roles || [],
+        booked,
       });
     };
   });
