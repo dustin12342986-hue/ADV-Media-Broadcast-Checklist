@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v116 · Mousetrap cameras 1 to 4";
+const APP_BUILD = "build 2026-11-20 · v117 · clock-in times audit";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -1616,6 +1616,7 @@ const ADMIN_GROUPS = [
     { view: "checkout", label: "Equipment Checkout" },
     { view: "log", label: "Shift Log" },
     { view: "checklistTally", label: "Checklist Use" },
+    { view: "clockAudit", label: "Clock-In Times" },
     { view: "audit", label: "Audit Log" },
     { view: "locations", label: "Clock-In Locations" },
     { view: "reset", label: "Reset Clock-Ins" },
@@ -1838,6 +1839,12 @@ function renderMainApp() {
     return;
   }
 
+  if (mainState.view === "clockAudit" && admin) {
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    renderClockAudit();
+    return;
+  }
+
   if (mainState.view === "locations" && admin) {
     if (unsubProfile) { unsubProfile(); unsubProfile = null; }
     renderAdminLocations();
@@ -1974,6 +1981,7 @@ const AUDIT_AREAS = {
   approvedUsers: "Approvals",
   payments: "Payments",
   checklistTally: "Checklist Use",
+  clockAudit: "Clock-In Times",
   paidStatus: "Payments",
   qbApprovals: "QB Approval",
   liveRoster: "Shifts",
@@ -4422,6 +4430,146 @@ async function renderMyRewards(profile) {
     ${tiles.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${tiles.join("")}</div>` : ""}
     <div class="footnote" style="margin-top:8px">A perfect shift is the pre-show and post-show checklists done in the Broadcast Checklist. Perfect months and seasons count toward Contractor of the Month and future season bonuses.</div>
   </div>`;
+}
+
+// ============================================================================
+// CLOCK-IN TIMES — who clocked in by their call time, admin only
+// ============================================================================
+//
+// Every clock-in in clockArchive is compared to the call time that applied to
+// that person: their position's own call if the event has one, else the
+// event's general call (callsFor / callForRole, the same times Today and the
+// crew text show). A clock-in at or before call + the grace minutes counts as
+// on time; after it, late by however many minutes. A shift with no call time
+// set is listed but left out of the counts.
+let ciRange = "season", ciBy = "person", ciGrace = 0;
+function ciParseClock(label) {
+  const m = String(label || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!m) return null;
+  let h = Number(m[1]); const min = Number(m[2]), ap = m[3] ? m[3].toUpperCase() : "";
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+function ciCsv(rows) {
+  const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["Show date", "Show", "Name", "Position", "Call time", "Clocked in", "Minutes after call", "Status"];
+  return [head.map(q).join(",")].concat(rows.map((r) => [r.date, r.show, r.name, r.position, r.call || "", r.inLabel, r.mins == null ? "" : r.mins, r.status].map(q).join(","))).join("\r\n");
+}
+async function renderClockAudit() {
+  const inner = document.getElementById("innerRoot");
+  inner.innerHTML = `<div class="footnote">Loading clock-ins…</div>`;
+  let clocks = {};
+  try {
+    await loadGameSettings();
+    clocks = (await db.ref("clockArchive").once("value")).val() || {};
+  } catch (e) {
+    inner.innerHTML = `<div class="error-msg">Couldn't load clock-ins (${escapeHtml(e.message || "unknown error")}).</div>`;
+    return;
+  }
+  const now = new Date();
+  const cutoff = ciRange === "30" ? new Date(now - 30 * 864e5) : ciRange === "season" ? new Date(now.getFullYear() - (now.getMonth() < 6 ? 1 : 0), 6, 1) : new Date(0);
+  const all = [];
+  for (const [gameId, entries] of Object.entries(clocks)) {
+    const date = String(gameId).split("__")[0];
+    const ev = eventById(gameId);
+    const calls = callsFor(ev || { id: gameId });
+    const seen = new Set();
+    for (const c of Object.values(entries || {})) {
+      if (!c || !c.name || !c.clockInAt) continue;
+      const k = tallyNorm(c.name) + "|" + tallyNorm(c.position);
+      if (seen.has(k)) continue; // a second tap for the same shift: the first one counts
+      seen.add(k);
+      const call = fmtCall(callForRole(calls, c.position || "") || (ev && ev.callTime) || "");
+      const inAt = new Date(c.clockInAt);
+      const callMin = ciParseClock(call);
+      let mins = null, status = "no call time";
+      if (callMin != null && !isNaN(inAt)) {
+        const callAt = new Date(date + "T00:00:00"); callAt.setMinutes(callMin);
+        mins = Math.round((inAt - callAt) / 60000);
+        status = mins > ciGrace ? "late" : "on time";
+      }
+      all.push({ gameId, date, day: new Date(date + "T12:00:00"), show: ev ? `${ev.day || ""} ${ev.date || ""} · ${ev.opp || gameId}` : gameId,
+        name: String(c.name).trim(), position: c.position || "", call, inAt, mins, status,
+        inLabel: isNaN(inAt) ? "" : inAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) });
+    }
+  }
+  all.sort((a, b) => String(a.gameId).localeCompare(String(b.gameId)) || a.name.localeCompare(b.name));
+  const rows = all.filter((r) => isNaN(r.day) || r.day >= cutoff);
+  const counted = rows.filter((r) => r.status !== "no call time");
+  const late = counted.filter((r) => r.status === "late");
+  const people = {};
+  rows.forEach((r) => {
+    const k = tallyNorm(r.name);
+    const p = people[k] || (people[k] = { name: r.name, shifts: 0, onTime: 0, late: 0, lateMins: 0, rows: [] });
+    p.rows.push(r);
+    if (r.status === "no call time") return;
+    p.shifts++;
+    if (r.status === "late") { p.late++; p.lateMins += r.mins; } else p.onTime++;
+  });
+  const list = Object.values(people).map((p) => Object.assign(p, { rate: p.shifts ? p.onTime / p.shifts : 1, avgLate: p.late ? Math.round(p.lateMins / p.late) : 0 }))
+    .sort((a, b) => a.rate - b.rate || b.late - a.late || a.name.localeCompare(b.name));
+  const pct = (n, d) => d ? Math.round(n / d * 100) + "%" : "—";
+  const minsTxt = (m) => m == null ? "" : m <= 0 ? `${Math.abs(m)} min early` : `${m} min after call`;
+  const chip = (r) => {
+    const c = r.status === "on time" ? "var(--green)" : r.status === "late" ? "var(--amber)" : "var(--text-faint)";
+    return `<span style="display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:20px;border:1px solid ${c};color:${c}">${escapeHtml(r.status)}</span>`;
+  };
+  const line = (r, who) => `
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px">
+      <span style="flex:1 1 170px">${who ? `<strong>${escapeHtml(r.name)}</strong>` : escapeHtml(r.show)}<br><span style="color:var(--text-faint)">${escapeHtml(r.position)}${r.call ? " · call " + escapeHtml(r.call) : ""}</span></span>
+      <span style="color:var(--text-muted)">In ${escapeHtml(r.inLabel)}${r.mins != null ? " · " + minsTxt(r.mins) : ""}</span>${chip(r)}
+    </div>`;
+  const bar = (x) => `<div style="height:6px;border-radius:6px;background:var(--border);overflow:hidden;margin-top:6px"><i style="display:block;height:100%;width:${Math.round(x * 100)}%;background:${x >= 0.9 ? "var(--green)" : x >= 0.6 ? "var(--amber)" : "var(--text-faint)"}"></i></div>`;
+  const byShow = {};
+  rows.forEach((r) => (byShow[r.gameId] = byShow[r.gameId] || []).push(r));
+  const btn = (attr, v, cur, t) => `<button class="shift-btn ${cur === v ? "active" : ""}" ${attr}="${v}" style="padding:7px 13px;font-size:12px">${t}</button>`;
+  inner.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btn("data-ciby", "person", ciBy, "By person")}${btn("data-ciby", "show", ciBy, "By show")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btn("data-cirange", "30", ciRange, "Last 30 days")}${btn("data-cirange", "season", ciRange, "This season")}${btn("data-cirange", "all", ciRange, "All time")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><span class="footnote" style="margin:0">Grace</span>${[0, 5, 10].map((g) => btn("data-cigrace", String(g), String(ciGrace), g ? g + " min" : "None")).join("")}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
+      ${[[counted.length, "clock-ins with a call time"], [pct(counted.length - late.length, counted.length), "on time"], [late.length, late.length === 1 ? "late clock-in" : "late clock-ins"], [late.length ? Math.round(late.reduce((t, r) => t + r.mins, 0) / late.length) + " min" : "—", "average time after call, when late"]]
+        .map(([b, t]) => `<div class="log-entry" style="margin:0"><div style="font-size:22px;font-weight:800">${b}</div><div style="font-size:12px;color:var(--text-muted)">${t}</div></div>`).join("")}
+    </div>
+    ${rows.length ? "" : `<div class="footnote">No clock-ins in this range yet.</div>`}
+    ${ciBy === "person" ? list.map((p, i) => `
+      <details class="log-entry" ${i < 3 && p.late ? "open" : ""}>
+        <summary style="cursor:pointer;list-style:none">
+          <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(p.name)}</strong><span class="log-when">${p.shifts} shift${p.shifts === 1 ? "" : "s"} · ${pct(p.onTime, p.shifts)} on time</span></div>
+          <div class="log-entry-body" style="color:var(--text-muted)">On time ${p.onTime} · Late ${p.late}${p.late ? ` · average ${p.avgLate} min after call` : ""}</div>
+          ${bar(p.rate)}
+        </summary>
+        <div style="margin-top:10px">${p.rows.slice().reverse().map((r) => line(r, false)).join("")}</div>
+      </details>`).join("")
+    : Object.keys(byShow).sort().reverse().map((id, i) => {
+      const rs = byShow[id], cn = rs.filter((r) => r.status !== "no call time"), lt = cn.filter((r) => r.status === "late").length;
+      return `<details class="log-entry" ${i === 0 ? "open" : ""}>
+        <summary style="cursor:pointer;list-style:none">
+          <div class="log-entry-top"><strong style="font-size:14px">${escapeHtml(rs[0].show)}</strong><span class="log-when">${rs.length} clocked in · ${pct(cn.length - lt, cn.length)} on time</span></div>
+          <div class="log-entry-body" style="color:var(--text-muted)">On time ${cn.length - lt} · Late ${lt}</div>
+          ${bar(cn.length ? (cn.length - lt) / cn.length : 1)}
+        </summary>
+        <div style="margin-top:10px">${rs.map((r) => line(r, true)).join("")}</div>
+      </details>`;
+    }).join("")}
+    <div class="footnote">Each clock-in is compared to the call time for that person's position on that show, or the show's general call when the position has none. Shifts with no call time set are listed but not counted. Only admins see this screen.</div>
+    <div class="log-entry" style="margin-top:14px">
+      <div class="log-entry-top"><strong style="font-size:14px">Log</strong><span class="log-when">${all.length} clock-in${all.length === 1 ? "" : "s"} · all time</span></div>
+      <div class="log-entry-body" style="color:var(--text-muted)">Every clock-in on record with its call time, minutes after call, and status, using the grace setting above.</div>
+      <button class="shift-btn" id="ciLogBtn" style="margin-top:10px;padding:8px 14px;font-size:12.5px">Download log (CSV)</button>
+    </div>`;
+  inner.querySelectorAll("[data-ciby]").forEach((b) => { b.onclick = () => { ciBy = b.dataset.ciby; renderClockAudit(); }; });
+  inner.querySelectorAll("[data-cirange]").forEach((b) => { b.onclick = () => { ciRange = b.dataset.cirange; renderClockAudit(); }; });
+  inner.querySelectorAll("[data-cigrace]").forEach((b) => { b.onclick = () => { ciGrace = Number(b.dataset.cigrace); renderClockAudit(); }; });
+  document.getElementById("ciLogBtn").onclick = () => {
+    const blob = new Blob(["﻿" + ciCsv(all)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `clock-in-times-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
 }
 
 async function renderShiftLog() {
