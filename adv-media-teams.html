@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-20 · v118 · text crew picks the booked crew";
+const APP_BUILD = "build 2026-11-20 · v119 · easier clock-in";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4063,10 +4063,11 @@ async function renderAdminLocations() {
               <strong>${escapeHtml(loc.name || "Unknown")}</strong> — ${escapeHtml(gameLabel)}
             </div>
             ${inOutStr ? `<div class="log-reason">${inOutStr}</div>` : ""}
-            <div class="log-reason">
+            ${loc.flag ? `<div class="log-reason" style="color:var(--amber); font-weight:700;">Clocked in with "I'm here": ${loc.flag === "no location" ? "phone shared no location" : `about ${Math.round((loc.distanceFromVenue || 0) * 3.28084).toLocaleString()} ft from the stadium`}</div>` : ""}
+            ${loc.lat != null ? `<div class="log-reason">
               <a href="${mapsUrl}" style="color:var(--blue);">View on map</a>
               ${accuracyStr ? ` · accuracy ${accuracyStr}` : ""}
-            </div>
+            </div>` : ""}
           </div>
         `;
       }).join("")}

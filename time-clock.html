@@ -40,8 +40,10 @@
   // own reading to Firebase so every device uses the same point. A coordinate
   // taken from a map search is the middle of a label, not the middle of a
   // stadium, and can sit a few hundred feet off.
-  let VENUE_LAT = 32.609913;
-  let VENUE_LNG = -97.339093;
+  const STADIUM_LAT = 32.609913;
+  const STADIUM_LNG = -97.339093;
+  let VENUE_LAT = STADIUM_LAT;
+  let VENUE_LNG = STADIUM_LNG;
 
   // Loaded at startup. gameSettings is already readable and writable, so this
   // needs no rules change.
@@ -49,7 +51,11 @@
     try {
       const snap = await db.ref("gameSettings/__venue").once("value");
       const v = snap.val();
-      if (v && typeof v.lat === "number" && typeof v.lng === "number") {
+      // A point saved from somewhere else (someone pressed the button at
+      // home) would put everyone "miles away", so anything more than 1.5 km
+      // from the stadium's address is ignored.
+      if (v && typeof v.lat === "number" && typeof v.lng === "number"
+          && distanceMeters(v.lat, v.lng, STADIUM_LAT, STADIUM_LNG) < 1500) {
         VENUE_LAT = v.lat; VENUE_LNG = v.lng;
       }
     } catch (e) { /* keep the fallback */ }
@@ -69,6 +75,11 @@
         if (btn) btn.disabled = false;
         return;
       }
+      if (distanceMeters(pos.coords.latitude, pos.coords.longitude, STADIUM_LAT, STADIUM_LNG) > 1500) {
+        say("You don't look like you're at the stadium right now, so this wasn't saved. Press it while standing at the stadium.", true);
+        if (btn) btn.disabled = false;
+        return;
+      }
       await db.ref("gameSettings/__venue").set({
         lat: pos.coords.latitude, lng: pos.coords.longitude,
         accuracy: acc, setAt: new Date().toISOString(),
@@ -84,7 +95,15 @@
   // footprint, and phones are least accurate in exactly the places crew work:
   // the press box, under the stands, in the truck. A tight radius here does
   // not stop anyone cheating, it stops the crew clocking in.
-  const MAX_DISTANCE_METERS = 400;
+  const MAX_DISTANCE_METERS = 800;
+
+  // Only events at the CISD stadium get the distance check. Any other venue
+  // (a theatre, an arena, a school gym) has no saved point, and checking it
+  // against the stadium would tell everyone there they are miles away.
+  function isStadiumEvent(ev) {
+    const v = String((ev && ev.venue) || "").trim();
+    return !v || /crowley|cisd|multi.?purpose|hemphill/i.test(v);
+  }
 
   // ==========================================================================
   // INVOICE EMAIL SETUP — one-time, ~5 minutes
@@ -703,29 +722,38 @@ function renderClockUI(entries) {
     btn.disabled = true;
     msgEl.innerHTML = `<div class="footnote">Checking your location…</div>`;
 
-    let pos;
+    // Location is a check, not a lock. If the phone can't place someone at
+    // the stadium they still get in with one more tap, and the clock-in is
+    // marked so an admin can look at it in Clock-In Locations.
+    const stadium = isStadiumEvent(eventByIdTC(clockedInGameId));
+    let pos = null, dist = null, flag = null;
     try {
-      pos = await getBestLocation(6000);
+      pos = await getBestLocation(stadium ? 8000 : 4000);
     } catch (err) {
-      btn.disabled = false;
-      msgEl.innerHTML = `<div class="error-msg">⚠️ Location access is required to clock in, and it wasn't available (${escapeHtml(err.message || "permission denied")}). Please allow location access for this site in your browser settings, then try again.</div>`;
-      return;
+      flag = "no location";
+    }
+    if (pos) {
+      dist = distanceMeters(pos.coords.latitude, pos.coords.longitude, VENUE_LAT, VENUE_LNG);
+      // The phone's own margin of error counts in your favour.
+      const accuracy = (pos.coords && pos.coords.accuracy) || 0;
+      if (stadium && Math.max(0, dist - accuracy) > MAX_DISTANCE_METERS) flag = "away from venue";
+    } else if (!stadium) {
+      flag = null; // no check for other venues, so nothing to flag
     }
 
-    const dist = distanceMeters(pos.coords.latitude, pos.coords.longitude, VENUE_LAT, VENUE_LNG);
-
-    // The phone's own margin of error counts in your favour. A reading that
-    // says "800 m away, give or take 900 m" is not evidence anyone is off
-    // site, and blocking on it keeps people who are standing at the stadium
-    // from clocking in.
-    const accuracy = (pos.coords && pos.coords.accuracy) || 0;
-    const nearest = Math.max(0, dist - accuracy);
-
-    if (nearest > MAX_DISTANCE_METERS) {
-      const distFeet = Math.round(dist * 3.28084);
-      btn.disabled = false;
-      msgEl.innerHTML = `<div class="error-msg">⚠️ You're about ${distFeet.toLocaleString()} ft from the stadium — you need to be at the venue to clock in.<br><br>If you ARE at the stadium, step outside for a moment and try again. Phones lose their fix indoors and under the stands.</div>`;
-      return;
+    if (flag) {
+      const confirmed = await new Promise((resolve) => {
+        const why = flag === "no location"
+          ? "Your phone didn't share a location."
+          : `Your phone puts you about ${Math.round(dist * 3.28084).toLocaleString()} ft from the stadium. That happens inside the press box and under the stands.`;
+        msgEl.innerHTML = `
+          <div class="footnote" style="text-align:left; line-height:1.5;">${why} If you're here, tap below and you're in. Your lead can see it was clocked in this way.</div>
+          <button class="clock-btn in" id="clockAnywayBtn" style="margin-top:10px;">I'm here, clock me in</button>
+          <button class="shift-btn shift-btn-ghost" id="clockRetryBtn" style="width:100%; margin-top:8px; padding:11px 0;">Try location again</button>`;
+        document.getElementById("clockAnywayBtn").onclick = () => resolve(true);
+        document.getElementById("clockRetryBtn").onclick = () => resolve(false);
+      });
+      if (!confirmed) { msgEl.innerHTML = ""; btn.disabled = false; btn.click(); return; }
     }
 
     msgEl.innerHTML = "";
@@ -736,6 +764,7 @@ function renderClockUI(entries) {
       clockInAt: new Date().toISOString(),
       clockOutAt: null,
     };
+    if (flag) clockEntry.locationFlag = flag;
     db.ref(`${clockPath(clockedInGameId)}/${clockKey}`).set(clockEntry);
     // Permanent copy — admins can always see this even after a "Clear
     // Clock-Ins" reset wipes the live list above.
@@ -745,10 +774,12 @@ function renderClockUI(entries) {
     db.ref(`clockLocations/${clockedInGameId}/${clockKey}`).set({
       name: clockedInName,
       position: clockedInPosition,
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      distanceFromVenue: Math.round(dist),
+      lat: pos ? pos.coords.latitude : null,
+      lng: pos ? pos.coords.longitude : null,
+      accuracy: pos ? pos.coords.accuracy : null,
+      distanceFromVenue: dist == null ? null : Math.round(dist),
+      stadiumCheck: stadium,
+      flag: flag || null,
       at: new Date().toISOString(),
     }).catch((err) => console.warn("Couldn't save clock-in location:", err));
 
