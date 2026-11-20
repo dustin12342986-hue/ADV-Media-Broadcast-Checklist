@@ -498,7 +498,101 @@ const POSITIONS = {
     post: ["Confirm all department leads have completed post-shift checklist",
       "Debrief with PM after wrap"] },
 };
-const POSITION_KEYS = Object.keys(POSITIONS);
+const POSITION_KEYS_ALL = Object.keys(POSITIONS);
+
+// ============================================================================
+// Event-specific checklists
+// ============================================================================
+// Shows that aren't a stadium broadcast get their own positions and steps.
+// EXTRA_EVENTS puts the show in the Game list (personal shows aren't in the
+// public showIndex), and EVENT_POSITIONS replaces the position list for it.
+// Everything else (saving, sign-off, dashboard) works the same, keyed by the
+// show id like any game.
+const EXTRA_EVENTS = [
+  { id: "2026-11-21__mousetrap", day: "Sat", date: "11/21", eventDate: "2026-11-21", opp: "Mousetrap · NTPA Theatre" },
+];
+const EVENT_POSITIONS = {
+  "2026-11-21__mousetrap": {
+    "mt-cam-a": { label: "Camera A · a6700 wide", readyLabel: "Camera A framed and recording-tested",
+      pre: ["Camera A is the master shot: Sony a6700 with the 18-105 f4 G, full stage wide, locked off",
+        "Charged battery in, spare battery in reach",
+        "Card formatted, spare card in the bag",
+        "Tripod at the center of the house with a clear line to the whole stage. Legs locked",
+        "Frame the full stage, edges of the set included",
+        "Focus on the stage, then switch to manual focus so it can't hunt",
+        "Settings matched to the other cameras: frame rate, shutter, picture profile, white balance (Dustin sets them)",
+        "Record test and play it back",
+        "Rolling by 1:50, with the clap on camera for sync"],
+      post: ["Stop recording at show end",
+        "Play back the last clip to confirm it saved",
+        "Lens cap on, battery out",
+        "Card stays in its case. Do not format until the footage is backed up",
+        "Tripod collapsed and packed"] },
+    "mt-cam-b": { label: "Camera B · a6400 tight (Aracely)", readyLabel: "Camera B framed and recording-tested",
+      pre: ["Camera B is the tight shot: Sony a6400 with the Tamron 50-400, operated by Aracely",
+        "Charged battery in, at least two spares in reach",
+        "Card formatted, spare card in the bag",
+        "Tripod with the fluid head set where you can follow the performers",
+        "Tamron on, lens cap off, glass clean",
+        "Set the focus mode and test following someone across the stage",
+        "Settings matched to the other cameras (Dustin sets them)",
+        "Hollyland comms on, check with Dustin",
+        "Record test and play it back",
+        "Rolling by 1:50, with the clap on camera for sync"],
+      post: ["Stop recording at show end",
+        "Play back the last clip to confirm it saved",
+        "Lens cap on both ends, battery out",
+        "Card stays in its case. Do not format until the footage is backed up",
+        "Tripod and head packed"] },
+    "mt-cam-c": { label: "Camera C · ZV-E10 side", readyLabel: "Camera C framed and recording-tested",
+      pre: ["Camera C is the second angle: Sony ZV-E10 with the 16-50 PZ, from the side, locked off",
+        "Charged battery in, spare battery in reach",
+        "Card formatted, spare card in the bag",
+        "Tripod at the side angle, out of the audience's way. Legs locked",
+        "Set the power zoom where you want it and leave it",
+        "Focus on the stage, then manual focus",
+        "Settings matched to the other cameras (Dustin sets them)",
+        "Record test and play it back",
+        "Rolling by 1:50, with the clap on camera for sync"],
+      post: ["Stop recording at show end",
+        "Play back the last clip to confirm it saved",
+        "Lens cap on, battery out",
+        "Card stays in its case. Do not format until the footage is backed up",
+        "Tripod collapsed and packed"] },
+    "mt-cam-d": { label: "Camera D · S26 Ultra on gimbal", readyLabel: "Camera D ready to roam",
+      pre: ["Camera D is the moving camera: S26 Ultra on the DJI phone gimbal for moving shots, the audience, and details",
+        "Phone charged, power bank in your pocket",
+        "Enough free storage for the whole show",
+        "Do Not Disturb on so nothing interrupts recording",
+        "Gimbal charged and balanced with the phone on it",
+        "Lens wiped clean",
+        "Frame rate matched to the other cameras (Dustin sets it)",
+        "Hollyland comms on, check with Dustin",
+        "Record test and play it back",
+        "Rolling by 1:50, with the clap on camera for sync"],
+      post: ["Stop recording at show end",
+        "Play back the last clip to confirm it saved",
+        "Hand the phone to Dustin for backup before anything is deleted",
+        "Gimbal off and packed"] },
+    "mt-audio": { label: "Audio and record (Dustin)", readyLabel: "House feed and backup recorder rolling",
+      pre: ["Find the house console and the person running it",
+        "Patch the house console feed for the main recording",
+        "Digital recorder set up as backup, levels checked",
+        "Comms on for all three people",
+        "Match settings on every camera: frame rate, shutter, picture profile, white balance",
+        "Call rolling at 1:50: all cameras and the recorder, one clap on camera for sync"],
+      post: ["Stop the recorder after the show ends",
+        "Confirm every camera's clips saved",
+        "Collect every card and the phone footage",
+        "Back up all footage before any card is formatted",
+        "Strike and load out"] },
+  },
+};
+function posMap() { return EVENT_POSITIONS[state && state.gameId] || POSITIONS; }
+function posKeys() { return Object.keys(posMap()); }
+// Keep the open position valid when the show changes.
+function syncPosKey() { const k = posKeys(); if (!k.includes(state.posKey)) state.posKey = k[0]; }
+EXTRA_EVENTS.forEach((x) => { if (!GAMES.some((g) => g.id === x.id)) GAMES.push(x); });
 
 // Maps the free-text position labels used in the companion time-clock app
 // to this app's position keys, so a clock-in shows up next to the right row.
@@ -703,6 +797,8 @@ function listenForSchedule() {
       .map(([id, e]) => ({ id, day: e.day || "", date: e.date || "", opp: e.opp, eventDate: e.eventDate || "", cancelled: !!e.cancelled }))
       .sort((a, b) => gameDate(a).localeCompare(gameDate(b)) || a.id.localeCompare(b.id));
     const first = !liveScheduleLoaded;
+    EXTRA_EVENTS.forEach((x) => { if (!list.some((g) => g.id === x.id)) list.push(x); });
+    list.sort((a, b) => gameDate(a).localeCompare(gameDate(b)) || a.id.localeCompare(b.id));
     GAMES = list;
     liveScheduleLoaded = true;
     if (first && requestedGame && GAMES.some((g) => g.id === requestedGame) && state.gameId !== requestedGame) {
@@ -724,7 +820,7 @@ const requestedGame = urlParams.get("game");
 const state = {
   view: requestedView === "dashboard" ? "dashboard" : "my",
   gameId: (requestedGame && GAMES.some((g) => g.id === requestedGame)) ? requestedGame : nextUpcomingGameId(),
-  posKey: POSITION_KEYS[0],
+  posKey: POSITION_KEYS_ALL[0],
   phase: "pre",
   showIssue: false,
   showHelpNote: false,
@@ -748,7 +844,7 @@ function populateGameSelect() {
   const sel = document.getElementById("gameSelect");
   sel.innerHTML = GAMES.map(g => `<option value="${g.id}">${gameLabel(g)}</option>`).join("");
   sel.value = state.gameId;
-  sel.onchange = () => { state.gameId = sel.value; renderView(); };
+  sel.onchange = () => { state.gameId = sel.value; syncPosKey(); renderView(); };
 }
 
 document.getElementById("tabMy").onclick = () => { state.view = "my"; updateTabs(); renderView(); };
@@ -796,7 +892,7 @@ function tallyLight(status, size) {
 // only a distance from kickoff.
 
 function itemsFor(posKey, phase) {
-  const position = POSITIONS[posKey];
+  const position = posMap()[posKey];
   if (!position) return [];
   const base = position[phase] || [];
   const qc = (phase === "post" && position.qc) ? position.qc : [];
@@ -816,7 +912,7 @@ function renderTimesEditor() {
     <div class="field-block">
       <div class="label">Position</div>
       <select id="tmPos">
-        ${POSITION_KEYS.map(k => `<option value="${k}">${escapeHtml(POSITIONS[k].label)}</option>`).join("")}
+        ${posKeys().map(k => `<option value="${k}">${escapeHtml(posMap()[k].label)}</option>`).join("")}
       </select>
     </div>
     <div class="field-block">
@@ -900,7 +996,7 @@ function renderTimesEditor() {
 // ============================================================================
 function renderMyChecklist() {
   const root = document.getElementById("viewRoot");
-  const position = POSITIONS[state.posKey];
+  const position = posMap()[state.posKey];
   // Quality check items hang off the end of the post-shift list rather than
   // being a third phase. That keeps the saved checked[] indices contiguous, so
   // adding QC to a position does not invalidate records already in Firebase.
@@ -913,7 +1009,7 @@ function renderMyChecklist() {
     <div class="field-block">
       <div class="label">Position</div>
       <select id="posSelect">
-        ${POSITION_KEYS.map(k => `<option value="${k}">${POSITIONS[k].label}</option>`).join("")}
+        ${posKeys().map(k => `<option value="${k}">${posMap()[k].label}</option>`).join("")}
       </select>
     </div>
     <div id="helpBlock"></div>
@@ -1049,7 +1145,7 @@ function timingStripHtml(rec, items) {
 // arrive. Redraws from what is already in hand rather than reading again.
 function redrawTimes() {
   if (state.view !== "my" || !lastRec) return;
-  const position = POSITIONS[state.posKey];
+  const position = posMap()[state.posKey];
   if (!position) return;
   renderChecklistBody(lastRec, itemsFor(state.posKey, state.phase), position);
 }
@@ -1252,7 +1348,7 @@ function renderDashboard() {
 
   let clockEntries = {};
   let expanded = null;
-  let pending = POSITION_KEYS.length * 3 + 1; // pre + post + help per position, plus one clock-in listener
+  let pending = posKeys().length * 3 + 1; // pre + post + help per position, plus one clock-in listener
 
   function tryRender() {
     if (pending > 0) return;
@@ -1260,7 +1356,7 @@ function renderDashboard() {
   }
 
   function drawDashboard() {
-    const activeHelp = POSITION_KEYS.map(k => ({ posKey: k, help: helps[k] })).filter(h => h.help && h.help.needsHelp);
+    const activeHelp = posKeys().map(k => ({ posKey: k, help: helps[k] })).filter(h => h.help && h.help.needsHelp);
 
     // Figure out who's currently clocked in, grouped by position key
     const clockedInByPos = {};
@@ -1277,7 +1373,7 @@ function renderDashboard() {
     if (activeHelp.length > 0) {
       html += `<div class="help-banner"><div class="help-banner-title">${icon("siren", "#FF8478", 15)} ${activeHelp.length} position${activeHelp.length > 1 ? "s" : ""} need${activeHelp.length > 1 ? "" : "s"} help</div>`;
       activeHelp.forEach(({ posKey, help }) => {
-        html += `<div class="help-banner-item"><strong>${POSITIONS[posKey].label}</strong>${help.requestedBy ? " · " + escapeHtml(help.requestedBy) : ""}${help.requestedAt ? " · " + new Date(help.requestedAt).toLocaleTimeString() : ""}${help.note ? " — " + escapeHtml(help.note) : ""}</div>`;
+        html += `<div class="help-banner-item"><strong>${posMap()[posKey].label}</strong>${help.requestedBy ? " · " + escapeHtml(help.requestedBy) : ""}${help.requestedAt ? " · " + new Date(help.requestedAt).toLocaleTimeString() : ""}${help.note ? " — " + escapeHtml(help.note) : ""}</div>`;
       });
       html += `</div>`;
     }
@@ -1285,8 +1381,8 @@ function renderDashboard() {
     html += `<div class="dash-table">
       <div class="dash-header-row"><span>Position</span><span style="text-align:center">Pre</span><span style="text-align:center">Post</span></div>`;
 
-    POSITION_KEYS.forEach((posKey) => {
-      const position = POSITIONS[posKey];
+    posKeys().forEach((posKey) => {
+      const position = posMap()[posKey];
       const preRec = records[posKey + ":pre"];
       const postRec = records[posKey + ":post"];
       const preSt = statusOf(preRec, position.pre.length);
@@ -1364,8 +1460,8 @@ function renderDashboard() {
     if (!first) drawDashboard();
   }));
 
-  POSITION_KEYS.forEach((posKey) => {
-    const position = POSITIONS[posKey];
+  posKeys().forEach((posKey) => {
+    const position = posMap()[posKey];
     unsubDash.push(dbListen(chkPath(state.gameId, posKey, "pre"), (val) => {
       const first = !(posKey + ":pre" in records);
       records[posKey + ":pre"] = val;
@@ -1407,6 +1503,7 @@ function escapeHtml(str) {
 function escapeAttr(str) { return escapeHtml(str); }
 
 function renderView() {
+  syncPosKey();
   if (unsubDash.length) { unsubDash.forEach(u => u()); unsubDash = []; }
   if (state.view === "times") { renderTimesEditor(); return; }
   if (state.view === "my") renderMyChecklist();
