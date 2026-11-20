@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v115 · Mousetrap camera plan";
+const APP_BUILD = "build 2026-11-19 · v116 · Mousetrap cameras 1 to 4";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -11207,6 +11207,18 @@ function rosSubscribe() {
     if (rosState.gameId !== gameId) return;
     let val = snap.val();
 
+    // A personal-show seed carries a version. When the seed is updated in
+    // this file and nobody has edited the stored list by hand, refresh it so
+    // a plan change reaches the run of show that was already opened.
+    if (val && !rosState.loaded && String(gameId).startsWith("personal__") && !val.editedByHand) {
+      const ev = personalRosEvents().find((g) => g.id === gameId);
+      const sd = ev && ev.seedKey ? PERSONAL_ROS_SEEDS.find((x) => x.key === ev.seedKey) : null;
+      if (sd && sd.version && val.seedVersion !== sd.version) {
+        try { await db.ref(`runOfShow/${gameId}`).update({ cues: rosFlattenSeed(gameId), current: 0, seedVersion: sd.version }); return; }
+        catch (e) { console.error("Couldn't refresh run of show:", e); }
+      }
+    }
+
     if (!val && !rosState.loaded) {
       // Nothing stored yet. Seed from the constant if we have one, so the
       // first person to open it doesn't get a blank list.
@@ -11266,7 +11278,7 @@ function rosSaveCues(cues, current) {
   rosState.cues = cues;
   if (typeof current === "number") rosState.current = current;
   rosRender();
-  rosWrite({ cues, current: rosState.current });
+  rosWrite({ cues, current: rosState.current, editedByHand: true });
 }
 
 function rosRender() {
@@ -11910,11 +11922,11 @@ function renderProfileEditor(profile) {
 // Run of show seeds for private shows, matched to a facility-grid personal
 // show by date and name. Same shape as RUN_OF_SHOW entries.
 const PERSONAL_ROS_SEEDS = [
-  { key: "ntpa-2026-11-21", name: "NTPA Theatre", date: "2026-11-21", match: /ntpa|mouse\s*trap/i,
+  { key: "ntpa-2026-11-21", version: 3, name: "NTPA Theatre", date: "2026-11-21", match: /ntpa|mouse\s*trap/i,
     seed: { sections: [
       { name: "Load in", cues: [
-        { time: "12:00 PM", dur: "15:00", event: "Load in", notes: "Walk the room with the venue contact. Find the house console and the person running it. Dustin, Aracely, crew." },
-        { time: "12:15 PM", dur: "20:00", event: "Set cameras", notes: "Camera positions, tripods, power, lenses. Aracely, crew." },
+        { time: "12:00 PM", dur: "15:00", event: "Load in", notes: "Walk the room with the venue contact. Find the house console and the person running it. Dustin, Aracely, Bertin." },
+        { time: "12:15 PM", dur: "20:00", event: "Set cameras", notes: "Camera positions, tripods, power, lenses. Aracely, Bertin." },
         { time: "12:35 PM", dur: "10:00", event: "Patch house audio", audio: "House console feed is the main recording. Digital recorder as backup.", notes: "Dustin." },
         { time: "12:45 PM", dur: "15:00", event: "Comms on", notes: "Hollyland for all three. Wireless check." },
       ] },
@@ -11922,7 +11934,7 @@ const PERSONAL_ROS_SEEDS = [
         { time: "1:00 PM", dur: "15:00", event: "Cameras up", notes: "Every camera powered, framed, focused, white balanced. Dustin matches frame rate, shutter, picture profile." },
         { time: "1:15 PM", dur: "15:00", event: "Record test", notes: "Record and play back on every camera and the recorder." },
         { time: "1:30 PM", dur: "15:00", event: "Batteries and cards", notes: "Fresh batteries, cards formatted, spares in reach." },
-        { time: "1:45 PM", dur: "5:00", event: "At positions", notes: "Comms check. A: a6700 locked-off wide. B: a6400 tight on tripod, Aracely. C: ZV-E10 on tripod, Dustin. D: gimbal cam, crew." },
+        { time: "1:45 PM", dur: "5:00", event: "At positions", notes: "Comms check. Cam 1: locked-off wide. Cam 2: side shot, Aracely. Cam 3: side shot, Bertin. Cam 4: gimbal cam, Dustin." },
       ] },
       { name: "Show", cues: [
         { time: "1:50 PM", dur: "10:00", event: "Rolling", notes: "All cameras and the recorder rolling. One clap on camera for sync. Dustin calls it." },
