@@ -812,9 +812,9 @@ setInterval(()=>{if(mode==='live'&&ON_PAGES&&document.visibilityState==='visible
 const FIREBASE_CONFIG={apiKey:"AIzaSyDOf3aLq2gFJSr3ThRgeFLFu-VYc49ihW4",authDomain:"crowley-football.firebaseapp.com",databaseURL:"https://crowley-football-default-rtdb.firebaseio.com",projectId:"crowley-football",storageBucket:"crowley-football.firebasestorage.app",messagingSenderId:"56102489603",appId:"1:56102489603:web:1a81953b6dd0d2fb84c836"};
 const GOOGLE_CLIENT_ID="56102489603-cam8dpnm79ktgm32adp5e3djoccd7hdr.apps.googleusercontent.com";
 const ADMIN_EMAILS=["dustin12342986@gmail.com","aracely.valencia10@gmail.com"];
-const WHO={dusty:'Dusty',aracely:'Aracely',both:'Dusty and Aracely'};
+const WHO={dusty:'Dustin',aracely:'Aracely',both:'Dustin and Aracely'};
 let fb=null,fbUser=null,PERSONAL={},personalErr='',personalOff=null,gsiReady=false;
-LVENUES.push({id:'personal',name:'Personal shows',note:'Dusty and Aracely'});
+LVENUES.push({id:'personal',name:'Personal shows',note:'Dustin and Aracely'});
 const isAdmin=()=>!!(fbUser&&ADMIN_EMAILS.includes(String(fbUser.email||'').toLowerCase()));
 function fmt12(t){if(!t)return '';const m=String(t).match(/^(\d{1,2}):(\d{2})$/);if(!m)return String(t);let h=+m[1];const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m[2]+' '+ap;}
 function personalEvents(){
