@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v110 · custom event positions";
+const APP_BUILD = "build 2026-11-19 · v111 · private shows in Run of Show";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4540,11 +4540,39 @@ let showRemovedEvents = false;
 const OVERRIDABLE = ["opp", "day", "date", "eventDate", "venue", "gameTime", "call",
   "callTime", "endTime", "roles", "cancelled", "cancelReason", "removed"];
 
+// Dusty and Aracely's own shows, added on the facility grid (personalShows).
+// Only the two admin accounts can read that node, so crew never load it and
+// never see these. They are NOT shift events: no board, no pickups, no texts.
+// They appear in one place in Teams, the Run of Show picker, for admins only,
+// so a private gig can have its own cue list.
+let personalShows = {};
+async function loadPersonalShows() {
+  if (!isAdmin()) { personalShows = {}; return; }
+  try { personalShows = (await db.ref("personalShows").once("value")).val() || {}; }
+  catch (e) { /* rule missing or offline: no private shows in the picker */ }
+}
+// Private shows as Run of Show options. A seed in PERSONAL_ROS_SEEDS with no
+// matching show on the grid still gets an option, so its cue list is usable
+// before the show has been added there.
+function personalRosEvents() {
+  if (!isAdmin()) return [];
+  const fmt = (d) => { const dt = new Date(d + "T12:00:00"); return isNaN(dt) ? { day: "", date: d } : { day: dt.toLocaleDateString([], { weekday: "short" }), date: `${dt.getMonth() + 1}/${dt.getDate()}` }; };
+  const out = Object.entries(personalShows || {}).filter(([, p]) => p && p.date).map(([pid, p]) => {
+    const seed = PERSONAL_ROS_SEEDS.find((x) => x.date === p.date && x.match.test(p.name || ""));
+    return Object.assign({ id: "personal__" + pid, opp: (p.name || "Show") + " (private)", eventDate: p.date, venue: p.venue || "", client: p.client || "", roles: [], personal: true, seedKey: seed ? seed.key : null }, fmt(p.date));
+  });
+  PERSONAL_ROS_SEEDS.forEach((x) => {
+    if (!out.some((e) => e.seedKey === x.key)) out.push(Object.assign({ id: "personal__" + x.key, opp: x.name + " (private)", eventDate: x.date, venue: "", client: "", roles: [], personal: true, seedKey: x.key }, fmt(x.date)));
+  });
+  return out;
+}
+
 async function loadClientEvents() {
   try {
     const snap = await db.ref("clientEvents").once("value");
     clientEvents = snap.val() || {};
   } catch (e) { /* keep whatever is already loaded */ }
+  await loadPersonalShows();
   try {
     const snap = await db.ref("gameOverrides").once("value");
     gameOverrides = snap.val() || {};
@@ -4637,7 +4665,7 @@ function eventById(id) {
   const all = allShiftEvents();
   return all.find((g) => g.id === id)
     || all.find((g) => eventDateOf(g) === id)
-    || null;
+    || (String(id).startsWith("personal__") ? personalRosEvents().find((g) => g.id === id) || null : null);
 }
 
 // What is on a given day, which is a different question from "fetch this
@@ -9914,6 +9942,11 @@ function rosFlattenSeed(gameId) {
 // suffix it was given.
 function rosSeedFor(gameId) {
   if (!gameId) return null;
+  if (String(gameId).startsWith("personal__")) {
+    const ev = personalRosEvents().find((g) => g.id === gameId);
+    const seed = ev && ev.seedKey ? PERSONAL_ROS_SEEDS.find((x) => x.key === ev.seedKey) : null;
+    return seed ? seed.seed : null;
+  }
   return RUN_OF_SHOW[gameId] || RUN_OF_SHOW[String(gameId).split("__")[0]] || null;
 }
 
@@ -9922,7 +9955,9 @@ function rosGameOptions() {
   // Added events too. An event with no cue list yet opens empty, ready to
   // build by hand or import a script into.
   return allShiftEvents().filter((g) =>
-    String(g.id).split("__")[0] >= todayId || rosSeedFor(g.id));
+    String(g.id).split("__")[0] >= todayId || rosSeedFor(g.id))
+    .concat(personalRosEvents().filter((g) => g.eventDate >= todayId))
+    .sort((a, b) => eventDateOf(a).localeCompare(eventDateOf(b)));
 }
 
 
@@ -11867,6 +11902,35 @@ function renderProfileEditor(profile) {
 // GAMES, and replace the cues. Every field except `time` and `event` is
 // optional — leave a field off and its row just doesn't render.
 // ============================================================================
+// Run of show seeds for private shows, matched to a facility-grid personal
+// show by date and name. Same shape as RUN_OF_SHOW entries.
+const PERSONAL_ROS_SEEDS = [
+  { key: "ntpa-2026-11-21", name: "NTPA Theatre", date: "2026-11-21", match: /ntpa/i,
+    seed: { sections: [
+      { name: "Load in", cues: [
+        { time: "12:00 PM", dur: "15:00", event: "Load in", notes: "Walk the room with the venue contact. Find the house console and the person running it. Dusty, Aracely, crew." },
+        { time: "12:15 PM", dur: "20:00", event: "Set cameras", notes: "Camera positions, tripods, power, lenses. Aracely, crew." },
+        { time: "12:35 PM", dur: "10:00", event: "Patch house audio", audio: "House console feed is the main recording. Digital recorder as backup.", notes: "Dusty." },
+        { time: "12:45 PM", dur: "15:00", event: "Comms on", notes: "Hollyland for all three. Wireless check." },
+      ] },
+      { name: "Cameras up", cues: [
+        { time: "1:00 PM", dur: "15:00", event: "Cameras up", notes: "Every camera powered, framed, focused, white balanced. Dusty matches frame rate, shutter, picture profile." },
+        { time: "1:15 PM", dur: "15:00", event: "Record test", notes: "Record and play back on every camera and the recorder." },
+        { time: "1:30 PM", dur: "15:00", event: "Batteries and cards", notes: "Fresh batteries, cards formatted, spares in reach." },
+        { time: "1:45 PM", dur: "5:00", event: "At positions", notes: "Comms check. A: a6700 wide, locked off. B: a6400 tight, Aracely. C: ZV-E10 side, locked off. D: S26 Ultra on gimbal, crew." },
+      ] },
+      { name: "Show", cues: [
+        { time: "1:50 PM", dur: "10:00", event: "Rolling", notes: "All cameras and the recorder rolling. One clap on camera for sync. Dusty calls it." },
+        { time: "2:00 PM", dur: "", event: "Show", notes: "" },
+        { time: "", dur: "", event: "Intermission (if any)", notes: "Swap batteries, check card space, keep rolling or roll again before act two." },
+        { time: "", dur: "", event: "Show end", notes: "Stop recording. Check every clip saved before anything moves." },
+      ] },
+      { name: "Strike", cues: [
+        { time: "", dur: "", event: "Strike and load out", notes: "Do not format any card until the footage is backed up." },
+      ] },
+    ] } },
+];
+
 const RUN_OF_SHOW = {
   // Built from the "Run of Show - CHS vs. Lamar" sheet, row for row.
   // Sheet columns map: START TIME -> time, DURATION -> dur,
