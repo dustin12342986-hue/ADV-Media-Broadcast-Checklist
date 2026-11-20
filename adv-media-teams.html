@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-19 · v113 · NTPA run of show on the personal show";
+const APP_BUILD = "build 2026-11-19 · v114 · NTPA cues on The Mousetrap";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4558,7 +4558,11 @@ function personalRosEvents() {
   if (!isAdmin()) return [];
   const fmt = (d) => { const dt = new Date(d + "T12:00:00"); return isNaN(dt) ? { day: "", date: d } : { day: dt.toLocaleDateString([], { weekday: "short" }), date: `${dt.getMonth() + 1}/${dt.getDate()}` }; };
   const out = Object.entries(personalShows || {}).filter(([, p]) => p && p.date).map(([pid, p]) => {
-    const seed = PERSONAL_ROS_SEEDS.find((x) => x.date === p.date && x.match.test(p.name || ""));
+    // Match on the name when it says so; otherwise a seed still attaches to
+    // the only personal show on its date, whatever the show was named.
+    const sameDay = Object.values(personalShows || {}).filter((q) => q && q.date === p.date).length;
+    const seed = PERSONAL_ROS_SEEDS.find((x) => x.date === p.date && x.match.test(p.name || ""))
+      || (sameDay === 1 ? PERSONAL_ROS_SEEDS.find((x) => x.date === p.date) : null);
     const who = { both: "Dustin and Aracely", dusty: "Dustin", aracely: "Aracely" }[p.who || "both"] || "Dustin and Aracely";
     return Object.assign({ id: "personal__" + pid, opp: (p.name || "Show") + " · " + who, who, eventDate: p.date, venue: p.venue || "", client: p.client || "", roles: [], personal: true, seedKey: seed ? seed.key : null }, fmt(p.date));
   });
@@ -11906,7 +11910,7 @@ function renderProfileEditor(profile) {
 // Run of show seeds for private shows, matched to a facility-grid personal
 // show by date and name. Same shape as RUN_OF_SHOW entries.
 const PERSONAL_ROS_SEEDS = [
-  { key: "ntpa-2026-11-21", name: "NTPA Theatre", date: "2026-11-21", match: /ntpa/i,
+  { key: "ntpa-2026-11-21", name: "NTPA Theatre", date: "2026-11-21", match: /ntpa|mouse\s*trap/i,
     seed: { sections: [
       { name: "Load in", cues: [
         { time: "12:00 PM", dur: "15:00", event: "Load in", notes: "Walk the room with the venue contact. Find the house console and the person running it. Dustin, Aracely, crew." },
