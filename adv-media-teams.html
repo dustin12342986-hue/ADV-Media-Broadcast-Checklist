@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-20 · v119 · easier clock-in";
+const APP_BUILD = "build 2026-11-23 · v120 · Shifts upcoming and past tabs";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -5846,6 +5846,10 @@ async function renderShiftsView() {
   unsubLiveRoster = () => ref.off("value", cb);
 }
 
+// Shifts opens on what's coming up, soonest first. Anything before today
+// moves to the Past tab, newest first, so the board isn't a scroll through
+// last season to find Friday.
+let shiftsTab = "upcoming";
 function renderShiftsList(liveRoster) {
   const inner = document.getElementById("innerRoot");
   const myName = myProfileForShifts && myProfileForShifts.legalName;
@@ -5857,7 +5861,20 @@ function renderShiftsList(liveRoster) {
   }
 
   const admin = isAdmin();
+  const todayId = localDateId();
+  const dayOf = (g) => String(g.id).split("__")[0];
+  const evAll = allShiftEvents({ includeRemoved: admin && showRemovedEvents });
+  const upcomingEv = evAll.filter((g) => dayOf(g) >= todayId)
+    .sort((a, b) => dayOf(a).localeCompare(dayOf(b)) || String(a.id).localeCompare(String(b.id)));
+  const pastEv = evAll.filter((g) => dayOf(g) < todayId)
+    .sort((a, b) => dayOf(b).localeCompare(dayOf(a)) || String(a.id).localeCompare(String(b.id)));
+  const shownEv = shiftsTab === "past" ? pastEv : upcomingEv;
   inner.innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="shift-btn ${shiftsTab === "upcoming" ? "" : "shift-btn-ghost"}" data-shifttab="upcoming" style="flex:1; padding:10px 0;">Upcoming (${upcomingEv.length})</button>
+      <button class="shift-btn ${shiftsTab === "past" ? "" : "shift-btn-ghost"}" data-shifttab="past" style="flex:1; padding:10px 0;">Past (${pastEv.length})</button>
+    </div>
+    ${shownEv.length ? "" : `<div class="footnote" style="margin-bottom:12px;">${shiftsTab === "past" ? "No past shifts yet." : "Nothing coming up right now."}</div>`}
     <div class="footnote" style="margin-bottom:12px;">Pick up open shifts, or drop one you can't make. Everyone sees changes live.${admin ? " As an admin, you can also assign, reassign, or remove anyone's shift." : ""}</div>
     ${admin ? `<button class="primary-btn" id="newShiftBtn" style="margin-bottom:14px;">+ New event</button>` : ""}
     ${admin && Object.values(gameOverrides).some((o) => o && o.removed) ? `
@@ -5865,7 +5882,7 @@ function renderShiftsList(liveRoster) {
         style="margin:-4px 0 14px; padding:7px 13px; font-size:12px;">${
           showRemovedEvents ? "Hide removed" : "Show removed"}</button>` : ""}
     ${CAMERA_NOTICE_HTML}
-    ${allShiftEvents({ includeRemoved: admin && showRemovedEvents }).map((g) => {
+    ${shownEv.map((g) => {
       const gameRoster = liveRoster[g.id] || {};
       const rows = (g.roles || TRADEABLE_ROLES).map((role) => {
         const key = role.replace(/[^A-Za-z0-9]/g, "_");
@@ -5938,6 +5955,9 @@ function renderShiftsList(liveRoster) {
     b.onclick = () => openEditEventForm(b.getAttribute("data-editevent"));
   });
 
+  inner.querySelectorAll("[data-shifttab]").forEach((b) => {
+    b.onclick = () => { shiftsTab = b.dataset.shifttab; renderShiftsList(liveRoster); window.scrollTo(0, 0); };
+  });
   inner.querySelectorAll("[data-alertopen]").forEach((b) => {
     b.onclick = () => openShiftAlert(b.getAttribute("data-alertopen"));
   });
