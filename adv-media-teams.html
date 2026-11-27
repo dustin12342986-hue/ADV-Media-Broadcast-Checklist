@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-26 · v122 · call times for added events";
+const APP_BUILD = "build 2026-11-27 · v123 · same-day shows in call order";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4833,7 +4833,7 @@ function eventOnDate(dateId) {
 // Every event on a day, not just the first. A Friday can carry two shows.
 function eventsOnDate(dateId) {
   return allShiftEvents().filter((g) => eventDateOf(g) === dateId && !g.cancelled)
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    .sort(eventOrder);
 }
 
 function allShiftEvents(opts) {
@@ -4866,8 +4866,25 @@ function allShiftEvents(opts) {
   });
   // Soonest first, by the date an event actually happens on rather than the
   // one frozen into its id.
-  return built.sort((a, b) => eventDateOf(a).localeCompare(eventDateOf(b))
-    || String(a.id).localeCompare(String(b.id)));
+  return built.sort(eventOrder);
+}
+
+// Soonest day first, and on a day with two shows the earlier call first.
+// Sorting by id alone put a 5:00 PM game ahead of a 10:30 AM one.
+function eventCallMinutes(ev) {
+  let c = "";
+  try { c = callsFor(ev).call; } catch (e) { c = (ev && (ev.call || ev.callTime)) || ""; }
+  const m = String(c || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!m) return 24 * 60;
+  let h = Number(m[1]); const ap = (m[3] || "").toUpperCase();
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + Number(m[2]);
+}
+function eventOrder(a, b) {
+  return eventDateOf(a).localeCompare(eventDateOf(b))
+    || eventCallMinutes(a) - eventCallMinutes(b)
+    || String(a.id).localeCompare(String(b.id));
 }
 
 // Create an event straight onto the shift board.
@@ -5869,10 +5886,8 @@ function renderShiftsList(liveRoster) {
   const todayId = localDateId();
   const dayOf = (g) => String(g.id).split("__")[0];
   const evAll = allShiftEvents({ includeRemoved: admin && showRemovedEvents });
-  const upcomingEv = evAll.filter((g) => dayOf(g) >= todayId)
-    .sort((a, b) => dayOf(a).localeCompare(dayOf(b)) || String(a.id).localeCompare(String(b.id)));
-  const pastEv = evAll.filter((g) => dayOf(g) < todayId)
-    .sort((a, b) => dayOf(b).localeCompare(dayOf(a)) || String(a.id).localeCompare(String(b.id)));
+  const upcomingEv = evAll.filter((g) => eventDateOf(g) >= todayId).sort(eventOrder);
+  const pastEv = evAll.filter((g) => eventDateOf(g) < todayId).sort((a, b) => eventOrder(b, a));
   const shownEv = shiftsTab === "past" ? pastEv : upcomingEv;
   inner.innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:12px;">

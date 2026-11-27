@@ -439,6 +439,9 @@ function draft(e){
     if(c[0])e.crew[i]=c[0].id;
   });
 }
+// Same day: earlier call first, so a 10:30 AM show lists ahead of a 5:00 PM one.
+function callMin(ev){const m=String((ev&&ev.call)||'').trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);if(!m)return 1440;let h=+m[1];const ap=(m[3]||'').toUpperCase();if(ap==='PM'&&h<12)h+=12;if(ap==='AM'&&h===12)h=0;return h*60+ +m[2];}
+function byDayCall(a,b){return a.date.localeCompare(b.date)||callMin(a)-callMin(b)||String(a.id).localeCompare(String(b.id));}
 function draftAll(){EVENTS.filter(booked).sort((a,b)=>a.date.localeCompare(b.date)||T[b.type].pos.length-T[a.type].pos.length).forEach(draft);}
 
 /* ---------- week ---------- */
@@ -698,7 +701,7 @@ async function loadLive(){
     const seen={};
     out.forEach(ev=>ev.pos.forEach(p=>{if(!p.name)return;const k=ev.date+'|'+p.name.trim().toLowerCase();(seen[k]=seen[k]||new Set()).add(ev.id);}));
     out.forEach(ev=>{ev.dbl=[...new Set(ev.pos.filter(p=>p.name&&seen[ev.date+'|'+p.name.trim().toLowerCase()].size>1).map(p=>p.name))];});
-    out.sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
+    out.sort(byDayCall);
     LIVE={events:out,build:(html.match(/APP_BUILD\s*=\s*"([^"]+)"/)||[])[1]||''};liveErr='';liveAt=new Date();
   }catch(e){liveErr=(e&&e.message)||String(e);}
   finally{liveBusy=false;renderLive();}
@@ -824,7 +827,7 @@ function personalEvents(){
 }
 function allEvents(){
   const team=LIVE?LIVE.events:[];
-  return [...team,...personalEvents()].sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
+  return [...team,...personalEvents()].sort(byDayCall);
 }
 function sameDayTeam(e){return LIVE?LIVE.events.filter(x=>x.date===e.date):[];}
 function personalFlags(e){
