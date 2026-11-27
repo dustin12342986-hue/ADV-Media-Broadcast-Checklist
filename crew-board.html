@@ -488,10 +488,18 @@ function allEvents() {
 }
 
 // Mirrors callsFor(): a saved gameSettings record wins over the seed.
+// "17:00" from the call time picker shows as "5:00 PM", same as the app.
+function fmtCall(v) {
+  const m = String(v || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return String(v || "");
+  const h = Number(m[1]);
+  return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h >= 12 ? "PM" : "AM"}`;
+}
 function callsFor(ev) {
   const saved = S.gameSettings[ev.id];
-  if (saved) return { gameTime: saved.gameTime || "", call: saved.call || "" };
-  return { gameTime: ev.gameTime || "", call: ev.call || ev.callTime || "" };
+  const own = ev.call || ev.callTime || "";
+  if (saved) return { gameTime: fmtCall(saved.gameTime), call: fmtCall(saved.call || own) };
+  return { gameTime: fmtCall(ev.gameTime), call: fmtCall(own) };
 }
 
 function venueOf(ev) {
