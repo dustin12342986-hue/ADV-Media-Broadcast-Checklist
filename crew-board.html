@@ -515,9 +515,20 @@ function crewFor(ev) {
   return out;
 }
 
+// Two shows on one day run in call-time order, earliest first. Sorting by id
+// alone put a 5:00 PM football game ahead of a 10:30 AM playoff.
+function callMinutes(ev) {
+  const m = String(callsFor(ev).call || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!m) return 24 * 60;
+  let h = Number(m[1]); const ap = (m[3] || "").toUpperCase();
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + Number(m[2]);
+}
 function upcoming() {
   const today = localDateId();
-  return allEvents().filter((e) => !e.cancelled && eventDateOf(e) >= today);
+  return allEvents().filter((e) => !e.cancelled && eventDateOf(e) >= today)
+    .sort((a, b) => eventDateOf(a).localeCompare(eventDateOf(b)) || callMinutes(a) - callMinutes(b) || String(a.id).localeCompare(String(b.id)));
 }
 
 // ---------------------------------------------------------------------------
@@ -600,8 +611,15 @@ function bigTime(t) {
   return `${esc(n)}${s ? `<small>${esc(s)}</small>` : ""}`;
 }
 
+// One "Next call" slide for every show on the next show day, so a day with
+// two games puts both on the board.
 function slideNext() {
-  const ev = upcoming()[0];
+  const list = upcoming();
+  if (!list.length) return slideNextOne(null);
+  const day = eventDateOf(list[0]);
+  return list.filter((e) => eventDateOf(e) === day).map(slideNextOne);
+}
+function slideNextOne(ev) {
   if (!ev) {
     return `${back("ADV")}
       <div ${ani(0)}><div class="eyebrow">Next call</div></div>
@@ -915,7 +933,12 @@ const stage = document.getElementById("stage"), dotsEl = document.getElementById
 
 function build() {
   const keepName = current[idx] && current[idx].name;
-  current = SLIDES.map((fn) => { let h = null; try { h = fn(); } catch (e) { console.error(fn.name, e); } return h ? { name: fn.name, html: h } : null; }).filter(Boolean);
+  // A slide function can return a list (one "Next call" per show that day).
+  current = SLIDES.flatMap((fn) => {
+    let h = null; try { h = fn(); } catch (e) { console.error(fn.name, e); }
+    if (Array.isArray(h)) return h.filter(Boolean).map((x, i) => ({ name: fn.name + (i ? "-" + i : ""), html: x }));
+    return h ? [{ name: fn.name, html: h }] : [];
+  });
   const keep = current.findIndex((s) => s.name === keepName);
   idx = keep >= 0 ? keep : 0;
   // Same content as last time: leave the DOM alone so the entrance
