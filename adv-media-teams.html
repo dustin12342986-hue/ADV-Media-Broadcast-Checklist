@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-23 · v120 · Shifts upcoming and past tabs";
+const APP_BUILD = "build 2026-11-26 · v121 · Today shows every show today and tomorrow";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -4829,6 +4829,11 @@ function eventById(id) {
 // id, because the roster and call times are stored against that id forever.
 function eventOnDate(dateId) {
   return allShiftEvents().find((g) => eventDateOf(g) === dateId) || null;
+}
+// Every event on a day, not just the first. A Friday can carry two shows.
+function eventsOnDate(dateId) {
+  return allShiftEvents().filter((g) => eventDateOf(g) === dateId && !g.cancelled)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
 function allShiftEvents(opts) {
@@ -9562,10 +9567,12 @@ async function renderTodayView() {
   // show goes up 24 hours out so Directors and Producers can read it before
   // call time, and there's no point hiding the rest of the card behind that.
   await loadClientEvents();
-  let game = eventOnDate(todayId);
+  const todayEvs = eventsOnDate(todayId);
+  const tomorrowEvs = eventsOnDate(tomorrowId_);
+  let game = todayEvs[0] || eventOnDate(todayId);
   let isTomorrow = false;
   if (!game) {
-    game = eventOnDate(tomorrowId_);
+    game = tomorrowEvs[0] || eventOnDate(tomorrowId_);
     isTomorrow = true;
   }
   // The event's own id, not the bare date — a custom event stores its roster
@@ -9612,8 +9619,26 @@ async function renderTodayView() {
   // than not, and tomorrow's crew text goes out tonight. With a single card
   // there was no way to reach tomorrow's crew from here, because the lookahead
   // only ran when today was empty.
-  const nextGame = isTomorrow ? null : eventOnDate(tomorrowId_);
-  const nextCalls = nextGame ? callsFor(nextGame) : null;
+  // Every other event today and tomorrow gets its own card with its crew, so
+  // two shows on one day both show up here.
+  const extraEvs = [
+    ...todayEvs.filter((e) => e.id !== game.id).map((e) => ({ ev: e, when: "Today" })),
+    ...tomorrowEvs.filter((e) => e.id !== game.id).map((e) => ({ ev: e, when: "Tomorrow" })),
+  ];
+  const extras = await Promise.all(extraEvs.map(async ({ ev, when }) => {
+    let r = null;
+    try { r = (await db.ref(`liveRoster/${ev.id}`).once("value")).val(); } catch (e) { r = null; }
+    const c = callsFor(ev);
+    const rs = visibleRosterRows(rosterRowsFor(ev.id, r));
+    rs.forEach((x) => {
+      const t = callForRole(c, x.role);
+      if (t) {
+        x.call = fmtCall(t);
+        x.callEarly = !!(c.roleCalls[callKey(x.role)] && c.roleCalls[callKey(x.role)] !== c.call);
+      }
+    });
+    return { ev, when, calls: c, rows: rs, ros: rosSeedFor(ev.id) };
+  }));
 
   inner.innerHTML = `
     <div id="sigGateHost"></div>
@@ -9651,28 +9676,50 @@ async function renderTodayView() {
       </div>
     `).join("")}
 
-    ${nextGame ? `
+    ${extras.map((x) => {
+      const open = x.rows.filter((r) => r.open).length;
+      return `
       <div class="shift-game-card" style="margin-top:18px;">
         <div class="shift-game-header">
-          Tomorrow — ${escapeHtml(nextGame.day)} ${escapeHtml(nextGame.date)} — ${escapeHtml(nextGame.opp)}
+          ${x.when} — ${escapeHtml(x.ev.day)} ${escapeHtml(x.ev.date)} — ${escapeHtml(x.ev.opp)}
         </div>
-        ${nextCalls.gameTime || nextCalls.call ? `
+        ${x.calls.gameTime || x.calls.call ? `
           <div class="call-time">
-            ${nextCalls.gameTime ? `Kickoff ${escapeHtml(fmtCall(nextCalls.gameTime))}` : ""}
-            ${nextCalls.gameTime && nextCalls.call ? " · " : ""}
-            ${nextCalls.call ? `Call ${escapeHtml(fmtCall(nextCalls.call))}` : ""}
+            ${x.calls.gameTime ? `Kickoff ${escapeHtml(fmtCall(x.calls.gameTime))}` : ""}
+            ${x.calls.gameTime && x.calls.call ? " · " : ""}
+            ${x.calls.call ? `Call ${escapeHtml(fmtCall(x.calls.call))}` : ""}
           </div>` : ""}
+        ${x.ev.venue ? `<div class="footnote">${escapeHtml(x.ev.venue)}</div>` : ""}
+        ${x.ros ? `<button class="ros-btn" data-rosopen="${escapeAttr(x.ev.id)}">📋 Run of Show</button>` : ""}
         ${isAdmin() ? `
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <button class="shift-btn" data-todaytext="${escapeAttr(nextGame.id)}"
-              style="flex:1; min-width:140px; padding:11px 0;">📱 Text tomorrow's crew</button>
-            <button class="shift-btn shift-btn-ghost" data-todayremind="${escapeAttr(nextGame.id)}"
+            <button class="shift-btn" data-todaytext="${escapeAttr(x.ev.id)}"
+              style="flex:1; min-width:140px; padding:11px 0;">📱 Text ${x.when === "Tomorrow" ? "tomorrow's " : ""}crew</button>
+            <button class="shift-btn shift-btn-ghost" data-todayremind="${escapeAttr(x.ev.id)}"
               style="flex:1; min-width:140px; padding:11px 0;">Remind who hasn't confirmed</button>
-          </div>` : `
-          <div class="footnote" style="margin-top:8px;">Up next after today.</div>`}
-      </div>` : ""}
+            ${open ? `<button class="shift-btn shift-btn-ghost" data-todayalert="${escapeAttr(x.ev.id)}"
+              style="flex:1 1 100%; padding:11px 0;">Alert the crew to ${open} open spot${open === 1 ? "" : "s"}</button>` : ""}
+          </div>` : ""}
+      </div>
+      <div class="footnote" style="margin:14px 0 8px;">
+        Working ${x.when.toLowerCase()} (${x.rows.length - open})${open ? ` · ${open} open` : ""}
+      </div>
+      ${x.rows.map((r) => `
+        <div class="shift-row">
+          <div class="shift-role">${roleLabelHtml(r.role)}</div>
+          <div class="shift-status ${r.open ? "shift-open" : ""}">${escapeHtml(r.name)}</div>
+          ${r.call ? `<div class="row-call ${r.callEarly ? "row-call-early" : ""}">${escapeHtml(r.call)}</div>` : ""}
+        </div>`).join("")}`;
+    }).join("")}
   `;
 
+  document.querySelectorAll("[data-rosopen]").forEach((b) => {
+    b.onclick = () => {
+      rosState.gameId = b.getAttribute("data-rosopen");
+      mainState.view = "runofshow";
+      renderMainApp();
+    };
+  });
   if (ros) {
     document.getElementById("rosOpenBtn").onclick = () => {
       rosState.gameId = gameId;
