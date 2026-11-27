@@ -1585,7 +1585,7 @@ function renderPendingApproval() {
 // Bumped by hand whenever this file changes. Rendered at the bottom of every
 // screen so there's never any doubt about which upload is actually live —
 // stale copies in Downloads have cost hours before.
-const APP_BUILD = "build 2026-11-26 · v121 · Today shows every show today and tomorrow";
+const APP_BUILD = "build 2026-11-26 · v122 · call times for added events";
 
 // The stadium signal finder. One file, same as everything else here: the
 // eighty sheets and the panel artwork are inlined in it, so there is no folder
@@ -6733,16 +6733,20 @@ function rolesForEvent(gameId) {
 function callsFor(game) {
   if (!game) return { gameTime: "", call: "", roleCalls: {} };
   const saved = gameSettings[game.id];
+  // An event added on Shifts keeps its call time on the event itself
+  // (callTime), not in gameSettings. Without this fallback Today, the crew
+  // text and every row showed no call time for those events.
+  const own = game.call || game.callTime || "";
   if (saved) {
     return {
       gameTime: saved.gameTime || "",
-      call: saved.call || "",
+      call: saved.call || own,
       roleCalls: normaliseRoleCalls(saved.roleCalls),
     };
   }
   return {
     gameTime: game.gameTime || "",
-    call: game.call || "",
+    call: own,
     roleCalls: normaliseRoleCalls(game.roleCalls),
   };
 }
