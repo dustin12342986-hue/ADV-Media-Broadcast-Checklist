@@ -307,21 +307,38 @@ async function loadClientEventsTC() {
 // The positions an event has. An added event carries its own list, so a
 // Stagehand can pick "Stagehand 2" rather than being stuck with the football
 // crew list.
+// Camera Lead is on every event's list, added ones included, placed just
+// ahead of the first camera spot.
 function positionsFor(gameId) {
   const ev = eventByIdTC(gameId);
-  if (ev && Array.isArray(ev.roles) && ev.roles.length) return ev.roles;
-  return POSITION_LABELS;
+  const list = ev && Array.isArray(ev.roles) && ev.roles.length ? ev.roles.slice() : POSITION_LABELS.slice();
+  if (!list.some((r) => /^camera lead$/i.test(String(r).trim()))) {
+    const at = list.findIndex((r) => /^cam(era)?\b/i.test(String(r).trim()));
+    list.splice(at < 0 ? list.length : at, 0, "Camera Lead");
+  }
+  return list;
 }
 
 function allEvents() {
   const out = GAMES.slice();
   Object.entries(CLIENT_EVENTS).forEach(([id, ev]) => {
     if (!ev) return;
-    out.push({ id, day: ev.day || "", date: ev.date || "", opp: ev.name || "Event",
-               client: ev.client || "Client", venue: ev.venue || "",
+    if (ev.removed) return;
+    out.push({ id, day: ev.day || "", date: ev.date || "", opp: (ev.name || "Event") + (ev.cancelled ? " (cancelled)" : ""),
+               client: ev.client || "Client", venue: ev.venue || "", cancelled: !!ev.cancelled,
                callTime: ev.callTime || "", roles: ev.roles || null });
   });
-  return out.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  // Soonest day first; two shows on one day go earliest call first.
+  const mins = (g) => {
+    const m = String(g.callTime || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+    if (!m) return 1440;
+    let h = Number(m[1]); const ap = (m[3] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    return h * 60 + Number(m[2]);
+  };
+  const day = (g) => String(g.id).split("__")[0];
+  return out.sort((a, b) => day(a).localeCompare(day(b)) || mins(a) - mins(b) || String(a.id).localeCompare(String(b.id)));
 }
 
 function eventByIdTC(id) {
@@ -509,7 +526,10 @@ async function initFirebaseAndBoot() {
   // The state's game is re-chosen at the same time, in case the soonest thing
   // on the calendar is an added event rather than a football game.
   await loadClientEventsTC();
-  if (!state.gameId || !eventByIdTC(state.gameId)) state.gameId = nextUpcomingGameId();
+  // Before the added events loaded, the soonest thing it knew about was the
+  // last football game (Red Oak 11/5), so it stuck there. Pick again now,
+  // unless the person already chose one.
+  if (!state.gameId || !eventByIdTC(state.gameId) || !state.pickedByHand) state.gameId = nextUpcomingGameId();
   populateGameSelect();
   updateTabs();
   renderView();
@@ -545,7 +565,7 @@ function dbListen(path, cb) {
 function nextUpcomingGameId() {
   const today = new Date(); today.setHours(0,0,0,0);
   const all = allEvents();
-  for (const g of all) { if (new Date(String(g.id).split("__")[0] + "T00:00:00") >= today) return g.id; }
+  for (const g of all) { if (!g.cancelled && new Date(String(g.id).split("__")[0] + "T00:00:00") >= today) return g.id; }
   return all[all.length - 1].id;
 }
 
@@ -570,7 +590,7 @@ function populateGameSelect() {
   const sel = document.getElementById("gameSelect");
   sel.innerHTML = allEvents().map((g) => `<option value="${g.id}">${g.day} ${g.date} — ${g.opp}</option>`).join("");
   sel.value = state.gameId;
-  sel.onchange = () => { state.gameId = sel.value; state.justClockedIn = false; renderView(); };
+  sel.onchange = () => { state.gameId = sel.value; state.pickedByHand = true; state.justClockedIn = false; renderView(); };
 
   const dashBtn = document.getElementById("dashLinkBtn");
   dashBtn.href = CHECKLIST_APP_URL + "?view=dashboard&game=" + encodeURIComponent(state.gameId);
@@ -710,6 +730,9 @@ function renderClockUI(entries) {
     state.name = e.target.value;
     document.getElementById("clockInBtn").disabled = !state.name.trim();
   };
+  // When the remembered position isn't on this event's list, the picker shows
+  // its first entry; keep state in step so the clock-in matches what's shown.
+  state.position = document.getElementById("positionSelect").value || state.position;
   document.getElementById("positionSelect").onchange = (e) => { state.position = e.target.value; };
   document.getElementById("clockInBtn").onclick = async () => {
     if (!state.name.trim()) return;
@@ -899,6 +922,7 @@ function renderInvoiceUI(entries) {
   const submitBtn = document.getElementById("invoiceSubmitBtn");
 
   nameEl.oninput = (e) => { state.name = e.target.value; };
+  state.position = posEl.value || state.position;
   posEl.onchange = (e) => { state.position = e.target.value; };
   const rateReadout = document.getElementById("invRateReadout");
   const rainCheck = document.getElementById("invRainCheck");
