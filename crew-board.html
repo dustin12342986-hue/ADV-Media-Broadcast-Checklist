@@ -426,6 +426,15 @@ const OVERRIDABLE = ["opp", "day", "date", "eventDate", "venue", "gameTime", "ca
 
 const TV = /[?&]tv=1\b/.test(location.search);
 if (TV) document.body.classList.add("tv");
+// Crew open the app to Today, not the board. Some installs still start on
+// this page, so on a phone, or in an installed app, go straight to Teams.
+// The main screens use ?tv=1 (or are wider than a phone) and stay here.
+(function sendCrewToToday() {
+  if (TV || /[?&]board=1\b/.test(location.search)) return;
+  const installed = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const phone = Math.min(screen.width || 9999, screen.height || 9999) < 700;
+  if (installed || phone) location.replace(APP_URL);
+})();
 document.getElementById("enterBtn").href = APP_URL;
 
 firebase.initializeApp(FIREBASE_CONFIG);
