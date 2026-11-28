@@ -326,7 +326,7 @@ function allEvents() {
     if (ev.removed) return;
     out.push({ id, day: ev.day || "", date: ev.date || "", opp: (ev.name || "Event") + (ev.cancelled ? " (cancelled)" : ""),
                client: ev.client || "Client", venue: ev.venue || "", cancelled: !!ev.cancelled,
-               callTime: ev.callTime || "", roles: ev.roles || null });
+               callTime: ev.callTime || "", endTime: ev.endTime || "", roles: ev.roles || null });
   });
   // Soonest day first; two shows on one day go earliest call first.
   const mins = (g) => {
@@ -565,7 +565,19 @@ function dbListen(path, cb) {
 function nextUpcomingGameId() {
   const today = new Date(); today.setHours(0,0,0,0);
   const all = allEvents();
-  for (const g of all) { if (!g.cancelled && new Date(String(g.id).split("__")[0] + "T00:00:00") >= today) return g.id; }
+  // A show today whose end time has passed is skipped, so at 6 PM the clock
+  // opens on the night game, not the morning one.
+  const now = new Date();
+  const ended = (g) => {
+    const m = String(g.endTime || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+    if (!m) return false;
+    let h = Number(m[1]); const ap = (m[3] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    const end = new Date(String(g.id).split("__")[0] + "T00:00:00"); end.setHours(h, Number(m[2]) + 30);
+    return end < now;
+  };
+  for (const g of all) { if (!g.cancelled && !ended(g) && new Date(String(g.id).split("__")[0] + "T00:00:00") >= today) return g.id; }
   return all[all.length - 1].id;
 }
 
